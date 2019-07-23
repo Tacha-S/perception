@@ -538,8 +538,8 @@ void EnvObjectRecognition::GetSuccs(int source_state_id,
   if (perch_params_.print_expanded_states) {
     string fname = debug_dir_ + "expansion_depth_" + to_string(source_state_id) + ".png";
     string cname = debug_dir_ + "expansion_color_" + to_string(source_state_id) + ".png";
-    // PrintState(source_state_id, fname, cname);
-    PrintState(source_state_id, fname);
+    PrintState(source_state_id, fname, cname);
+    // PrintState(source_state_id, fname);
   }
 
   vector<int> candidate_succ_ids, candidate_costs;
@@ -1496,7 +1496,7 @@ int EnvObjectRecognition::GetCost(const GraphState &source_state,
 
   if (IsMaster(mpi_comm_)) {
     if (image_debug_) {
-      PrintPointCloud(cloud_in, 1, render_point_cloud_topic);
+      // PrintPointCloud(cloud_in, 1, render_point_cloud_topic);
     }
   }
   // Align with ICP
@@ -1579,7 +1579,7 @@ int EnvObjectRecognition::GetCost(const GraphState &source_state,
 
   if (IsMaster(mpi_comm_)) {
     if (image_debug_) {
-      PrintPointCloud(cloud_out, 1, render_point_cloud_topic);
+      // PrintPointCloud(cloud_out, 1, render_point_cloud_topic);
     }
   }
   // Cache the min and max depths
@@ -2505,30 +2505,26 @@ void EnvObjectRecognition::PrintState(GraphState s, string fname, string cfname)
 
   printf("Num objects: %zu\n", s.NumObjects());
   std::cout << s << std::endl;
-  kUseColorCost = true; 
-
-  if (kUseColorCost == false) 
+  bool kUseColorCostOriginal = kUseColorCost;
+  if (!kUseColorCost) 
   {
-    vector<unsigned short> depth_image;
-    GetDepthImage(s, &depth_image);
-    PrintImage(fname, depth_image);
+    kUseColorCost = true; 
   }
-  else 
-  {
-    vector<unsigned short> depth_image;
-    cv::Mat cv_depth_image, cv_color_image;
-    vector<vector<unsigned char>> color_image;
-    int num_occluders = 0;
+  
+  vector<unsigned short> depth_image;
+  cv::Mat cv_depth_image, cv_color_image;
+  vector<vector<unsigned char>> color_image;
+  int num_occluders = 0;
 
-    GetDepthImage(s, &depth_image, &color_image,
-                  cv_depth_image, cv_color_image, &num_occluders, false);
-    // cv::imwrite(fname.c_str(), cv_depth_image);
-    PrintImage(fname, depth_image);
-    cv::imwrite(cfname.c_str(), cv_color_image);
-    // PrintImage(fname, depth_image);
-    // PrintImage(cfname, color_image);    
-  }
-  kUseColorCost = false; 
+  GetDepthImage(s, &depth_image, &color_image,
+                cv_depth_image, cv_color_image, &num_occluders, false);
+  // cv::imwrite(fname.c_str(), cv_depth_image);
+  PrintImage(fname, depth_image);
+  cv::imwrite(cfname.c_str(), cv_color_image);
+  // PrintImage(fname, depth_image);
+  // PrintImage(cfname, color_image);    
+  
+  kUseColorCost = kUseColorCostOriginal; 
   return;
 }
 
