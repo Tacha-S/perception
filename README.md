@@ -15,6 +15,7 @@ Setup
 1. Get ROS Indigo from http://wiki.ros.org/indigo/Installation/Ubuntu
 2. Set up a catkin workspace ~/my_workspace (http://wiki.ros.org/catkin/Tutorials/create_a_workspace).
 3. Download the <a href="https://raw.githubusercontent.com/venkatrn/perception/master/perch.rosinstall" download="perch.rosinstall">rosinstall file</a> to your workspace.
+(need to install opencv 2.4 if not already)
 
 ```bash
 cd ~/my_workspace
