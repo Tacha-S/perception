@@ -40,6 +40,7 @@ conda activate maskrcnn_benchmark
  pip install pillow
  pip install scikit-image
  pip install git+git://github.com/waspinator/coco.git@2.1.0
+ pip install git+git://github.com/waspinator/pycococreator.git@0.2.0
  pip install dipy
  pip install glumpy
  conda install pyopengl
