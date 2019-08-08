@@ -53,6 +53,7 @@ conda activate maskrcnn_benchmark
  4. Create a catkin workspace and clone into src folder :
  ```
  https://github.com/SBPL-Cruz/improved-mha-planner
+ https://github.com/venkatrn/sbpl_utils.git
  ```
  
 
