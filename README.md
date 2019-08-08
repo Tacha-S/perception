@@ -55,5 +55,9 @@ conda activate maskrcnn_benchmark
  https://github.com/SBPL-Cruz/improved-mha-planner
  https://github.com/venkatrn/sbpl_utils.git
  ```
+ 5. Install gsl library :
+ ```
+ sudo apt-get install libgsl-dev
+ ```
  
 
