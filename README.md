@@ -50,5 +50,9 @@ conda activate maskrcnn_benchmark
  pip install python-pcl
  pip install defusedxml
  ```
+ 4. Create a catkin workspace and clone into src folder :
+ ```
+ https://github.com/SBPL-Cruz/improved-mha-planner
+ ```
  
 
