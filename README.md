@@ -59,5 +59,5 @@ conda activate maskrcnn_benchmark
  ```
  sudo apt-get install libgsl-dev
  ```
- 
+ 6. Install opencv 2.4 - https://docs.opencv.org/2.4/doc/tutorials/introduction/linux_install/linux_install.html
 
