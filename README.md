@@ -52,12 +52,12 @@ conda activate maskrcnn_benchmark
  ```
  4. Create a catkin workspace and clone into src folder :
  ```
- https://github.com/SBPL-Cruz/improved-mha-planner
- https://github.com/venkatrn/sbpl_utils.git
+ https://github.com/SBPL-Cruz/improved-mha-planner -b renamed
+ https://github.com/SBPL-Cruz/sbpl_utils.git -b renamed
  ```
  5. Install gsl library :
  ```
  sudo apt-get install libgsl-dev
  ```
  6. Install opencv 2.4 - https://docs.opencv.org/2.4/doc/tutorials/introduction/linux_install/linux_install.html
-
+ 7. Create a workspace to build ROS packages in Python 3 - https://github.com/SBPL-Cruz/ros_python3_ws
