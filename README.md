@@ -49,6 +49,7 @@ conda activate maskrcnn_benchmark
  pip install rospkg
  pip install python-pcl
  pip install defusedxml
+ pip install plyfile
  ```
  4. Create a catkin workspace and clone into src folder :
  ```
@@ -61,3 +62,5 @@ conda activate maskrcnn_benchmark
  ```
  6. Install opencv 2.4 - https://docs.opencv.org/2.4/doc/tutorials/introduction/linux_install/linux_install.html
  7. Create a workspace to build ROS packages in Python 3 - https://github.com/SBPL-Cruz/ros_python3_ws
+ 8. Change MPI path in perch.py and ROS Python3 package paths in fat_pose_image.py
+ 9. Change dataset paths
