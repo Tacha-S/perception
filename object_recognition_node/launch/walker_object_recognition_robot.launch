@@ -4,6 +4,8 @@
 
   <arg name="image_debug" default="true" />
   <arg name="urdf" default="false" />
+  <arg name="table" default="false" />
+  <arg name="realsense" default="false"/>
 
   <arg name="debug" default="false" />
   <arg unless="$(arg debug)" name="launch_prefix" value="" />
@@ -11,6 +13,15 @@
 
   <include file="$(find sbpl_perception)/config/roman_objects.xml"/>
 
+  <group if="$(arg table)">
+    <include file="$(find obj_recognition)/launch/robot_perception.launch" />
+  </group>
+
+  <group if="$(arg realsense)">
+    <include file="$(find realsense2_camera)/launch/rs_rgbd.launch">
+      <arg name="camera" value="top_chest_camera"/>
+    </include>
+  </group>
 
   <group if="$(arg urdf)">
       <include file="$(find roman_model)/robots/upload_rcta_roman.launch" />
@@ -22,7 +33,7 @@
   <rosparam command="load" file="$(find sbpl_perception)/config/walker_planner_config.yaml" />
   <rosparam command="load" file="$(find sbpl_perception)/config/roman_camera_config.yaml" />
 
-  <node pkg="object_recognition_node" type="object_localizer" name="object_localizer_service" output="screen" launch-prefix="mpirun -n 4 --mca mpi_yield_when_idle 1" respawn="false">
+  <node pkg="object_recognition_node" type="object_localizer" name="object_localizer_service" output="screen" launch-prefix="mpirun -n 6 --mca mpi_yield_when_idle 1" respawn="false">
       <param name="image_debug" value="$(arg image_debug)"/>
       <param name="use_external_render" value="0"/>
       <param name="use_external_pose_list" value="0"/>
@@ -33,7 +44,7 @@
   <node pkg="object_recognition_node" type="obj_rec_node" name="object_recognition_node" output="screen" launch-prefix="$(arg launch_prefix)" respawn="false">
     <!-- <remap from="/keypress_topic" to="/obj_recognition_keyboard_listener/keydown"/> -->
     <!-- <remap from="input_cloud" to="/roman1/center_realsense/depth_registered/points"/> -->
-    <remap from="input_cloud" to="/head_camera/depth_registered/points"/>
+    <remap from="input_cloud" to="/top_chest_camera/depth_registered/points"/>
     <param name="pcl_visualization" value="false"/>
     <param name="use_external_render" value="0"/>
     <param name="use_external_pose_list" value="0"/>
@@ -42,7 +53,7 @@
 
     <!-- <param name="table_height" value="1.127"/> <!&#45;&#45;1.13&#45;&#45;> -->
 
-    <param name="table_height" value="0.70"/> <!--1.13-->
+    <param name="table_height" value="0.7"/> <!--1.13-->
     <param name="zmax" value="0.80"/> <!--1.13-->
     <!-- <param name="xmin" value="1.0"/>
     <param name="xmax" value="1.15"/>
@@ -50,14 +61,14 @@
     <param name="ymax" value="0.3"/> -->
 
     <!--  Crate -->
-    <param name="xmin" value="0.0"/> <!--1.13-->
+    <param name="xmin" value="0.10"/> <!--1.13-->
     <param name="xmax" value="0.60"/> <!--1.13-->
-    <param name="ymin" value="-0.60"/> <!--1.13-->
-    <param name="ymax" value="0.60"/> <!--1.13-->
+    <param name="ymin" value="-0.20"/> <!--1.13-->
+    <param name="ymax" value="0.20"/> <!--1.13-->
 
     <param name="reference_frame" value="map"/>
-    <param name="camera_optical_frame" value="head_camera_color_optical_frame"/>
-    <param name="camera_frame" value="head_camera_depth_frame"/>
+    <param name="camera_optical_frame" value="top_chest_camera_color_optical_frame"/>
+    <param name="camera_frame" value="top_chest_camera_depth_frame"/>
     <!-- <param name="camera_frame" value="/roman1/center_realsense_depth_frame"/> -->
   </node>
 

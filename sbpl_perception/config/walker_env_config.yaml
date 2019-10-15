@@ -1,6 +1,6 @@
 search_resolution_translation: 0.07 # m 0.04
 search_resolution_yaw: 0.2526991 # rad
-mesh_in_mm: true
+mesh_in_mm: false
 mesh_scaling_factor: 0.6
 # use_external_render : 0
 # use_external_pose_list : 0

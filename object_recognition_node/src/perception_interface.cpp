@@ -449,6 +449,7 @@ void PerceptionInterface::CloudCBInternal(const PointCloudPtr
       // TODO: generalize to mutliple objects
       if (ii == 0) {
         pose_pub_.publish(msg);
+        ros::param::set("perch_done", 1);
       }
     }
 
