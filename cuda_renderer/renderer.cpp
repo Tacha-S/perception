@@ -1,4 +1,4 @@
-#include "renderer.h"
+#include "./include/cuda_renderer/renderer.h"
 #include <assert.h>
 
 using namespace cuda_renderer;
@@ -44,7 +44,7 @@ void cuda_renderer::Model::LoadModel(const std::string &fileName)
     recursive_render(scene, scene->mRootNode);
 
     get_bounding_box(bbox_min, bbox_max);
-
+    std::cout<<bbox_max.x;
     aiReleaseImport(scene);
 
     std::cout << "load model success    " <<                 std::endl;

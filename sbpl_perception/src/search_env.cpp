@@ -38,6 +38,8 @@
 #include <algorithm>
 #include <pcl/point_cloud.h>
 #include <pcl/octree/octree_pointcloud_changedetector.h>
+#include <iostream>
+#include <fstream>
 using namespace std;
 using namespace perception_utils;
 using namespace pcl::simulation;
@@ -198,6 +200,7 @@ EnvObjectRecognition::EnvObjectRecognition(const
     printf("Camera CX: %f\n", kCameraCX);
     printf("Camera CY: %f\n", kCameraCY);
     env_params_.cam_intrinsic=(cv::Mat_<float>(3,3) << kCameraFX, 0.0, kCameraCX, 0.0, kCameraFY, kCameraCY, 0.0, 0.0, 1.0);
+    env_params_.cam_intrinsic_eigen << kCameraFX, 0.0, kCameraCX,0.0, 0.0, kCameraFY, kCameraCY,0.0, 0.0, 0.0, 1.0,0.0,0.0,0.0,0.0,0.0;
     env_params_.width = 960;
     env_params_.height = 540;
     env_params_.proj_mat = cuda_renderer::compute_proj(env_params_.cam_intrinsic, env_params_.width, env_params_.height);
@@ -875,27 +878,115 @@ int EnvObjectRecognition::GetBestSuccessorID(int state_id) {
 void EnvObjectRecognition::ComputeCostsInParallel(std::vector<CostComputationInput> &input,
                                                   std::vector<CostComputationOutput> *output,
                                                   bool lazy) {
+  std::map<std::string,cv::Mat> mymap;
+  std::vector<cv::Mat> bounding_points;
+  cuda_renderer::Model model = render_models_[0];
+  cv::Mat p1 = (cv::Mat_<float>(4,1) << model.bbox_min.x,model.bbox_min.y,model.bbox_min.z,1);
+  cv::Mat p2 = (cv::Mat_<float>(4,1) << model.bbox_max.x,model.bbox_min.y,model.bbox_min.z,1);
+  cv::Mat p3 = (cv::Mat_<float>(4,1) << model.bbox_min.x,model.bbox_max.y,model.bbox_min.z,1);
+  cv::Mat p4 = (cv::Mat_<float>(4,1) << model.bbox_max.x,model.bbox_max.y,model.bbox_min.z,1);
+  cv::Mat p5 = (cv::Mat_<float>(4,1) << model.bbox_min.x,model.bbox_min.y,model.bbox_max.z,1);
+  cv::Mat p6 = (cv::Mat_<float>(4,1) << model.bbox_max.x,model.bbox_min.y,model.bbox_max.z,1);
+  cv::Mat p7 = (cv::Mat_<float>(4,1) << model.bbox_min.x,model.bbox_max.y,model.bbox_max.z,1);
+  cv::Mat p8 = (cv::Mat_<float>(4,1) << model.bbox_max.x,model.bbox_max.y,model.bbox_max.z,1);
+  bounding_points.push_back(p1);
+  bounding_points.push_back(p2);
+  bounding_points.push_back(p3);
+  bounding_points.push_back(p4);
+  bounding_points.push_back(p5);
+  bounding_points.push_back(p6);
+  bounding_points.push_back(p7);
+  bounding_points.push_back(p8);
+  // std::vector<float> gpu_bb;
+  // gpu_bb.push_back(model.bbox_min.x);gpu_bb.push_back(model.bbox_min.y);gpu_bb.push_back(model.bbox_min.z);
+  // gpu_bb.push_back(model.bbox_max.x);gpu_bb.push_back(model.bbox_min.y);gpu_bb.push_back(model.bbox_min.z);
+  // gpu_bb.push_back(model.bbox_min.x);gpu_bb.push_back(model.bbox_max.y);gpu_bb.push_back(model.bbox_min.z);
+  // gpu_bb.push_back(model.bbox_max.x);gpu_bb.push_back(model.bbox_max.y);gpu_bb.push_back(model.bbox_min.z);
+  // gpu_bb.push_back(model.bbox_min.x);gpu_bb.push_back(model.bbox_min.y);gpu_bb.push_back(model.bbox_max.z);
+  // gpu_bb.push_back(model.bbox_max.x);gpu_bb.push_back(model.bbox_min.y);gpu_bb.push_back(model.bbox_max.z);
+  // gpu_bb.push_back(model.bbox_min.x);gpu_bb.push_back(model.bbox_max.y);gpu_bb.push_back(model.bbox_max.z);
+  // gpu_bb.push_back(model.bbox_max.x);gpu_bb.push_back(model.bbox_max.y);gpu_bb.push_back(model.bbox_max.z);
+  // std::vector<float> cam_r1;
+  // std::vector<float> cam_r2;
+  // std::vector<float> cam_r3;
+  // Eigen::Isometry3d cam_z_front1;
+  // Eigen::Isometry3d cam_to_body1;
+  // cam_to_body1.matrix() << 0, 0, 1, 0,
+  //                   -1, 0, 0, 0,
+  //                   0, -1, 0, 0,
+  //                   0, 0, 0, 1;
+  // cam_z_front1 = cam_to_world_ * cam_to_body1;
+  // Eigen::Matrix4d cam_matrix1 =cam_z_front1.matrix().inverse();
+  // Eigen::Matrix4d gpu_cam = env_params_.cam_intrinsic_eigen*cam_matrix1;
+  // cam_r1.push_back(gpu_cam(0,0));cam_r1.push_back(gpu_cam(0,1));cam_r1.push_back(gpu_cam(0,2));cam_r1.push_back(gpu_cam(0,3));
+  // cam_r2.push_back(gpu_cam(1,0));cam_r2.push_back(gpu_cam(1,1));cam_r2.push_back(gpu_cam(1,2));cam_r2.push_back(gpu_cam(1,3));
+  // cam_r3.push_back(gpu_cam(2,0));cam_r3.push_back(gpu_cam(2,1));cam_r3.push_back(gpu_cam(2,2));cam_r3.push_back(gpu_cam(2,3));
+  // std::vector<std::vector<float> > gpu_cam_m;
+  // gpu_cam_m.push_back(cam_r1);
+  // gpu_cam_m.push_back(cam_r2);
+  // gpu_cam_m.push_back(cam_r3);
+  std::vector<uint8_t> r_v;
+  std::vector<uint8_t> g_v;
+  std::vector<uint8_t> b_v;
+  for (int y = 0; y < env_params_.height; y++) {
+    for (int x = 0; x < env_params_.width; x++) {
+        cv::Vec3b elem = cv_input_color_image.at<cv::Vec3b>(y, x);
+        r_v.push_back(elem[2]);
+        g_v.push_back(elem[1]);
+        b_v.push_back(elem[0]);
+        
+    }
+  }
+  std::vector<std::vector<uint8_t>> observed;
+  observed.push_back(r_v);
+  observed.push_back(g_v);
+  observed.push_back(b_v);
+  float res = 0.02;
+  // std::vector<std::vector<int> > test =  hist_prioritize::compare_hist(env_params_.x_min,env_params_.x_max,
+  //                                                                     env_params_.y_min,env_params_.y_max,
+  //                                                                     0,2 * M_PI,
+  //                                                                     res,env_params_.theta_res,
+  //                                                                     observed,gpu_cam_m,gpu_bb);
   std::cout << "Computing costs in parallel" << endl;
   std::vector<cuda_renderer::Model::mat4x4> mat4_v;
+  std::vector<std::vector<std::vector<float> > > bounding_boxes;
   std::vector<ContPose> contposes;
+
+  Eigen::Isometry3d cam_z_front;
+  Eigen::Isometry3d cam_to_body;
+  cam_to_body.matrix() << 0, 0, 1, 0,
+                    -1, 0, 0, 0,
+                    0, -1, 0, 0,
+                    0, 0, 0, 1;
+  cam_z_front = cam_to_world_ * cam_to_body;
+  
+  Eigen::Matrix4d cam_matrix =cam_z_front.matrix().inverse();
+
   for(int i =0; i <input.size(); i ++){
     std::vector<ObjectState> objects = input[i].child_state.object_states();
+    
     for(int n=0; n < objects.size();n++){
+      std::vector<std::vector<float> >  bounding_box;
       ContPose cur = objects[n].cont_pose();
       contposes.push_back(cur);
       // std::cout<<cur<<std::endl;
       Eigen::Matrix4d transform;
+      cur = ContPose(cur.x(),cur.y(),cur.z()+0.0480247,cur.roll(),cur.pitch(),cur.yaw());
+      // cur = ContPose(0.1843,-0.2477,cur.z()-0.0059325,cur.roll(),cur.pitch(),cur.yaw());             
       transform = cur.ContPose::GetTransform().matrix().cast<double>();
-      Eigen::Isometry3d cam_z_front;
-      Eigen::Isometry3d cam_to_body;
-      cam_to_body.matrix() << 0, 0, 1, 0,
-                        -1, 0, 0, 0,
-                        0, -1, 0, 0,
-                        0, 0, 0, 1;
-      cam_z_front = cam_to_world_ * cam_to_body;
+      // Eigen::Isometry3d cam_z_front;
+      // Eigen::Isometry3d cam_to_body;
+      // cam_to_body.matrix() << 0, 0, 1, 0,
+      //                   -1, 0, 0, 0,
+      //                   0, -1, 0, 0,
+      //                   0, 0, 0, 1;
+      // cam_z_front = cam_to_world_ * cam_to_body;
       
-      Eigen::Matrix4d cam_matrix =cam_z_front.matrix().inverse();
+      // Eigen::Matrix4d cam_matrix =cam_z_front.matrix().inverse();
       Eigen::Matrix4d pose_in_cam = cam_matrix*transform;
+      if(cur.x()==0.15 &&cur.y()==-0.26&&cur.yaw()==1){
+        std::cout<<transform<<std::endl;
+      }
       // std::cout<<transform<<std::endl;
       // std::cout<<cam_matrix<<std::endl;
       cuda_renderer::Model::mat4x4 mat4;
@@ -916,11 +1007,28 @@ void EnvObjectRecognition::ComputeCostsInParallel(std::vector<CostComputationInp
       mat4.d1 = pose_in_cam(3,1);
       mat4.d2 = pose_in_cam(3,2);
       mat4.d3 = pose_in_cam(3,3);
-      // std::cout<<mat4.a0<<", "<<mat4.a1<<", "<<mat4.a2<<", "<<mat4.a3<<", "
-      // <<mat4.b0<<", "<<mat4.b1<<", "<<mat4.b2<<", "<<mat4.b3<<", "
-      // <<mat4.c0<<", "<<mat4.c1<<", "<<mat4.c2<<", "<<mat4.c3<<", "
-      // <<mat4.d0<<", "<<mat4.d1<<", "<<mat4.d2<<", "<<mat4.d3<<"\n";
+      cv::Mat trans = (cv::Mat_<float>(3,4) << mat4.a0, mat4.a1, mat4.a2,mat4.a3,
+                                           mat4.b0, mat4.b1, mat4.b2,mat4.b3,
+                                           mat4.c0, mat4.c1, mat4.c2,mat4.c3);
+      for(int i =0; i <8; i ++){
+        std::vector<float> v;
+        cv::Mat pt = env_params_.cam_intrinsic*trans*bounding_points[i];
+        v.push_back(pt.at<float>(0, 0)/pt.at<float>(2, 0));
+        v.push_back(pt.at<float>(1, 0)/pt.at<float>(2, 0));
+        // if(cur.x()==0.15 &&cur.y()==-0.26&&cur.yaw()==0){
+        //   std::cout<<cur.x()<<","<<cur.y()<<","<<cur.yaw()<<std::endl;
+        //   std::cout<<trans;
+        //   // std::cout<<bounding_points[i];
+        //   std::cout<<pt.at<float>(0, 0)<<","<<pt.at<float>(1, 0)<<"\n";
+
+        // }
+        
+        // std::cout<<pt.at<float>(0, 0)/pt.at<float>(2, 0)<<","<<pt.at<float>(1, 0)/pt.at<float>(2, 0)<<"\n";
+        bounding_box.push_back(v);
+      }
+      
       mat4_v.push_back(mat4);
+      bounding_boxes.push_back(bounding_box);
     }
     
     // ContPose p = input[i].child_state.cont_pose();
@@ -928,11 +1036,15 @@ void EnvObjectRecognition::ComputeCostsInParallel(std::vector<CostComputationInp
     // transform = p.ObjectModel::GetTransform().matrix().cast<float>();
   }
 
+  // myStream.close();
   #ifdef CUDA_ON
-  int render_size = 750;
+  int render_size = 500;
   int total_render_num = mat4_v.size();
   int num_render = (total_render_num-1)/render_size+1;
   std::vector<int> total_result_cost;
+  int count_p = 0;
+  std::ofstream myfile;
+  myfile.open ("/home/jessy/testa.txt",std::ios_base::app);
   for(int i =0; i <num_render; i ++){
     auto last = std::min(total_render_num, i*render_size + render_size);
     std::vector<cuda_renderer::Model::mat4x4>::const_iterator start = mat4_v.begin() + i*render_size;
@@ -940,50 +1052,181 @@ void EnvObjectRecognition::ComputeCostsInParallel(std::vector<CostComputationInp
     std::vector<cuda_renderer::Model::mat4x4> cur_transform(start,finish);
     std::vector<std::vector<uint8_t>> result_gpu = cuda_renderer::render_cuda(render_models_[0].tris,cur_transform,
                                                       env_params_.width, env_params_.height, env_params_.proj_mat);
-  // std::vector<cv::Mat> test_mat;
-  // int height = 540;
-  // int width = 960;
-  // for(int n = 4; n <5; n ++){
-  //     cv::Mat cur_mat = cv::Mat(height,width,CV_8UC3);
-  //     for(int i = 0; i < height; i ++){
-  //         for(int j = 0; j <width; j ++){
-  //             int index = n*width*height+(i*width+j);
-  //             int red = result_gpu[0][index];
-  //             int green = result_gpu[1][index];
-  //             int blue = result_gpu[2][index];
-  //             // std::cout<<red<<","<<green<<","<<blue<<std::endl;
-  //             cur_mat.at<cv::Vec3b>(i, j) = cv::Vec3b(blue, green,red);
-  //         }
-  //     }
-
-  //   cv::imshow("gpu_mask1", cur_mat); 
-  //   // cv::FileStorage file("/home/jessy/Desktop/a.txt", cv::FileStorage::WRITE);
-  //   // file << "matName" << cur_mat;
-  //   cv::waitKey(0); 
-  // }
-    std::vector<uint8_t> r_v;
-    std::vector<uint8_t> g_v;
-    std::vector<uint8_t> b_v;
-    for (int y = 0; y < env_params_.height; y++) {
-      for (int x = 0; x < env_params_.width; x++) {
-          cv::Vec3b elem = cv_input_color_image.at<cv::Vec3b>(y, x);
-          r_v.push_back(elem[2]);
-          g_v.push_back(elem[1]);
-          b_v.push_back(elem[0]);
+    // std::vector<uint8_t> r_v;
+    // std::vector<uint8_t> g_v;
+    // std::vector<uint8_t> b_v;
+    // for (int y = 0; y < env_params_.height; y++) {
+    //   for (int x = 0; x < env_params_.width; x++) {
+    //       cv::Vec3b elem = cv_input_color_image.at<cv::Vec3b>(y, x);
+    //       r_v.push_back(elem[2]);
+    //       g_v.push_back(elem[1]);
+    //       b_v.push_back(elem[0]);
           
-      }
-    }
-    std::vector<std::vector<uint8_t>> observed;
-    observed.push_back(r_v);
-    observed.push_back(g_v);
-    observed.push_back(b_v);
-    std::vector<int> result_cost = cuda_renderer::compute_cost(result_gpu,observed,env_params_.height,env_params_.width,cur_transform.size());
-    total_result_cost.insert(end(total_result_cost),begin(result_cost),end(result_cost));
-    // for(int i = 0; i < result_cost.size(); i ++){
-      // std::cout<<result_cost[i]<<contposes[i]<<std::endl;
+    //   }
     // }
+    // std::vector<std::vector<uint8_t>> observed;
+    // observed.push_back(r_v);
+    // observed.push_back(g_v);
+    // observed.push_back(b_v);
+
+    int height = 540;
+    int width = 960;
+    cv::Mat cur_mat = cv::Mat(height,width,CV_8UC3);
+    // cv::imshow("gpu_mask1", cur_mat); 
+    // cv::waitKey(0); 
+    
+    for(int n = 0; n <cur_transform.size(); n ++){
+        std::cout<<contposes[count_p].x()<<","<<contposes[count_p].y()<<","<<contposes[count_p].yaw()<<std::endl;
+        
+        
+        for(int i = 0; i < height; i ++){
+            for(int j = 0; j <width; j ++){
+                int index = n*width*height+(i*width+j);
+                int red = result_gpu[0][index];
+                int green = result_gpu[1][index];
+                int blue = result_gpu[2][index];
+                cur_mat.at<cv::Vec3b>(i, j) = cv::Vec3b(blue, green,red);
+                // if(red == 0&& green ==0&&blue==0){
+                //   cur_mat.at<cv::Vec3b>(i, j) = cv_input_color_image.at<cv::Vec3b>(i, j);
+                // }else{
+                //   cur_mat.at<cv::Vec3b>(i, j) = cv::Vec3b(blue, green,red);
+                // }
+                
+                // std::cout<<red<<","<<green<<","<<blue<<std::endl;
+                
+            }
+        }
+
+        float min_x=10000;
+        float max_x=-10000;
+        float min_y=10000;
+        float max_y=-10000;
+        for(int m=0; m <8;m++){
+            float x = bounding_boxes[count_p][m][0];
+            float y = bounding_boxes[count_p][m][1];
+            if(x<min_x) min_x = x;
+            if(x>max_x) max_x = x;
+            if(y<min_y) min_y = y;
+            if(y>max_y) max_y = y;
+            // cur_mat.at<Vec3b>(y, x) = Vec3b(0, 255,0);
+        }
+        // std::cout<<min_x<<","<<max_x<<","<<min_y<<","<<max_y<<std::endl;
+        cv::Mat ob_mat = cv::Mat::zeros(height,width,CV_8UC3);
+        int a = 0;
+        for(int cur_x = min_x;cur_x<=max_x;cur_x++){
+            for(int cur_y=min_y;cur_y<=max_y;cur_y++){
+              int cur_ind = cur_y*960+cur_x;
+              ob_mat.at<cv::Vec3b>(cur_y, cur_x) = cv::Vec3b(b_v[cur_ind], g_v[cur_ind],r_v[cur_ind]);
+              a+=b_v[cur_ind];
+              a+=g_v[cur_ind];
+              a+=r_v[cur_ind];
+              // ob_mat.at<cv::Vec3b>(cur_y, cur_x) = cv::Vec3b(255, 0,0);
+
+            }
+        }
+        cv::Rect roi1(  min_x,min_y, max_x-min_x+1, max_y-min_y+1 );
+        cv::Mat sub1( cur_mat, roi1 );
+        cv::Mat sub_hsv;
+        cv::cvtColor(sub1, sub_hsv, CV_BGR2HSV);
+        cv::Mat sub2( ob_mat, roi1 );
+        cv::Mat observed_hsv;
+        cv::cvtColor(cv_input_color_image, observed_hsv, CV_BGR2HSV);
+        // double s = cv::sum(sub1)[0]+ cv::sum(sub1)[1]+ cv::sum(sub1)[2];
+        // double s1 = cv::sum(sub2)[0]+ cv::sum(sub2)[1]+ cv::sum(sub2)[2];
+        // std::cout<<test[0][n]<<std::endl;
+      
+        // cv::imshow("gpu_mask1", sub1); 
+        // cv::imshow("aaa",sub1);
+        // cv::waitKey(0); 
+        std::vector<cv::Mat> bgr_planes;
+        cv::split( sub_hsv, bgr_planes );
+        std::vector<int> his(7);
+        cv::Size s = sub_hsv.size();
+        for(int i =0; i <s.height; i ++){
+          for(int j = 0; j <s.width; j ++){
+            cv::Vec3b hsv=sub_hsv.at<cv::Vec3b>(i,j);
+            if(hsv.val[1]!=0||hsv.val[2]!=0){
+              int h_value = hsv.val[0];
+              // sub_hsv.at<cv::Vec3b>(i,j) = cv::Vec3b(255,0,0);
+              if(0<=h_value &&h_value<30){
+                his[0]+=1;
+              }else if(30<=h_value &&h_value<60){
+                his[1]+=1;
+                sub1.at<cv::Vec3b>(i,j) = cv::Vec3b(255,0,0);
+              }
+              else if(60<=h_value &&h_value<90){
+                his[2]+=1;
+              }
+              else if(90<=h_value &&h_value<120){
+                his[3]+=1;
+              }
+              else if(120<=h_value &&h_value<150){
+                his[4]+=1;
+              }
+              else if(150<=h_value &&h_value<180){
+                his[5]+=1;
+              }
+
+            }else{
+              his[6]+=1;
+            }
+          }
+        }
+        // std::cout<<his[0]<<","<<his[1]<<","<<his[2]<<","<<his[3]<<","<<his[4]<<","<<his[5]<<std::endl;
+        // std::cout<<his[0]+his[1]+his[2]+his[3]+his[4]+his[5]<<std::endl;
+        // !!!!Most recent file save!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        myfile<<"\t"<<contposes[count_p].x()<<"\t"<<contposes[count_p].y()<<"\t"<<contposes[count_p].yaw()<<"\t"<<his[0]<<"\t"<<his[1]<<"\t"<<his[2]<<"\t"<<his[3]<<"\t"<<his[4]<<"\t"<<his[5]<<"\t"<<his[6]<<std::endl;
+       
+        // cv::imshow("aaa",sub_hsv);
+        // cv::imshow("aaab",observed_hsv);
+        // cv::waitKey(0); 
+        count_p = count_p+1;
+    }
+   
+    // std::vector<int> result_cost = cuda_renderer::compute_explained_pixels(result_gpu,observed,env_params_.height,env_params_.width,cur_transform.size());
+    std::vector<int> result_cost = cuda_renderer::compute_cost(result_gpu,observed,env_params_.height,env_params_.width,cur_transform.size());
+    
+    // int height = 540;
+    // int width = 960;
+    // for(int n = 0; n <cur_transform.size(); n ++){
+    //   // std::cout<<contposes[i*render_size+n].x()<<","<<contposes[i*render_size+n].y()<<"     ";
+    //   if(contposes[i*render_size+n].x()<-0.05 &&contposes[i*render_size+n].x()>-0.10){
+    //     std::cout<<contposes[i*render_size+n].x()<<","<<contposes[i*render_size+n].y()<<std::endl;
+    //     cv::Mat cur_mat = cv::Mat(height,width,CV_8UC3);
+    //     for(int r = 0; r < height; r ++){
+    //         for(int c = 0; c <width; c ++){
+    //             int index = n*width*height+(r*width+c);
+    //             // int index_ob =(r*width+c);
+    //             int v = result_cost[index];
+    //             // int red = r_v[index_ob];
+    //             // int green = g_v[index_ob];
+    //             // int blue = b_v[index_ob];
+    //             if(v==-1){
+    //               cur_mat.at<cv::Vec3b>(r, c) = cv::Vec3b(255, 0,0);
+    //             }if(v==1){
+    //               cur_mat.at<cv::Vec3b>(r, c) = cv::Vec3b(0, 255,0);
+
+    //             }else{
+    //               cur_mat.at<cv::Vec3b>(r, c) =cv_input_color_image.at<cv::Vec3b>(r, c);;
+    //             }
+    //             // std::cout<<red<<","<<green<<","<<blue<<std::endl;
+                
+    //         }
+    //     }
+
+    //     cv::imshow("gpu_mask1", cur_mat); 
+    //   //   // cv::FileStorage file("/home/jessy/Desktop/a.txt", cv::FileStorage::WRITE);
+    //   //   // file << "matName" << cur_mat;
+    //     cv::waitKey(0); 
+    //   }
+        
+    // }
+    total_result_cost.insert(end(total_result_cost),begin(result_cost),end(result_cost));
+    for(int i = 0; i < result_cost.size(); i ++){
+      std::cout<<result_cost[i]<<","<<contposes[i].x()<<","<<contposes[i].y()<<","<<contposes[i].yaw()<<std::endl;
+    }
   }
-  std::cout<<total_result_cost.size()<<"ohhhhhhhhhh";
+  // std::cout<<total_result_cost.size()<<"ohhhhhhhhhh";
   // cv::Mat cur_mat = cv::Mat(env_params_.height,env_params_.width,CV_8UC3);
   // for(int n = 0; n <mat4_v.size(); n ++){
       
@@ -1008,7 +1251,7 @@ void EnvObjectRecognition::ComputeCostsInParallel(std::vector<CostComputationInp
   assert(output != nullptr);
   output->clear();
   output->resize(num);
-  std::cout<<"ayyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy";
+  // std::cout<<"ayyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy";
   std::vector<CostComputationOutput> output_gpu;
   vector<unsigned short> source_depth_image;
   source_depth_image.push_back(1);
@@ -4345,6 +4588,7 @@ void EnvObjectRecognition::GenerateSuccessorStates(const GraphState
                                                    &source_state, std::vector<GraphState> *succ_states) {
 
   printf("GenerateSuccessorStates() \n");
+  auto start = chrono::steady_clock::now();
   assert(succ_states != nullptr);
   succ_states->clear();
 
@@ -4497,246 +4741,438 @@ void EnvObjectRecognition::GenerateSuccessorStates(const GraphState
     {
         printf("States for model : %s\n", obj_models_[ii].name().c_str());
         int succ_count = 0;
+        std::map<hist_prioritize::pose,std::vector<int>> hist_map;
+        std::vector<int> hist_total;
         if (source_state.object_states().size() == 0) 
-        {
-          for (double x = env_params_.x_min; x <= env_params_.x_max;
-              x += res) {
-            for (double y = env_params_.y_min; y <= env_params_.y_max;
-                y += res) {
-              // for (double pitch = 0; pitch < M_PI; pitch+=M_PI/2) {
-              for (double theta = 0; theta < 2 * M_PI; theta += env_params_.theta_res) {
-                // ContPose p(x, y, env_params_.table_height, 0.0, pitch, theta);
-                ContPose p(x, y, env_params_.table_height, 0.0, 0.0, theta);
-                //check valid poses need to check!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                // if (!IsValidPose(source_state, ii, p)) {
-                //   // std::cout << "Not a valid pose for theta : " << theta << " " << endl;
+        { 
+          
+          std::ifstream file("/home/jessy/test.txt");
+          std::string   line;
 
-                //   continue;
-                // }
-                // std::cout << "Valid pose for theta : " << theta << endl;
+          while(std::getline(file, line))
+          {
+              std::stringstream   linestream(line);
+              std::string         data;
+              float                 x;
+              float                 y;
+              float                 theta;
+              float                 h1;
+              float                 h2;
+              float                 h3;
+              float                 h4;
+              float                 h5;
+              float                 h6;
+              float                 h7;
+              std::getline(linestream, data, '\t');
+              std::cout<<data;
+              linestream >> x >> y>> theta >> h1>> h2 >> h3>> h4 >> h5>> h6 >> h7;
+              // std::cout<<x<<","<<y<<","<<theta<<","<<h1<<","<<h2<<","<<h3<<","<<h4<<","<<h5<<","<<h6<<","<<std::endl;
+              hist_prioritize::pose p;
+              p.x = x;
+              p.y = y;
+              p.theta = theta;
+              // std::vector<int> h;
+              // h.push_back(h1); h.push_back(h2); h.push_back(h3); h.push_back(h4); h.push_back(h5); h.push_back(h6);
+              hist_total.push_back(h1); hist_total.push_back(h2); hist_total.push_back(h3); hist_total.push_back(h4); hist_total.push_back(h5); hist_total.push_back(h6);hist_total.push_back(h7);  
+              // hist_map.insert(std::pair<hist_prioritize::pose,std::vector<int>>(p,h));
+              // std::vector<int> cur_h = hist_map[p];
+              // std::cout<<cur_h[0]<<cur_h[1]<<cur_h[2]<<cur_h[3]<<cur_h[4]<<cur_h[5];          
+          }
 
-                GraphState s = source_state; // Can only add objects, not remove them
-                const ObjectState new_object(ii, obj_models_[ii].symmetric(), p);
-                s.AppendObject(new_object);
-
-                GraphState s_render;
-                s_render.AppendObject(new_object);
-
-                // succ_states->push_back(s);
-                // bool kHistogramPruning = true;
-                cv::Mat last_cv_obj_depth_image, last_cv_obj_color_image;
-                vector<unsigned short> last_obj_depth_image;
-                vector<vector<unsigned char>> last_obj_color_image;
-                std::string color_image_path, depth_image_path;
-                PointCloudPtr cloud_in;
-
-                bool vis_successors_ = true;
-                if ((perch_params_.vis_successors && s.object_states().size() == 1) || kUseHistogramPruning || kUseOctomapPruning) 
-                {
-                  // Process successors once when only one object scene or when pruning is on (then it needs to be done always)
-                  int num_occluders = 0;
-                  GetDepthImage(s_render, &last_obj_depth_image, &last_obj_color_image,
-                                                    last_cv_obj_depth_image, last_cv_obj_color_image, &num_occluders, false);
-                  std::stringstream ss1;
-                  ss1 << debug_dir_ << "/successor-" << obj_models_[ii].name() << "-" << succ_count << "-color.png";
-                  color_image_path = ss1.str();
-                  ss1.clear();
-                  ss1 << debug_dir_ << "/successor-" << obj_models_[ii].name() << "-" << succ_count << "-depth.png";
-                  depth_image_path = ss1.str();
-                  
-
-                  if (kUseHistogramPruning)
-                  {
-                    cv::Mat mask, observed_image_segmented;
-                    cv::cvtColor(last_cv_obj_color_image, mask, CV_BGR2GRAY);
-                    mask = mask > 0;
-                    // cv_input_color_image.copyTo(observed_image_segmented, mask);
-
-
-                    cv::Mat Points;
-                    cv::findNonZero(mask, Points);
-                    cv::Rect bounding_box = cv::boundingRect(Points);
-                    observed_image_segmented = cv_input_color_image(bounding_box);
-                    cv::Mat last_cv_obj_color_image_cropped = last_cv_obj_color_image(bounding_box);
-
-                    // cv::findNonZero(last_cv_obj_color_image, mask);
-                    // cv::threshold( src_gray, dst, threshold_value, max_BINARY_value,threshold_type );
-                    // cv::imshow("valid image", mask);
-                    int channels[] = { 0, 1 };
-                    int h_bins = 50; int s_bins = 60;
-                    int histSize[] = { h_bins, s_bins };
-                    cv::MatND hist_base, hist_test1;
-                    cv::Mat hsv_base, hsv_test1;
-                    float h_ranges[] = { 0, 180 };
-                    float s_ranges[] = { 0, 256 };
-                    const float* ranges[] = { h_ranges, s_ranges };
-
-                    cv::cvtColor( observed_image_segmented, hsv_base, CV_BGR2HSV );
-                    cv::cvtColor( last_cv_obj_color_image_cropped, hsv_test1, CV_BGR2HSV );
-
-                    cv::calcHist( &hsv_base, 1, channels, cv::Mat(), hist_base, 2, histSize, ranges, true, false );
-                    cv::normalize( hist_base, hist_base, 0, 1, cv::NORM_MINMAX, -1, cv::Mat() );
-
-                    cv::calcHist( &hsv_test1, 1, channels, cv::Mat(), hist_test1, 2, histSize, ranges, true, false );
-                    cv::normalize( hist_test1, hist_test1, 0, 1, cv::NORM_MINMAX, -1, cv::Mat() );
-
-                    // using bhattacharya distance, lesser value means histograms are more similar
-                    double base_test1 = cv::compareHist( hist_base, hist_test1, 3 );
-                    printf("Histogram comparison : %f\n", base_test1);
-                    
-                    
-//////////////////////////////////////punning param!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                    if (base_test1 <= 0.65) {
-                      if (s.object_states().size() == 1 && perch_params_.vis_successors) 
-                      {
-                        // Write successors only once even if pruning is on
-                        cv::imwrite(color_image_path, last_cv_obj_color_image);
-                        if (IsMaster(mpi_comm_)) {
-                          cloud_in = GetGravityAlignedPointCloud(last_obj_depth_image, last_obj_color_image);
-                          PrintPointCloud(cloud_in, 1, render_point_cloud_topic);
-                          // cv::imshow("valid image", last_cv_obj_color_image);
-                        }
-                      }
-                      valid_succ_cache[ii].push_back(new_object);
-                      succ_states->push_back(s);
-                      succ_count += 1;
-                    }
-
-                    // cv::Mat merge;
-                    // cv::hconcat(last_cv_obj_color_image, observed_image_segmented, merge);
-                    // cv::imshow("rendered_image", merge);
-                    // cv::imshow("rendered_image", last_cv_obj_color_image);
-                    // cv::imshow("observed_image_segmented", observed_image_segmented);
-
-
-                    // cv::imshow("rendered_image", cropped_rendered_image);
-
-                    // cv::waitKey(500);
-                  }
-
-                  if (kUseOctomapPruning)
-                  {
-                    int num_points_changed = 0;
-                    cloud_in = GetGravityAlignedPointCloud(last_obj_depth_image, last_obj_color_image);
-
-                    const float resolution = 0.02;
-                    pcl::octree::OctreePointCloudChangeDetector<pcl::PointXYZRGB> octree_sim (resolution);
-                    octree_sim.setInputCloud (cloud_in);
-                    octree_sim.addPointsFromInputCloud ();
-
-                    octree_sim.switchBuffers ();
-                    
-                    octree_sim.setInputCloud (observed_cloud_);
-                    octree_sim.addPointsFromInputCloud ();
-
-                    std::vector<int> newPointIdxVector;
-
-                    octree_sim.getPointIndicesFromNewVoxels (newPointIdxVector);
-                    num_points_changed = newPointIdxVector.size();
-                    printf("Number of points changed : %d\n", newPointIdxVector.size());
-                    printf("Fraction of points changed : %f\n", (float) num_points_changed/observed_cloud_->points.size());
-
-                    // uint8_t rgb[3] = {255,255,255};
-                    // for (size_t i = 0; i < newPointIdxVector.size (); ++i) {
-                    //   uint32_t rgbc = ((uint32_t)rgb[0] << 16 | (uint32_t)rgb[1] << 8 | (uint32_t)rgb[2]);
-                    //   observed_cloud_->points[newPointIdxVector[i]].rgb = *reinterpret_cast<float*>(&rgbc);
-
-                    //   // std::cout << i << "# Index:" << newPointIdxVector[i]
-                    //   //           << "  Point:" << cloudB->points[newPointIdxVector[i]].x << " "
-                    //   //           << cloudB->points[newPointIdxVector[i]].y << " "
-                    //   //           << cloudB->points[newPointIdxVector[i]].z << std::endl;
-                    // }
-                    if ((float) num_points_changed/observed_cloud_->points.size() < 0.8) 
-                    {
-                      if (s.object_states().size() == 1 && perch_params_.vis_successors) {
-                        cv::imwrite(color_image_path, last_cv_obj_color_image);
-                        cv::imwrite(depth_image_path, last_cv_obj_depth_image);
-                        if (IsMaster(mpi_comm_)) {
-                          PrintPointCloud(cloud_in, 1, render_point_cloud_topic);
-                        }
-                      }
-                      valid_succ_cache[ii].push_back(new_object);
-                      succ_states->push_back(s);
-                      succ_count += 1;
-                    }
-                  }
-                  
-
+          cuda_renderer::Model model = render_models_[ii];
+          std::vector<float> gpu_bb;
+          gpu_bb.push_back(model.bbox_min.x);gpu_bb.push_back(model.bbox_min.y);gpu_bb.push_back(model.bbox_min.z);
+          gpu_bb.push_back(model.bbox_max.x);gpu_bb.push_back(model.bbox_min.y);gpu_bb.push_back(model.bbox_min.z);
+          gpu_bb.push_back(model.bbox_min.x);gpu_bb.push_back(model.bbox_max.y);gpu_bb.push_back(model.bbox_min.z);
+          gpu_bb.push_back(model.bbox_max.x);gpu_bb.push_back(model.bbox_max.y);gpu_bb.push_back(model.bbox_min.z);
+          gpu_bb.push_back(model.bbox_min.x);gpu_bb.push_back(model.bbox_min.y);gpu_bb.push_back(model.bbox_max.z);
+          gpu_bb.push_back(model.bbox_max.x);gpu_bb.push_back(model.bbox_min.y);gpu_bb.push_back(model.bbox_max.z);
+          gpu_bb.push_back(model.bbox_min.x);gpu_bb.push_back(model.bbox_max.y);gpu_bb.push_back(model.bbox_max.z);
+          gpu_bb.push_back(model.bbox_max.x);gpu_bb.push_back(model.bbox_max.y);gpu_bb.push_back(model.bbox_max.z);
+          std::vector<float> cam_r1;
+          std::vector<float> cam_r2;
+          std::vector<float> cam_r3;
+          Eigen::Isometry3d cam_z_front1;
+          Eigen::Isometry3d cam_to_body1;
+          cam_to_body1.matrix() << 0, 0, 1, 0,
+                            -1, 0, 0, 0,
+                            0, -1, 0, 0,
+                            0, 0, 0, 1;
+          cam_z_front1 = cam_to_world_ * cam_to_body1;
+          Eigen::Matrix4d cam_matrix1 =cam_z_front1.matrix().inverse();
+          Eigen::Matrix4d gpu_cam = env_params_.cam_intrinsic_eigen*cam_matrix1;
+          cam_r1.push_back(gpu_cam(0,0));cam_r1.push_back(gpu_cam(0,1));cam_r1.push_back(gpu_cam(0,2));cam_r1.push_back(gpu_cam(0,3));
+          cam_r2.push_back(gpu_cam(1,0));cam_r2.push_back(gpu_cam(1,1));cam_r2.push_back(gpu_cam(1,2));cam_r2.push_back(gpu_cam(1,3));
+          cam_r3.push_back(gpu_cam(2,0));cam_r3.push_back(gpu_cam(2,1));cam_r3.push_back(gpu_cam(2,2));cam_r3.push_back(gpu_cam(2,3));
+          std::vector<std::vector<float> > gpu_cam_m;
+          gpu_cam_m.push_back(cam_r1);
+          gpu_cam_m.push_back(cam_r2);
+          gpu_cam_m.push_back(cam_r3);
+          // std::vector<uint8_t> r_v;
+          // std::vector<uint8_t> g_v;
+          // std::vector<uint8_t> b_v;
+          std::vector<uint8_t> h_v;
+          std::vector<uint8_t> s_v;
+          std::vector<uint8_t> v_v;
+          cv::Mat hsv_input;
+          int non_zero =0;
+          cv::cvtColor(cv_input_color_image,hsv_input,CV_BGR2HSV);
+          for (int y = 0; y < env_params_.height; y++) {
+            for (int x = 0; x < env_params_.width; x++) {
+                cv::Vec3b elem = hsv_input.at<cv::Vec3b>(y, x);
+                int h = elem[0];
+                int s = elem[1];
+                int v = elem[2];
+                h_v.push_back(h);
+                s_v.push_back(s);
+                v_v.push_back(v);
+                if(h!=0 || s!=0 || v!=0){
+                  non_zero +=1;
                 }
                 
-                if (!kUseHistogramPruning && !kUseOctomapPruning)
-                {
-                  if (s.object_states().size() == 1 && perch_params_.vis_successors) 
-                  {
-                    // Write successors only once
-                    cv::imwrite(color_image_path, last_cv_obj_color_image);
-                    cv::imwrite(depth_image_path, last_cv_obj_depth_image);
-
-                    if (IsMaster(mpi_comm_)) {
-                      cloud_in = GetGravityAlignedPointCloud(last_obj_depth_image, last_obj_color_image);
-                      PrintPointCloud(cloud_in, 1, render_point_cloud_topic);
-                      // cv::imshow("valid image", last_cv_obj_color_image);
-
-                      // const float resolution = 0.02;
-                      // // Instantiate octree-based point cloud change detection class
-                      // pcl::octree::OctreePointCloudChangeDetector<pcl::PointXYZRGB> octree_sim (resolution);
-                      // octree_sim.setInputCloud (cloud_in);
-                      // octree_sim.addPointsFromInputCloud ();
-
-                      // octree_sim.switchBuffers ();
-                      
-                      // octree_sim.setInputCloud (observed_cloud_);
-                      // octree_sim.addPointsFromInputCloud ();
-
-                      // std::vector<int> newPointIdxVector;
-
-                      // // Get vector of point indices from octree voxels which did not exist in previous buffer
-                      // octree_sim.getPointIndicesFromNewVoxels (newPointIdxVector);
-                      // num_points_changed = newPointIdxVector.size();
-                      // printf("Number of points changed : %d\n", newPointIdxVector.size());
-                      // printf("Fraction of points changed : %f\n", (float) num_points_changed/observed_cloud_->points.size());
-
-                      // // uint8_t rgb[3] = {255,255,255};
-                      // // for (size_t i = 0; i < newPointIdxVector.size (); ++i) {
-                      // //   uint32_t rgbc = ((uint32_t)rgb[0] << 16 | (uint32_t)rgb[1] << 8 | (uint32_t)rgb[2]);
-                      // //   observed_cloud_->points[newPointIdxVector[i]].rgb = *reinterpret_cast<float*>(&rgbc);
-
-                      // //   // std::cout << i << "# Index:" << newPointIdxVector[i]
-                      // //   //           << "  Point:" << cloudB->points[newPointIdxVector[i]].x << " "
-                      // //   //           << cloudB->points[newPointIdxVector[i]].y << " "
-                      // //   //           << cloudB->points[newPointIdxVector[i]].z << std::endl;
-                      // // }
-                      // // PrintPointCloud(cloud_in, 1, render_point_cloud_topic);
-                      // if ((float) num_points_changed/observed_cloud_->points.size() < 0.8) 
-                      // {
-                      //   PrintPointCloud(cloud_in, 1, render_point_cloud_topic);
-                      // }
-                    }
-                  }
-                  // if ((float) num_points_changed/observed_cloud_->points.size() < 0.8) 
-                  // {
-                  valid_succ_cache[ii].push_back(new_object);
-                  succ_states->push_back(s);
-                  succ_count += 1;
-                  // }
-                }
-                // printf("Object added  to state x:%f y:%f z:%f theta: %f \n", x, y, env_params_.table_height, theta);
-                // If symmetric object, don't iterate over all thetas
-                if (obj_models_[ii].symmetric() || model_meta_data.symmetry_mode == 2) {
-                  //break;
-                }
-
-                // If 180 degree symmetric, then iterate only between 0 and 180.
-                if (model_meta_data.symmetry_mode == 1 &&
-                    theta > (M_PI + env_params_.theta_res)) {
-                  // printf("Semi-symmetric object\n");
-                  //break;
-                }
-
-                // }
-              }
             }
           }
+          // for (int y = 0; y < env_params_.height; y++) {
+          //   for (int x = 0; x < env_params_.width; x++) {
+          //       cv::Vec3b elem = cv_input_color_image.at<cv::Vec3b>(y, x);
+          //       r_v.push_back(elem[2]);
+          //       g_v.push_back(elem[1]);
+          //       b_v.push_back(elem[0]);
+                
+          //   }
+          // }
+          std::vector<std::vector<uint8_t>> observed;
+          // observed.push_back(r_v);
+          // observed.push_back(g_v);
+          // observed.push_back(b_v);
+          observed.push_back(h_v);
+          observed.push_back(s_v);
+          observed.push_back(v_v);
+          std::cout<<"total pixel number"<< non_zero<<std::endl;
+          std::vector<hist_prioritize::pose> test =  hist_prioritize::compare_hist(env_params_.width,env_params_.height,env_params_.x_min,env_params_.x_max,
+                                                                              env_params_.y_min,env_params_.y_max,
+                                                                              0,2 * M_PI,
+                                                                              res,env_params_.theta_res,non_zero,
+                                                                              observed,gpu_cam_m,gpu_bb,hist_total);
+          for(int i =0; i < test.size(); i ++){
+            ContPose p(test[i].x, test[i].y, env_params_.table_height, 0.0, 0.0, test[i].theta);
+            GraphState s = source_state; // Can only add objects, not remove them
+            const ObjectState new_object(ii, obj_models_[ii].symmetric(), p);
+            s.AppendObject(new_object);
+
+            GraphState s_render;
+            s_render.AppendObject(new_object);
+            valid_succ_cache[ii].push_back(new_object);
+            succ_states->push_back(s);
+            succ_count += 1;
+          }
+//           for (double x = env_params_.x_min; x <= env_params_.x_max;
+//               x += res) {
+//             for (double y = env_params_.y_min; y <= env_params_.y_max;
+//                 y += res) {
+//               // for (double pitch = 0; pitch < M_PI; pitch+=M_PI/2) {
+//               for (double theta = 0; theta < 2 * M_PI; theta += env_params_.theta_res) {
+//                 // ContPose p(x, y, env_params_.table_height, 0.0, pitch, theta);
+//                 ContPose p(x, y, env_params_.table_height, 0.0, 0.0, theta);
+//                 // std::cout<<x<<","<<y<<"<"<<theta<<std::endl;
+//                 // Eigen::Matrix4d transform;
+//                 // transform = p.ContPose::GetTransform().matrix().cast<double>();
+                
+//                 // Eigen::Isometry3d cam_z_front;
+//                 // Eigen::Isometry3d cam_to_body;
+//                 // cam_to_body.matrix() << 0, 0, 1, 0,
+//                 //                   -1, 0, 0, 0,
+//                 //                   0, -1, 0, 0,
+//                 //                   0, 0, 0, 1;
+//                 // cam_z_front = cam_to_world_ * cam_to_body;
+//                 // Eigen::Matrix4d cam_matrix =cam_z_front.matrix().inverse();
+//                 // std::cout<<cam_matrix<<std::endl;
+//                 // Eigen::Matrix4d pose_in_cam = cam_matrix*transform;
+//                 // cuda_renderer::Model::mat4x4 mat4;
+//                 // mat4.a0 = pose_in_cam(0,0)*100;
+//                 // mat4.a1 = pose_in_cam(0,1)*100;
+//                 // mat4.a2 = pose_in_cam(0,2)*100;
+//                 // mat4.a3 = pose_in_cam(0,3)*100;
+//                 // mat4.b0 = pose_in_cam(1,0)*100;
+//                 // mat4.b1 = pose_in_cam(1,1)*100;
+//                 // mat4.b2 = pose_in_cam(1,2)*100;
+//                 // mat4.b3 = pose_in_cam(1,3)*100;
+//                 // mat4.c0 = pose_in_cam(2,0)*100;
+//                 // mat4.c1 = pose_in_cam(2,1)*100;
+//                 // mat4.c2 = pose_in_cam(2,2)*100;
+//                 // mat4.c3 = pose_in_cam(2,3)*100;
+//                 // mat4.d0 = pose_in_cam(3,0);
+//                 // mat4.d1 = pose_in_cam(3,1);
+//                 // mat4.d2 = pose_in_cam(3,2);
+//                 // mat4.d3 = pose_in_cam(3,3);
+//                 // cv::Mat trans = (cv::Mat_<float>(3,4) << mat4.a0, mat4.a1, mat4.a2,mat4.a3,
+//                 //                                      mat4.b0, mat4.b1, mat4.b2,mat4.b3,
+//                 //                                      mat4.c0, mat4.c1, mat4.c2,mat4.c3);
+//                 // std::vector<float> v;
+//                 // for(int i =0; i <8; i ++){
+//                 //   cv::Mat pt = env_params_.cam_intrinsic*trans*bounding_points[i];
+//                 //   v.push_back(pt.at<float>(0, 0)/pt.at<float>(2, 0));
+//                 //   v.push_back(pt.at<float>(1, 0)/pt.at<float>(2, 0));
+//                 //   // std::cout<<pt.at<float>(0, 0)/pt.at<float>(2, 0)<<","<<pt.at<float>(1, 0)/pt.at<float>(2, 0)<<"\n";
+//                 // }
+//                 // float min_x=10000;
+//                 // float max_x=-10000;
+//                 // float min_y=10000;
+//                 // float max_y=-10000;
+//                 // for(int m=0; m <8;m++){
+//                 //     float x = v[m*2+0];
+//                 //     float y = v[m*2+1];
+//                 //     if(x<min_x) min_x = x;
+//                 //     if(x>max_x) max_x = x;
+//                 //     if(y<min_y) min_y = y;
+//                 //     if(y>max_y) max_y = y;
+//                 //     // cur_mat.at<Vec3b>(y, x) = Vec3b(0, 255,0);
+//                 // }
+//                 // if(min_x<0 || min_y<0||min_x>=env_params_.width||min_y>=env_params_.height
+//                 //     || max_x>=env_params_.width||max_y>=env_params_.height){
+//                 //   continue;
+//                 // }
+//                 // cv::Rect roi1(  min_x,min_y, max_x-min_x, max_y-min_y );
+//                 // cv::Mat sub1( cv_input_color_image, roi1 );
+//                 // cv::Mat a = cv::Mat::zeros(sub1.size(), sub1.type());
+//                 // cv::Mat diff = a != sub1;
+//                 // // cv::imshow("gpu_mask1", sub1); 
+//                 // // cv::waitKey(0);
+//                 // if(cv::countNonZero(diff.reshape(1,1)) == 0){
+//                 //   // std::cout<<"aaaaa";
+//                 //   continue;
+//                 // }
+
+//                 //check valid poses need to check!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+//                 // if (!IsValidPose(source_state, ii, p)) {
+//                 //   // std::cout << "Not a valid pose for theta : " << theta << " " << endl;
+
+//                 //   continue;
+//                 // }
+//                 // std::cout << "Valid pose for theta : " << theta << endl;
+
+//                 GraphState s = source_state; // Can only add objects, not remove them
+//                 const ObjectState new_object(ii, obj_models_[ii].symmetric(), p);
+//                 s.AppendObject(new_object);
+
+//                 GraphState s_render;
+//                 s_render.AppendObject(new_object);
+
+//                 // succ_states->push_back(s);
+//                 // bool kHistogramPruning = true;
+//                 cv::Mat last_cv_obj_depth_image, last_cv_obj_color_image;
+//                 vector<unsigned short> last_obj_depth_image;
+//                 vector<vector<unsigned char>> last_obj_color_image;
+//                 std::string color_image_path, depth_image_path;
+//                 PointCloudPtr cloud_in;
+
+//                 bool vis_successors_ = true;
+//                 if ((perch_params_.vis_successors && s.object_states().size() == 1) || kUseHistogramPruning || kUseOctomapPruning) 
+//                 {
+//                   // Process successors once when only one object scene or when pruning is on (then it needs to be done always)
+//                   int num_occluders = 0;
+//                   GetDepthImage(s_render, &last_obj_depth_image, &last_obj_color_image,
+//                                                     last_cv_obj_depth_image, last_cv_obj_color_image, &num_occluders, false);
+//                   std::stringstream ss1;
+//                   ss1 << debug_dir_ << "/successor-" << obj_models_[ii].name() << "-" << succ_count << "-color.png";
+//                   color_image_path = ss1.str();
+//                   ss1.clear();
+//                   ss1 << debug_dir_ << "/successor-" << obj_models_[ii].name() << "-" << succ_count << "-depth.png";
+//                   depth_image_path = ss1.str();
+                  
+
+//                   if (kUseHistogramPruning)
+//                   {
+//                     cv::Mat mask, observed_image_segmented;
+//                     cv::cvtColor(last_cv_obj_color_image, mask, CV_BGR2GRAY);
+//                     mask = mask > 0;
+//                     // cv_input_color_image.copyTo(observed_image_segmented, mask);
+
+
+//                     cv::Mat Points;
+//                     cv::findNonZero(mask, Points);
+//                     cv::Rect bounding_box = cv::boundingRect(Points);
+//                     observed_image_segmented = cv_input_color_image(bounding_box);
+//                     cv::Mat last_cv_obj_color_image_cropped = last_cv_obj_color_image(bounding_box);
+
+//                     // cv::findNonZero(last_cv_obj_color_image, mask);
+//                     // cv::threshold( src_gray, dst, threshold_value, max_BINARY_value,threshold_type );
+//                     // cv::imshow("valid image", mask);
+//                     int channels[] = { 0, 1 };
+//                     int h_bins = 50; int s_bins = 60;
+//                     int histSize[] = { h_bins, s_bins };
+//                     cv::MatND hist_base, hist_test1;
+//                     cv::Mat hsv_base, hsv_test1;
+//                     float h_ranges[] = { 0, 180 };
+//                     float s_ranges[] = { 0, 256 };
+//                     const float* ranges[] = { h_ranges, s_ranges };
+
+//                     cv::cvtColor( observed_image_segmented, hsv_base, CV_BGR2HSV );
+//                     cv::cvtColor( last_cv_obj_color_image_cropped, hsv_test1, CV_BGR2HSV );
+
+//                     cv::calcHist( &hsv_base, 1, channels, cv::Mat(), hist_base, 2, histSize, ranges, true, false );
+//                     cv::normalize( hist_base, hist_base, 0, 1, cv::NORM_MINMAX, -1, cv::Mat() );
+
+//                     cv::calcHist( &hsv_test1, 1, channels, cv::Mat(), hist_test1, 2, histSize, ranges, true, false );
+//                     cv::normalize( hist_test1, hist_test1, 0, 1, cv::NORM_MINMAX, -1, cv::Mat() );
+
+//                     // using bhattacharya distance, lesser value means histograms are more similar
+//                     double base_test1 = cv::compareHist( hist_base, hist_test1, 3 );
+//                     printf("Histogram comparison : %f\n", base_test1);
+                    
+                    
+// //////////////////////////////////////punning param!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+//                     if (base_test1 <= 0.65) {
+//                       if (s.object_states().size() == 1 && perch_params_.vis_successors) 
+//                       {
+//                         // Write successors only once even if pruning is on
+//                         cv::imwrite(color_image_path, last_cv_obj_color_image);
+//                         if (IsMaster(mpi_comm_)) {
+//                           cloud_in = GetGravityAlignedPointCloud(last_obj_depth_image, last_obj_color_image);
+//                           PrintPointCloud(cloud_in, 1, render_point_cloud_topic);
+//                           // cv::imshow("valid image", last_cv_obj_color_image);
+//                         }
+//                       }
+//                       valid_succ_cache[ii].push_back(new_object);
+//                       succ_states->push_back(s);
+//                       succ_count += 1;
+//                     }
+
+//                     // cv::Mat merge;
+//                     // cv::hconcat(last_cv_obj_color_image, observed_image_segmented, merge);
+//                     // cv::imshow("rendered_image", merge);
+//                     // cv::imshow("rendered_image", last_cv_obj_color_image);
+//                     // cv::imshow("observed_image_segmented", observed_image_segmented);
+
+
+//                     // cv::imshow("rendered_image", cropped_rendered_image);
+
+//                     // cv::waitKey(500);
+//                   }
+
+//                   if (kUseOctomapPruning)
+//                   {
+//                     int num_points_changed = 0;
+//                     cloud_in = GetGravityAlignedPointCloud(last_obj_depth_image, last_obj_color_image);
+
+//                     const float resolution = 0.02;
+//                     pcl::octree::OctreePointCloudChangeDetector<pcl::PointXYZRGB> octree_sim (resolution);
+//                     octree_sim.setInputCloud (cloud_in);
+//                     octree_sim.addPointsFromInputCloud ();
+
+//                     octree_sim.switchBuffers ();
+                    
+//                     octree_sim.setInputCloud (observed_cloud_);
+//                     octree_sim.addPointsFromInputCloud ();
+
+//                     std::vector<int> newPointIdxVector;
+
+//                     octree_sim.getPointIndicesFromNewVoxels (newPointIdxVector);
+//                     num_points_changed = newPointIdxVector.size();
+//                     printf("Number of points changed : %d\n", newPointIdxVector.size());
+//                     printf("Fraction of points changed : %f\n", (float) num_points_changed/observed_cloud_->points.size());
+
+//                     // uint8_t rgb[3] = {255,255,255};
+//                     // for (size_t i = 0; i < newPointIdxVector.size (); ++i) {
+//                     //   uint32_t rgbc = ((uint32_t)rgb[0] << 16 | (uint32_t)rgb[1] << 8 | (uint32_t)rgb[2]);
+//                     //   observed_cloud_->points[newPointIdxVector[i]].rgb = *reinterpret_cast<float*>(&rgbc);
+
+//                     //   // std::cout << i << "# Index:" << newPointIdxVector[i]
+//                     //   //           << "  Point:" << cloudB->points[newPointIdxVector[i]].x << " "
+//                     //   //           << cloudB->points[newPointIdxVector[i]].y << " "
+//                     //   //           << cloudB->points[newPointIdxVector[i]].z << std::endl;
+//                     // }
+//                     if ((float) num_points_changed/observed_cloud_->points.size() < 0.8) 
+//                     {
+//                       if (s.object_states().size() == 1 && perch_params_.vis_successors) {
+//                         cv::imwrite(color_image_path, last_cv_obj_color_image);
+//                         cv::imwrite(depth_image_path, last_cv_obj_depth_image);
+//                         if (IsMaster(mpi_comm_)) {
+//                           PrintPointCloud(cloud_in, 1, render_point_cloud_topic);
+//                         }
+//                       }
+//                       valid_succ_cache[ii].push_back(new_object);
+//                       succ_states->push_back(s);
+//                       succ_count += 1;
+//                     }
+//                   }
+                  
+
+//                 }
+                
+//                 if (!kUseHistogramPruning && !kUseOctomapPruning)
+//                 {
+//                   if (s.object_states().size() == 1 && perch_params_.vis_successors) 
+//                   {
+//                     // Write successors only once
+//                     cv::imwrite(color_image_path, last_cv_obj_color_image);
+//                     cv::imwrite(depth_image_path, last_cv_obj_depth_image);
+
+//                     if (IsMaster(mpi_comm_)) {
+//                       cloud_in = GetGravityAlignedPointCloud(last_obj_depth_image, last_obj_color_image);
+//                       PrintPointCloud(cloud_in, 1, render_point_cloud_topic);
+//                       // cv::imshow("valid image", last_cv_obj_color_image);
+
+//                       // const float resolution = 0.02;
+//                       // // Instantiate octree-based point cloud change detection class
+//                       // pcl::octree::OctreePointCloudChangeDetector<pcl::PointXYZRGB> octree_sim (resolution);
+//                       // octree_sim.setInputCloud (cloud_in);
+//                       // octree_sim.addPointsFromInputCloud ();
+
+//                       // octree_sim.switchBuffers ();
+                      
+//                       // octree_sim.setInputCloud (observed_cloud_);
+//                       // octree_sim.addPointsFromInputCloud ();
+
+//                       // std::vector<int> newPointIdxVector;
+
+//                       // // Get vector of point indices from octree voxels which did not exist in previous buffer
+//                       // octree_sim.getPointIndicesFromNewVoxels (newPointIdxVector);
+//                       // num_points_changed = newPointIdxVector.size();
+//                       // printf("Number of points changed : %d\n", newPointIdxVector.size());
+//                       // printf("Fraction of points changed : %f\n", (float) num_points_changed/observed_cloud_->points.size());
+
+//                       // // uint8_t rgb[3] = {255,255,255};
+//                       // // for (size_t i = 0; i < newPointIdxVector.size (); ++i) {
+//                       // //   uint32_t rgbc = ((uint32_t)rgb[0] << 16 | (uint32_t)rgb[1] << 8 | (uint32_t)rgb[2]);
+//                       // //   observed_cloud_->points[newPointIdxVector[i]].rgb = *reinterpret_cast<float*>(&rgbc);
+
+//                       // //   // std::cout << i << "# Index:" << newPointIdxVector[i]
+//                       // //   //           << "  Point:" << cloudB->points[newPointIdxVector[i]].x << " "
+//                       // //   //           << cloudB->points[newPointIdxVector[i]].y << " "
+//                       // //   //           << cloudB->points[newPointIdxVector[i]].z << std::endl;
+//                       // // }
+//                       // // PrintPointCloud(cloud_in, 1, render_point_cloud_topic);
+//                       // if ((float) num_points_changed/observed_cloud_->points.size() < 0.8) 
+//                       // {
+//                       //   PrintPointCloud(cloud_in, 1, render_point_cloud_topic);
+//                       // }
+//                     }
+//                   }
+//                   // if ((float) num_points_changed/observed_cloud_->points.size() < 0.8) 
+//                   // {
+//                   valid_succ_cache[ii].push_back(new_object);
+//                   succ_states->push_back(s);
+//                   succ_count += 1;
+//                   // }
+//                 }
+//                 // printf("Object added  to state x:%f y:%f z:%f theta: %f \n", x, y, env_params_.table_height, theta);
+//                 // If symmetric object, don't iterate over all thetas
+//                 if (obj_models_[ii].symmetric() || model_meta_data.symmetry_mode == 2) {
+//                   //break;
+//                 }
+
+//                 // If 180 degree symmetric, then iterate only between 0 and 180.
+//                 if (model_meta_data.symmetry_mode == 1 &&
+//                     theta > (M_PI + env_params_.theta_res)) {
+//                   // printf("Semi-symmetric object\n");
+//                   //break;
+//                 }
+
+//                 // }
+//               }
+//             }
+//           }
         }
         else
         {
@@ -4752,7 +5188,8 @@ void EnvObjectRecognition::GenerateSuccessorStates(const GraphState
         
     }
   }
-
+  auto end = chrono::steady_clock::now();
+  std::cout<< "hist matrix computing time!!!: " << chrono::duration_cast<chrono::milliseconds>(end - start).count() << std::endl;
   std::cout << "Size of successor states : " << succ_states->size() << endl;
 }
 

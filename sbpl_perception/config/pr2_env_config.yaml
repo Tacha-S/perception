@@ -19,7 +19,7 @@ perch_params:
   ## Downsampling
   sensor_resolution_radius: 0.015 #m
   min_neighbor_points_for_valid_pose: 25 #50
-  use_downsampling: true
+  use_downsampling: false
   downsampling_leaf_size: 0.02
 
   ## Clutter mode

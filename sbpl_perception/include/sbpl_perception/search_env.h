@@ -7,6 +7,7 @@
  * Carnegie Mellon University, 2015
  */
 #include <cuda_renderer/renderer.h>
+#include <hist_prioritize/hist.h>
 #include <kinect_sim/model.h>
 #include <kinect_sim/scene.h>
 #include <kinect_sim/simulation_io.hpp>
@@ -67,6 +68,7 @@ struct EnvParams {
   double table_height;
   Eigen::Isometry3d camera_pose;
   cv::Mat cam_intrinsic;
+  Eigen::Matrix4d cam_intrinsic_eigen;
   cuda_renderer::Model::mat4x4 proj_mat;
   int width;
   int height;

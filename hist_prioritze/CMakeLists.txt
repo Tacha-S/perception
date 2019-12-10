@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 2.8)
 set (CMAKE_CXX_STANDARD 14)
-project(cuda_renderer)
+project(hist_prioritize)
 
 option(USE_CUDA "use cuda or not" ON)
 
@@ -34,39 +34,39 @@ LINK_DIRECTORIES(/usr/local/lib)
 list(APPEND renderer_inc ${ASSIMP_INCLUDE_DIRS})
 list(APPEND renderer_lib ${ASSIMP_LIBRARIES})
 
+find_package(OpenGL)
+include_directories( ${OPENGL_INCLUDE_DIR} )
+LIST(APPEND LINK_LIBS "${OPENGL_LIBRARIES}")
+LIST(APPEND LIB_DIRS  "${OPENGL_LIBRARY_DIR}" )
+
+
 
 # src
-SET(renderer_cuda renderer.cu)
-SET(renderer_srcs renderer.cpp)
+SET(hist_cuda hist.cu)
+SET(hist_srcs renderer.cpp)
 
 if(USE_CUDA)
-CUDA_COMPILE(renderer_cuda_objs ${renderer_cuda})
+CUDA_COMPILE(hist_cuda_objs ${hist_cuda})
 endif()
 
 
 # lib & test exe
-add_library(cuda_renderer
-               ${renderer_srcs}
-               ${renderer_cuda} 
-               ${renderer_cuda_objs} 
+add_library(hist_prioritize
+               ${hist_srcs}
+               ${hist_cuda} 
+               ${hist_cuda_objs} 
 )
-target_include_directories(cuda_renderer PUBLIC ${renderer_inc})
-target_link_libraries(cuda_renderer PUBLIC ${renderer_lib})
+target_include_directories(hist_prioritize PUBLIC ${renderer_inc} ${OPENGL_LIBRARY_DIR})
+target_link_libraries(hist_prioritize PUBLIC ${renderer_lib} ${OPENGL_LIBRARIES})
 
 
-add_executable(renderer_test test.cpp)
-target_link_libraries(renderer_test cuda_renderer)
+add_executable(hist_test test.cpp)
+target_link_libraries(hist_test hist_prioritize)
 catkin_package(
     INCLUDE_DIRS include
     LIBRARIES ${PROJECT_NAME}
 )
-add_executable(renderer_hist render_hist.cpp)
-target_link_libraries(renderer_hist cuda_renderer)
-catkin_package(
-    INCLUDE_DIRS include
-    LIBRARIES ${PROJECT_NAME}
-)
+
 
 install(DIRECTORY include/${PROJECT_NAME}/
         DESTINATION /home/jessy/catkin_ws/devel/include)
-

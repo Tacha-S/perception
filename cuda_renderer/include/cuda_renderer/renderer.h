@@ -21,7 +21,6 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/core/core.hpp>
-#include <iostream>
 namespace cuda_renderer {
 
 class Model{
@@ -33,7 +32,11 @@ public:
 
     const struct aiScene* scene;
     void LoadModel(const std::string & fileName);
-
+    struct render_result
+    {
+        std::vector<std::vector<uint8_t>> color_result;
+        std::vector<int32_t> depth_result;
+    };
     struct int3 {
         size_t v0;
         size_t v1;
@@ -146,6 +149,8 @@ public:
     void get_bounding_box(aiVector3D& min, aiVector3D& max) const;
 };
 
+
+
 #ifdef CUDA_ON
 // thrust device vector can't be used in cpp by design
 // same codes in cuda renderer,
@@ -183,7 +188,9 @@ extern template class device_vector_holder<Model::Triangle>;
 #else
     using Int_holder = std::vector<int>;
 #endif
-std::vector<int> compute_cost(const std::vector<std::vector<uint8_t>> input,const std::vector<std::vector<uint8_t>> observed,size_t height,size_t width,size_t num_rendered) ;
+std::vector<int> compute_cost(const std::vector<std::vector<uint8_t>>& input,const std::vector<std::vector<uint8_t>>& observed,size_t height,size_t width,size_t num_rendered) ;
+std::vector<int> compute_explained_pixels(const std::vector<std::vector<uint8_t>>& input,const std::vector<std::vector<uint8_t>>& observed,size_t height,size_t width,size_t num_rendered) ;
+
 std::vector<Model::mat4x4> mat_to_compact_4x4(const std::vector<cv::Mat>& poses);
 Model::mat4x4 compute_proj(const cv::Mat& K, int width, int height, float near=10, float far=10000);
 
@@ -198,7 +205,7 @@ std::vector<std::vector<uint8_t>> render_cuda(const std::vector<Model::Triangle>
                             size_t width, size_t height, const Model::mat4x4& proj_mat,
                                  const Model::ROI roi= {0, 0, 0, 0});
 // triangles in gpu side
-std::vector<int32_t> render_cuda(device_vector_holder<Model::Triangle>& tris,const std::vector<Model::mat4x4>& poses,
+std::vector<std::vector<uint8_t>> render_cuda(device_vector_holder<Model::Triangle>& tris,const std::vector<Model::mat4x4>& poses,
                             size_t width, size_t height, const Model::mat4x4& proj_mat,
                                  const Model::ROI roi= {0, 0, 0, 0});
 

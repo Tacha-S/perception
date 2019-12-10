@@ -4,7 +4,6 @@
 #include <vector>
 #include <string>
 #include <iostream>
-#include <fstream>
 #ifdef CUDA_ON
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -84,50 +83,19 @@ int main(int argc, char const *argv[])
     const size_t width = 960; const size_t height = 540;
     helper::Timer timer;
     
-    cuda_renderer::Model model(prefix+"pudding_rotated.ply");
-    std::vector<Mat> bounding_points;
-    Mat p1 = (Mat_<float>(4,1) << model.bbox_min.x,model.bbox_min.y,model.bbox_min.z,1);
-    Mat p2 = (Mat_<float>(4,1) << model.bbox_max.x,model.bbox_min.y,model.bbox_min.z,1);
-    Mat p3 = (Mat_<float>(4,1) << model.bbox_min.x,model.bbox_max.y,model.bbox_min.z,1);
-    Mat p4 = (Mat_<float>(4,1) << model.bbox_max.x,model.bbox_max.y,model.bbox_min.z,1);
-    Mat p5 = (Mat_<float>(4,1) << model.bbox_min.x,model.bbox_min.y,model.bbox_max.z,1);
-    Mat p6 = (Mat_<float>(4,1) << model.bbox_max.x,model.bbox_min.y,model.bbox_max.z,1);
-    Mat p7 = (Mat_<float>(4,1) << model.bbox_min.x,model.bbox_max.y,model.bbox_max.z,1);
-    Mat p8 = (Mat_<float>(4,1) << model.bbox_max.x,model.bbox_max.y,model.bbox_max.z,1);
-    bounding_points.push_back(p1);
-    bounding_points.push_back(p2);
-    bounding_points.push_back(p3);
-    bounding_points.push_back(p4);
-    bounding_points.push_back(p5);
-    bounding_points.push_back(p6);
-    bounding_points.push_back(p7);
-    bounding_points.push_back(p8);
-    Mat p = (Mat_<float>(4,1) << 0.0557364, -0.0480247, 0.0143819,1);
+    cuda_renderer::Model model(prefix+"test.ply");
+
     Mat K = (Mat_<float>(3,3) << 572.4114, 0.0, 325.2611, 0.0, 573.57043, 242.04899, 0.0, 0.0, 1.0);
     auto proj = cuda_renderer::compute_proj(K, width, height);
-    Mat real_K = (Mat_<float>(4,4) << proj.a0,proj.a1,proj.a2,proj.a3,
-                                      proj.b0,proj.b1,proj.b2,proj.b3,
-                                      proj.c0,proj.c1,proj.c2,proj.c3);
 
     Mat R_ren = (Mat_<float>(3,3) << 1, 0, 0.00000000, 0,
                  1, 0, 0, 0,1);
-    Mat t_ren = (Mat_<float>(3,1) << 0, 0, 117.402);
+    Mat t_ren = (Mat_<float>(3,1) << 10, 0, 25);
+
     cuda_renderer::Model::mat4x4 mat4;
     mat4.init_from_cv(R_ren, t_ren);
-    Mat trans = (cv::Mat_<float>(3,4) << mat4.a0, mat4.a1, mat4.a2,mat4.a3,
-                                           mat4.b0, mat4.b1, mat4.b2,mat4.b3,
-                                           mat4.c0, mat4.c1, mat4.c2,mat4.c3);
+
     std::vector<cuda_renderer::Model::mat4x4> mat4_v(1, mat4);
-    std::vector<std::vector<float> > bounding_box;
-    for(int i =0; i <8; i ++){
-        std::vector<float> v;
-        Mat pt = K*trans*bounding_points[i];
-        v.push_back(pt.at<float>(0, 0)/pt.at<float>(2, 0));
-        v.push_back(pt.at<float>(1, 0)/pt.at<float>(2, 0));
-        std::cout<<pt.at<float>(0, 0)/pt.at<float>(2, 0)<<","<<pt.at<float>(1, 0)/pt.at<float>(2, 0)<<"\n";
-        bounding_box.push_back(v);
-    }
-    
     // for(int i = -10; i <20; i ++){
     //     for(int j = -5; j <10; j ++){
     //         t_ren = (Mat_<float>(3,1) << i, j, 25);
@@ -196,96 +164,28 @@ int main(int argc, char const *argv[])
         // }
         // myfile.close();
         
-        // std::ifstream loadFile;
 
-        // loadFile.open ("/home/jessy/test.txt", std::ifstream::in);
-        // std::string line;
-        // while (loadFile.good()){
-        //     std::getline (loadFile,line,':');
-        //     if(line.find("[") == 1){
-        //         std::stringstream ss(line);
-        //         std::string cur;
-        //         std::getline( ss, cur, ',' );
-        //         std::cout<<cur;
-        //     }
-        //     // std::cout<<line;
-        //     std::cout<<"aaaaa";
-        // }
-        // std::cout << "" << std::endl;
-        // loadFile.close();
         std::vector<std::vector<uint8_t>> result_gpu = cuda_renderer::render_cuda(model.tris, mat4_v, width, height, proj);
         timer.out("only render");
         size_t num_rendered = mat4_v.size();
-        std::vector<cv::Mat> test_mat;
-        for(int n = 0; n <num_rendered; n ++){
-            cv::Mat cur_mat = cv::Mat(height,width,CV_8UC3);
-            for(int i = 0; i < height; i ++){
-                for(int j = 0; j <width; j ++){
-                    int index = n*width*height+(i*width+j);
-                    int red = result_gpu[0][index];
-                    int green = result_gpu[1][index];
-                    int blue = result_gpu[2][index];
-                    // std::cout<<red<<","<<green<<","<<blue<<std::endl;
-                    cur_mat.at<Vec3b>(i, j) = Vec3b(blue, green,red);
-                }
-            }
-            timer.out("aaa");
-            float min_x=10000;
-            float max_x=-10000;
-            float min_y=10000;
-            float max_y=-10000;
-            for(int i=0; i <8;i++){
-                float x = bounding_box[i][0];
-                float y = bounding_box[i][1];
-                if(x<min_x) min_x = x;
-                if(x>max_x) max_x = x;
-                if(y<min_y) min_y = y;
-                if(y>max_y) max_y = y;
-                // cur_mat.at<Vec3b>(y, x) = Vec3b(0, 255,0);
-            }
-            Rect roi1(  min_x,min_y, max_x-min_x, max_y-min_y );
-            Mat sub1( cur_mat, roi1 );  
-            std::vector<Mat> bgr_planes;
-            split( sub1, bgr_planes );
-            int histSize = 3;
-            float range[] = { 0, 256 } ;
-            const float* histRange = { range };
-            bool uniform = true; bool accumulate = false;
-            Mat b_hist, g_hist, r_hist,hist;
-            calcHist( &bgr_planes[0], 1, 0, Mat(), b_hist, 1, &histSize, &histRange, uniform, accumulate );
-            calcHist( &bgr_planes[1], 1, 0, Mat(), g_hist, 1, &histSize, &histRange, uniform, accumulate );
-            calcHist( &bgr_planes[2], 1, 0, Mat(), r_hist, 1, &histSize, &histRange, uniform, accumulate );
-            hist.push_back(r_hist);
-            hist.push_back(g_hist);
-            hist.push_back(b_hist);
-            // Mat m;
-            // FileStorage fs("some_name.txt",FileStorage::READ);
-            // fs["x1"] >> m;
-
-            // cv::FileStorage file("some_name.txt", cv::FileStorage::WRITE);
-            // float x = 3.3;
-            // float y = -2.5;
-            // std::string x1 = std::to_string(x);
-            // std::cout<<x1<<std::endl;
-            // std::size_t found = x1.find(".");
-            // std::string aaa = "x"+x1.replace(found,found,"");
-            // std::string a = "x"+std::to_string(x);
-            // std::cout<<a;
-            // file << a << hist <<a<< hist;
-            // file << aaa << hist;
-            // std::cout << "g" << m;
-            // std::cout << "b" << b_hist;
-            // cv::imshow("gpu_mask1", r_hist);
-            cv::imshow("gpu_mask1", sub1);
-            cv::waitKey(0);
-            // cv::Mat lab;
-            // cv::cvtColor(cur_mat,lab,cv::COLOR_BGR2Lab);
-            // test_mat.push_back(lab);
-        }
-
-        
-
-        timer.out("change to cv mat");
+        // std::vector<cv::Mat> test_mat;
+        // for(int n = 0; n <num_rendered; n ++){
+        //     cv::Mat cur_mat = cv::Mat(height,width,CV_8UC3);
+        //     for(int i = 0; i < height; i ++){
+        //         for(int j = 0; j <width; j ++){
+        //             int index = n*width*height+(i*width+j);
+        //             int red = result_gpu[0][index];
+        //             int green = result_gpu[1][index];
+        //             int blue = result_gpu[2][index];
+        //             // std::cout<<red<<","<<green<<","<<blue<<std::endl;
+        //             cur_mat.at<Vec3b>(i, j) = Vec3b(blue, green,red);
+        //         }
+        //     }
+        //     // cv::Mat lab;
+        //     // cv::cvtColor(cur_mat,lab,cv::COLOR_BGR2Lab);
+        //     test_mat.push_back(lab);
+        // }
+        // timer.out("change to cv mat");
         // std::cout<<result_gpu[2].size()<<"aaa";
         // std::cout<<observed[2].size()<<"aaa";
         // cv::Mat depth = cv::Mat(height, width, CV_32SC1, result_gpu.depth_result.data());

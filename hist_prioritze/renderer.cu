@@ -1,8 +1,6 @@
 #include "./include/cuda_renderer/renderer.h"
 // #include <math.h> 
 #include "cuda_fp16.h"
-// #include "glm/glm.hpp"
-// #include "glm/ext.hpp"
 // #include <numeric> 
 #define SQR(x) ((x)*(x))
 #define POW2(x) SQR(x)
@@ -204,24 +202,10 @@ __device__ double color_distance(float l1,float a1,float b1,
     double cur_dist = sqrtf(SQR(deltaL / sl) + SQR(deltaC / sc) + SQR(deltaH / sh) + rt * deltaC / sc * deltaH / sh);
     return cur_dist;
 }
-__device__ inline int32_t myatomicMin(int32_t *addr, int32_t value){
-    int32_t old = *addr, assumed;    
-    do{
-        if( old <= value ){
-
-            return old;
-        }
-        assumed = old;
-        old = atomicCAS((unsigned int*)addr, int32_t(assumed), int32_t(value));
-
-    }while( old!=assumed );
-
-    return old;
-}
 __device__
 void rasterization(const Model::Triangle dev_tri, Model::float3 last_row,
                                         int32_t* depth_entry, size_t width, size_t height,
-                                        const Model::ROI roi, uint8_t* red_entry,uint8_t* green_entry,uint8_t* blue_entry,int32_t* red_entry1){
+                                        const Model::ROI roi, uint8_t* red_entry,uint8_t* green_entry,uint8_t* blue_entry){
                                         // float* l_entry,float* a_entry,float* b_entry){
     // refer to tiny renderer
     // https://github.com/ssloy/tinyrenderer/blob/master/our_gl.cpp
@@ -266,8 +250,8 @@ void rasterization(const Model::Triangle dev_tri, Model::float3 last_row,
             Model::float3 bc_over_z = {bc_screen.x/last_row.x, bc_screen.y/last_row.y, bc_screen.z/last_row.z};
 
             // refer to https://en.wikibooks.org/wiki/Cg_Programming/Rasterization, Perspectively Correct Interpolation
-           // float frag_depth = (dev_tri.v0.z * bc_over_z.x + dev_tri.v1.z * bc_over_z.y + dev_tri.v2.z * bc_over_z.z)
-           //         /(bc_over_z.x + bc_over_z.y + bc_over_z.z);
+//            float frag_depth = (dev_tri.v0.z * bc_over_z.x + dev_tri.v1.z * bc_over_z.y + dev_tri.v2.z * bc_over_z.z)
+//                    /(bc_over_z.x + bc_over_z.y + bc_over_z.z);
 
             // this seems better
             float frag_depth = (bc_screen.x + bc_screen.y + bc_screen.z)
@@ -275,39 +259,67 @@ void rasterization(const Model::Triangle dev_tri, Model::float3 last_row,
 
             size_t x_to_write = (P[0] + roi.x);
             size_t y_to_write = (height-1 - P[1] - roi.y);
-            int32_t depth = int32_t(frag_depth*1000/**1000*/);
+
+            int32_t depth = int32_t(frag_depth/**1000*/ + 0.5f);
             int32_t& depth_to_write = depth_entry[x_to_write+y_to_write*real_width];
-            bool wait = true;
-            while(wait){
-                if(0 == atomicExch(&red_entry1[x_to_write+y_to_write*real_width], 1)){
-                    if(depth< depth_entry[x_to_write+y_to_write*real_width]){
-                        depth_entry[x_to_write+y_to_write*real_width]=depth;
-                        red_entry[x_to_write+y_to_write*real_width] = (uint8_t)(dev_tri.color.v0);
-                        green_entry[x_to_write+y_to_write*real_width] = (uint8_t)(dev_tri.color.v1);
-                        blue_entry[x_to_write+y_to_write*real_width] = (uint8_t)(dev_tri.color.v2);
-                    }
-                    red_entry1[x_to_write+y_to_write*real_width] = 0;
-                    wait = false;
-                }
+            // int32_t& color_to_write = color_entry[x_to_write+y_to_write*real_width];
+            // int32_t rgb = dev_tri.color.v0;
+            // rgb = (rgb << 8) + dev_tri.color.v1;
+            // rgb = (rgb << 8) + dev_tri.color.v2;
+            
+            // unsigned char l1 = lab1[0];
+            // unsigned char a1 = lab1[1];
+            // unsigned char b1 = lab1[2];
+            // bool valid = false;
+            // double real_distance;
+            // double cur_dist;
+            if(depth_entry[x_to_write+y_to_write*real_width] > depth){
+                // color_entry[x_to_write+y_to_write*real_width] = rgb;
+                // float lab1[3];
+                // rgb2lab(dev_tri.color.v0,dev_tri.color.v1,dev_tri.color.v2,lab1);
+                red_entry[x_to_write+y_to_write*real_width] = (uint8_t)(dev_tri.color.v0);
+                green_entry[x_to_write+y_to_write*real_width] = (uint8_t)(dev_tri.color.v1);
+                blue_entry[x_to_write+y_to_write*real_width] = (uint8_t)(dev_tri.color.v2);
+                // l_entry[x_to_write+y_to_write*real_width] = lab1[0];
+                // a_entry[x_to_write+y_to_write*real_width] = lab1[1];
+                // b_entry[x_to_write+y_to_write*real_width] = lab1[2];
+                // for(int i = -2; i <3;i++){
+                //     int row = y_to_write+i;
+                //     int col = x_to_write+i;
+                //     if(row >= 0 && row <height && col >= 0 && col <width){
+                //         const int color_tid_input1 = (row) * real_width + (3 * col);
+                //         const unsigned char l2  = input[color_tid_input1];
+                //         const unsigned char a2  = input[color_tid_input1 + 1];
+                //         const unsigned char b2  = input[color_tid_input1 + 2];
+                //         cur_dist=color_distance(l1,a1,b1,l2,a2,b2);
+                //         if(cur_dist < 20){
+                //             valid = true;
+                //         }
+                //         if(i==0){
+                //             real_distance = cur_dist;
+                //         }
+                //     }
+                // }
+                // if(!valid){
+                //     color_entry[x_to_write+y_to_write*real_width] = cur_dist;
+                // }
+                // int red = input[3*x_to_write+y_to_write*real_width];
+                // int green = input[3*x_to_write+y_to_write*real_width+1];
+                // int blue = input[3*x_to_write+y_to_write*real_width+2];
+                // int32_t lab2[3];
+                // rgb2lab(red,green,blue,lab);
+                // unsigned char l2 = lab2[0];
+                // unsigned char a2 = lab2[1];
+                // unsigned char b2 = lab2[2];
+                // double cur_dist=color_distance(l1,a1,b1,l2,a2,b2);
+                // if(cur_dist>20){
+                //     color_entry[x_to_write+y_to_write*real_width] = 1;
+                // }
+
+
             }
-            
-            
-            // int32_t& red_to_write = red_entry1[0];
-            // int32_t red_c = (int32_t)(dev_tri.color.v0);
-            // int32_t old_depth = atomicMin(&depth_to_write,depth);
-            // __syncthreads();
-            // // printf("%d,%d, %d\n", depth_entry[x_to_write+y_to_write*real_width],depth,int32_t(x_to_write+y_to_write*real_width));
-            // if(depth_entry[x_to_write+y_to_write*real_width]== depth){
-            //     red_entry[x_to_write+y_to_write*real_width] = (uint8_t)(dev_tri.color.v0);
-            //     // printf("%d,%f, %d\n", depth_entry[x_to_write+y_to_write*real_width],frag_depth,int32_t(x_to_write+y_to_write*real_width));
-            //     atomicAdd(&red_to_write,1);
-            //     green_entry[x_to_write+y_to_write*real_width] = (uint8_t)(dev_tri.color.v1);
-            //     blue_entry[x_to_write+y_to_write*real_width] = (uint8_t)(dev_tri.color.v2);
-                
-            // }
-            
             // atomicMin(&depth_to_write, rgb);
-            
+            atomicMin(&depth_to_write,depth);
         }
     }
 }
@@ -315,7 +327,7 @@ void rasterization(const Model::Triangle dev_tri, Model::float3 last_row,
 __global__ void render_triangle(Model::Triangle* device_tris_ptr, size_t device_tris_size,
                                 Model::mat4x4* device_poses_ptr, size_t device_poses_size,
                                 int32_t* depth_image_vec, size_t width, size_t height, const Model::mat4x4 proj_mat,
-                                 const Model::ROI roi,uint8_t* red_image_vec,uint8_t* green_image_vec,uint8_t* blue_image_vec,int32_t* red_image_vec1){
+                                 const Model::ROI roi,uint8_t* red_image_vec,uint8_t* green_image_vec,uint8_t* blue_image_vec){
                                  // float* l_vec,float* a_vec,float* b_vec){
     size_t pose_i = blockIdx.y;
     size_t tri_i = blockIdx.x*blockDim.x + threadIdx.x;
@@ -331,7 +343,6 @@ __global__ void render_triangle(Model::Triangle* device_tris_ptr, size_t device_
     }
 
     int32_t* depth_entry = depth_image_vec + pose_i*real_width*real_height; //length: width*height 32bits int
-    int32_t* red_entry1 = red_image_vec1 + pose_i*real_width*real_height; 
     uint8_t* red_entry = red_image_vec + pose_i*real_width*real_height;
     uint8_t* green_entry = green_image_vec + pose_i*real_width*real_height;
     uint8_t* blue_entry = blue_image_vec + pose_i*real_width*real_height;
@@ -355,7 +366,7 @@ __global__ void render_triangle(Model::Triangle* device_tris_ptr, size_t device_
     local_tri = transform_triangle(local_tri, proj_mat);
 
     // rasterization(local_tri, last_row, depth_entry, width, height, roi,red_entry,green_entry,blue_entry,l_entry,a_entry,b_entry);
-    rasterization(local_tri, last_row, depth_entry, width, height, roi,red_entry,green_entry,blue_entry,red_entry1);
+    rasterization(local_tri, last_row, depth_entry, width, height, roi,red_entry,green_entry,blue_entry);
 }
 __global__ void bgr_to_gray_kernel( uint8_t* red_in,uint8_t* green_in,uint8_t* blue_in,
                                     uint8_t* red_ob, uint8_t* green_ob,uint8_t* blue_ob, 
@@ -572,6 +583,7 @@ std::vector<std::vector<uint8_t>> render_cuda(const std::vector<Model::Triangle>
     // std::cout <<tris[0].color.v1;
     thrust::device_vector<Model::Triangle> device_tris = tris;
     thrust::device_vector<Model::mat4x4> device_poses = poses;
+
     size_t real_width = width;
     size_t real_height = height;
     if(roi.width > 0 && roi.height > 0){
@@ -583,7 +595,6 @@ std::vector<std::vector<uint8_t>> render_cuda(const std::vector<Model::Triangle>
     // atomic min only support int32
     
     thrust::device_vector<int32_t> device_depth_int(poses.size()*real_width*real_height, INT_MAX);
-    thrust::device_vector<int32_t> device_red_int1(poses.size()*real_width*real_height, 0);
     thrust::device_vector<uint8_t> device_red_int(poses.size()*real_width*real_height, 0);
     thrust::device_vector<uint8_t> device_green_int(poses.size()*real_width*real_height, 0);
     thrust::device_vector<uint8_t> device_blue_int(poses.size()*real_width*real_height, 0);
@@ -594,7 +605,6 @@ std::vector<std::vector<uint8_t>> render_cuda(const std::vector<Model::Triangle>
         Model::Triangle* device_tris_ptr = thrust::raw_pointer_cast(device_tris.data());
         Model::mat4x4* device_poses_ptr = thrust::raw_pointer_cast(device_poses.data());
         int32_t* depth_image_vec = thrust::raw_pointer_cast(device_depth_int.data());
-        int32_t* red_image_vec1 = thrust::raw_pointer_cast(device_red_int1.data());
         uint8_t* red_image_vec = thrust::raw_pointer_cast(device_red_int.data());
         uint8_t* green_image_vec = thrust::raw_pointer_cast(device_green_int.data());
         uint8_t* blue_image_vec = thrust::raw_pointer_cast(device_blue_int.data());
@@ -610,31 +620,27 @@ std::vector<std::vector<uint8_t>> render_cuda(const std::vector<Model::Triangle>
         render_triangle<<<numBlocks, threadsPerBlock>>>(device_tris_ptr, tris.size(),
                                                         device_poses_ptr, poses.size(),
                                                         depth_image_vec, width, height, proj_mat, roi,
-                                                        red_image_vec,green_image_vec,blue_image_vec,red_image_vec1);
+                                                        red_image_vec,green_image_vec,blue_image_vec);
         cudaDeviceSynchronize();
         // gpuErrchk(cudaPeekAtLastError());
     }
 
 
-    std::vector<int32_t> result_depth(poses.size()*real_width*real_height);
-    {
-        thrust::transform(device_depth_int.begin(), device_depth_int.end(),
-                          device_depth_int.begin(), max2zero_functor());
-        thrust::copy(device_depth_int.begin(), device_depth_int.end(), result_depth.begin());
+    // std::vector<int32_t> result_depth(poses.size()*real_width*real_height);
+    // {
+    //     thrust::transform(device_depth_int.begin(), device_depth_int.end(),
+    //                       device_depth_int.begin(), max2zero_functor());
+    //     thrust::copy(device_depth_int.begin(), device_depth_int.end(), result_depth.begin());
 
-    }
+    // }
     
     std::vector<uint8_t> result_red(poses.size()*real_width*real_height);
-    std::vector<int32_t> result_red1(poses.size()*real_width*real_height);
     std::vector<uint8_t> result_green(poses.size()*real_width*real_height);
     std::vector<uint8_t> result_blue(poses.size()*real_width*real_height);
     std::vector<float> result_l(poses.size()*real_width*real_height);
     std::vector<float> result_a(poses.size()*real_width*real_height);
     std::vector<float> result_b(poses.size()*real_width*real_height);
     {
-        thrust::transform(device_red_int1.begin(), device_red_int1.end(),
-                          device_red_int1.begin(), max2zero_functor());
-        thrust::copy(device_red_int1.begin(), device_red_int1.end(), result_red1.begin());
         thrust::transform(device_red_int.begin(), device_red_int.end(),
                           device_red_int.begin(), max2zero_functor());
         thrust::copy(device_red_int.begin(), device_red_int.end(), result_red.begin());
@@ -661,20 +667,11 @@ std::vector<std::vector<uint8_t>> render_cuda(const std::vector<Model::Triangle>
     result_color.push_back(result_red);
     result_color.push_back(result_green);
     result_color.push_back(result_blue);
-    int tr=0;
-    int tg=0;
-    int tb=0;
-    int td = 0;
-    for(int i=0;i<result_red1.size(); i ++){
-        tr+=result_red1[i];
-        tg+=result_green[i];
-        tb+=result_blue[i];
-        td+= result_depth[i];
-        // if(result_red[i]!=0){
-        //     std::cout<<result_red[i];
-        // }
-    }
-    std::cout<<tr<<","<<tg<<","<<tb<<","<<td<<std::endl;
+    // for(int i=0;i<result_red.size(); i ++){
+    //     if(result_red[i]!=0){
+    //         std::cout<<result_red[i];
+    //     }
+    // }
     // result_lab.push_back(result_l);
     // result_lab.push_back(result_a);
     // result_lab.push_back(result_b);
