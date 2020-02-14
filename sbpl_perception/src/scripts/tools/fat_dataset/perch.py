@@ -5,7 +5,7 @@ import rospy
 import rospkg
 import rosparam
 import subprocess
-import roslaunch
+# import roslaunch
 import os
 import numpy as np
 from shutil import copy
@@ -46,9 +46,11 @@ class FATPerch():
             models_root=None, model_params=None, symmetry_info=None, read_results_only=False, env_config="pr2_env_config.yaml",
             planner_config="pr2_planner_config.yaml"
         ):
+        
         self.PERCH_EXEC = subprocess.check_output("catkin_find sbpl_perception perch_fat".split(" ")).decode("utf-8").rstrip().lstrip()
         rospack = rospkg.RosPack()
         self.PERCH_ROOT = rospack.get_path('sbpl_perception')
+   
         PERCH_ENV_CONFIG = "{}/config/{}".format(self.PERCH_ROOT, env_config)
         PERCH_PLANNER_CONFIG = "{}/config/{}".format(self.PERCH_ROOT, planner_config)
         # PERCH_ENV_CONFIG = "{}/config/pr3_env_config.yaml".format(self.PERCH_ROOT)
