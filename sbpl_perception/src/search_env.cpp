@@ -36,6 +36,7 @@
 #include <omp.h>
 #include <algorithm>
 #include <pcl/point_cloud.h>
+#include <pcl/octree/octree2buf_base.h>
 #include <pcl/octree/octree_pointcloud_changedetector.h>
 
 using namespace std;
