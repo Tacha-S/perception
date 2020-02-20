@@ -90,54 +90,98 @@ struct pose_functor{
     }
 };
 
-__global__ void compare_hist(const int ob_pixel_num, const int num,const pose* output_p, const int*hist, int* output_s){
+__global__ void compare_hist(const int ob_pixel_num, const int num,const pose* output_p, 
+                             const int*hist, int* output_s,const int y_num, const int angle_num){
     size_t index = blockIdx.x*blockDim.x + threadIdx.x;
     if(index<num){
-        
-        int score = ob_pixel_num;
-        int ob_h1 = output_p[index].hist[0];
-        int ob_h2 = output_p[index].hist[1];
-        int ob_h3 = output_p[index].hist[2];
-        int ob_h4 = output_p[index].hist[3];
-        int ob_h5 = output_p[index].hist[4];
-        int ob_h6 = output_p[index].hist[5];
-        int ob_h7 = output_p[index].hist[6];
-        int re_h1 = hist[index*7];
-        int re_h2 = hist[index*7+1];
-        int re_h3 = hist[index*7+2];
-        int re_h4 = hist[index*7+3];
-        int re_h5 = hist[index*7+4];
-        int re_h6 = hist[index*7+5];
-        int re_h7 = hist[index*7+6];
-        score =score-ob_h1-ob_h2-ob_h3-ob_h4-ob_h5-ob_h6;
 
-        int d0 = ob_h1-re_h1;
-        int d1 = ob_h2-re_h2;
-        int d2 = ob_h3-re_h3;
-        int d3 = ob_h4-re_h4;
-        int d4 = ob_h5-re_h5;
-        int d5 = ob_h6-re_h6;
-        int d6 = ob_h7-re_h7;
-        if(d0>0){score+=d0/2;score-=re_h1;}else{score-=d0/2;score-=ob_h1;}
-        if(d1>0){score+=d1/2;score-=re_h2;}else{score-=d1/2;score-=ob_h2;}
-        if(d2>0){score+=d2/2;score-=re_h3;}else{score-=d2/2;score-=ob_h3;}
-        if(d3>0){score+=d3/2;score-=re_h4;}else{score-=d3/2;score-=ob_h4;}
-        if(d4>0){score+=d4/2;score-=re_h5;}else{score-=d4/2;score-=ob_h5;}
-        if(d5>0){score+=d5/2;score-=re_h6;}else{score-=d5/2;score-=ob_h6;}
-        if(d6>0){score+=d6/2;score-=re_h7;}else{score-=d6/2;score-=ob_h7;}
+        float x = output_p[index].x;
+        float y = output_p[index].y;
+        float theta = output_p[index].theta;
+        int con_y_num = 140;
+        int con_angle_num = 126;
+        int trans_i = int((x-(-0.44))/0.01*con_y_num*con_angle_num+(y-(-0.7))/0.01*con_angle_num);
+        int angle_i = int((theta)/0.05+0.5f);
+        int ind = trans_i+angle_i+1;
+
+        int score = ob_pixel_num;
+        int bar_num = 13;
+        int total_rendered = 0;
+        for(int i =0; i <bar_num-1;i++){
+            int ob = output_p[index].hist[i];
+            int re = hist[ind*bar_num+i];
+            total_rendered += re;
+            score -=ob;
+            int diff = ob-re;
+            if(diff>0){
+                score += diff/2;
+                score -= re;
+            }else{
+                score -= ob;
+                score -= diff/2;
+            }
+        }
+        int ob_b = output_p[index].hist[12];
+        int re_b = hist[ind*bar_num+12];
+        int db = ob_b-re_b;
+        if(db>0){score+=db/2;}else{score-=db/2;}
+        // int ob_h1 = output_p[index].hist[0];
+        // int ob_h2 = output_p[index].hist[1];
+        // int ob_h3 = output_p[index].hist[2];
+        // int ob_h4 = output_p[index].hist[3];
+        // int ob_h5 = output_p[index].hist[4];
+        // int ob_h6 = output_p[index].hist[5];
+        // int ob_h7 = output_p[index].hist[6];
+        // int re_h1 = hist[ind*13];
+        // int re_h2 = hist[ind*13+1];
+        // int re_h3 = hist[ind*13+2];
+        // int re_h4 = hist[ind*7+3];
+        // int re_h5 = hist[ind*7+4];
+        // int re_h6 = hist[ind*7+5];
+        // int re_h7 = hist[ind*7+6];
+        // score =score-ob_h1-ob_h2-ob_h3-ob_h4-ob_h5-ob_h6;
+        // int d0 = ob_h1-re_h1;
+        // int d1 = ob_h2-re_h2;
+        // int d2 = ob_h3-re_h3;
+        // int d3 = ob_h4-re_h4;
+        // int d4 = ob_h5-re_h5;
+        // int d5 = ob_h6-re_h6;
+        // int d6 = ob_h7-re_h7;
+        // if(d0>0){score+=d0/2;score-=re_h1;}else{score-=d0/2;score-=ob_h1;}
+        // if(d1>0){score+=d1/2;score-=re_h2;}else{score-=d1/2;score-=ob_h2;}
+        // if(d2>0){score+=d2/2;score-=re_h3;}else{score-=d2/2;score-=ob_h3;}
+        // if(d3>0){score+=d3/2;score-=re_h4;}else{score-=d3/2;score-=ob_h4;}
+        // if(d4>0){score+=d4/2;score-=re_h5;}else{score-=d4/2;score-=ob_h5;}
+        // if(d5>0){score+=d5/2;score-=re_h6;}else{score-=d5/2;score-=ob_h6;}
+        // if(d6>0){score+=d6/2;}else{score-=d6/2;}
         output_s[index] = score+518400;
-        // printf("%d: %f,%f,%f: %d,%d,%d,%d,%d,%d : %d,%d,%d,%d,%d,%d ! %d \n", 
-        //                                                 index,output_p[index].x,output_p[index].y,
-        //                                                output_p[index].theta,
-        //                                                output_p[index].hist[0],output_p[index].hist[1],output_p[index].hist[2],
-        //                                                output_p[index].hist[3],output_p[index].hist[4],output_p[index].hist[5],
-        //                                                hist[index*6],hist[index*6+1],hist[index*6+2],
-        //                                                hist[index*6+3],hist[index*6+4],hist[index*6+5],score
+
+        // printf("%d: %f,%f,%f: %d: %d %d %d\n",index,output_p[index].x,output_p[index].y,
+        //                                                output_p[index].theta,ind,hist[ind*bar_num],hist[ind*bar_num+1],hist[ind*bar_num+2]
         //                                                );
     }
 
 
 }
+
+
+// bool inside_ROI(x_min,x_max,y_min,y_max){
+//     return x_min>431 && y_min > 246 && x_max < 431+136 &&y_max< 246+94;
+// }
+__device__ bool inside_ROI(float x_min,float x_max,float y_min,float y_max, const int* roi){
+    int count = roi[0];
+    for(int i =0; i < count; i ++){
+        int x = roi[i*4+1];
+        int y = roi[i*4+2];
+        int width = roi[i*4+3];
+        int height = roi[i*4+4];
+        if(x_min>(x-10) && y_min > (y-10) && x_max < (x+width+10) &&y_max< (y+height+10))
+            return true;
+    }
+    return false;
+}
+
+
 
 
 __global__ void construct_hist(int32_t* out_score,int32_t* valid_p,pose* output_p,
@@ -146,7 +190,7 @@ __global__ void construct_hist(int32_t* out_score,int32_t* valid_p,pose* output_
                                    const float trans_res,const float angle_res,const int x_num,const int y_num,const int angle_num,
                                    const uint8_t* h_ob, const uint8_t* s_ob,const uint8_t* v_ob,
                                    const float* cam_r1,const float* cam_r2,const float* cam_r3,
-                                   const float* bb, const int* hist)
+                                   const float* bb, const int* hist, const int* roi)
 {
     size_t angle_i = blockIdx.y;
     size_t trans_i = blockIdx.x*blockDim.x + threadIdx.x;
@@ -168,6 +212,7 @@ __global__ void construct_hist(int32_t* out_score,int32_t* valid_p,pose* output_
             float res_x = cur_x*(cam_r1[0]*cos(theta)+cam_r1[1]*(sin(theta)))+
                           cur_y*(cam_r1[0]*(-sin(theta))+cam_r1[1]*(cos(theta)))+
                           cur_z*cam_r1[2]+
+                          //!!!!!!!!!!!!!!!!!!!!!!!!!!!0.0480247 is from the center of object to the z value find the same number in search_env.cpp 
                           cam_r1[0]*x+cam_r1[1]*y+cam_r1[2]*0.0480247+cam_r1[3];
             float res_y = cur_x*(cam_r2[0]*cos(theta)+cam_r2[1]*(sin(theta)))+
                           cur_y*(cam_r2[0]*(-sin(theta))+cam_r2[1]*(cos(theta)))+
@@ -195,61 +240,43 @@ __global__ void construct_hist(int32_t* out_score,int32_t* valid_p,pose* output_
         // printf("%d, !!!!%f,%f,%f:   %f,%f,%f,%f;\n",output_index,x,y,theta,min_x,max_x,min_y,max_y);
         int sum = 0;
         if(min_x>=0 && min_x<width&&max_x>=0 && max_x<width&&
-            min_y>=0 && min_y<height&&max_y>=0 && max_y<height){
-            int h0 = 0;int h1 = 0;int h2 = 0;int h3 = 0;int h4 = 0;int h5 = 0;int h6 = 0;
+            min_y>=0 && min_y<height&&max_y>=0 && max_y<height&&inside_ROI(min_x,max_x,min_y,max_y,roi)){
+            // min_y>=0 && min_y<height&&max_y>=0 && max_y<height){
             for(int cur_x = min_x;cur_x<=max_x;cur_x++){
                 for(int cur_y=min_y;cur_y<=max_y;cur_y++){
                     int cur_ind = cur_y*width+cur_x;
                     uint8_t h_value = h_ob[cur_ind];
                     uint8_t s_value = s_ob[cur_ind];
                     uint8_t v_value = v_ob[cur_ind];
-                    sum += h_value;
-                    sum += s_value;
-                    sum += v_value;
                     if(s_value!=0 && v_value!=0){
-                        if(0<=h_value &&h_value<30){
-                            h1+=1;
-                        }else if(30<=h_value &&h_value<60){
-                            h2+=1;
-                        }
-                        else if(60<=h_value &&h_value<90){
-                            h3+=1;
-                        }
-                        else if(90<=h_value &&h_value<120){
-                            h4+=1;
-                        }
-                        else if(120<=h_value &&h_value<150){
-                            h5+=1;
-                        }
-                        else if(150<=h_value &&h_value<180){
-                            h6+=1;
-                        }
+                        sum+=1;
+                        int index = h_value/15;
+                        output_p[output_index].hist[index] +=1;
                     }else{
-                        h0+=1;
+                        output_p[output_index].hist[12] +=1;;
                     }
                 }
             }
-            if(sum ==0){
+            if(sum <1){
                 out_score[output_index] = 2*518400;
+                // int32_t& valid_add = valid_p[0];
+                // atomicAdd(&valid_add,1);
+                // out_score[output_index] = 0;
             }else{
                 // printf("%f,%f,%f,%d;\n",x,y,theta,sum);
+                // printf("%f,%f,%f,%f;\n",min_x,min_y,max_x,max_y);
                 int32_t& valid_add = valid_p[0];
                 atomicAdd(&valid_add,1);
                 out_score[output_index] = 0;
+                output_p[output_index].x = x;
+                output_p[output_index].y = y;
+                output_p[output_index].theta = theta;
             }
-            output_p[output_index].x = x;
-            output_p[output_index].y = y;
-            output_p[output_index].theta = theta;
-            output_p[output_index].hist[6] = h0;
-            output_p[output_index].hist[0] = h1;
-            output_p[output_index].hist[1] = h2;
-            output_p[output_index].hist[2] = h3;
-            output_p[output_index].hist[3] = h4;
-            output_p[output_index].hist[4] = h5;
-            output_p[output_index].hist[5] = h6;
+            
 
         }else{
-            out_score[output_index] = 2*518400;
+            out_score[output_index] =2*518400;
+
         }
         
     }
@@ -260,7 +287,7 @@ __global__ void construct_hist(int32_t* out_score,int32_t* valid_p,pose* output_
 
 
 
-std::vector<pose> compare_hist(const int width, const int height,const float x_min,const float x_max,
+s_pose compare_hist(const int width, const int height,const float x_min,const float x_max,
                               const float y_min,const float y_max,
                               const float theta_min,const float theta_max,
                               const float trans_res, const float angle_res,
@@ -268,9 +295,20 @@ std::vector<pose> compare_hist(const int width, const int height,const float x_m
                               const std::vector<std::vector<uint8_t>>& observed,
                               const std::vector<std::vector<float> >& cam_matrix,
                               const std::vector<float>& bounding_boxes,
-                              const std::vector<int>& hist_vector
+                              const std::vector<int>& hist_vector,
+                              const std::vector<int>& color_region
                               )
 {
+
+    float elapsed1=0;
+    float elapsed2=0;
+    cudaEvent_t start1, stop1,start2,stop2;
+
+    HANDLE_ERROR(cudaEventCreate(&start1));
+    HANDLE_ERROR(cudaEventCreate(&stop1));
+
+    HANDLE_ERROR( cudaEventRecord(start1, 0));
+
     const size_t threadsPerBlock = 256;
     
     float x_range = x_max-x_min;
@@ -294,6 +332,7 @@ std::vector<pose> compare_hist(const int width, const int height,const float x_m
     thrust::device_vector<float> cam_row2 = cam_matrix[1];
     thrust::device_vector<float> cam_row3 = cam_matrix[2];
     thrust::device_vector<int> h = hist_vector;
+    thrust::device_vector<int> c_region = color_region;
     thrust::device_vector<int> d_valid(1, 0);
     // std::cout<<cam_matrix[0][0]<<","<<cam_matrix[0][1]<<","<<cam_matrix[0][2]<<","<<cam_matrix[0][3]<<std::endl;
     // std::cout<<cam_matrix[1][0]<<","<<cam_matrix[1][1]<<","<<cam_matrix[1][2]<<","<<cam_matrix[1][3]<<std::endl;
@@ -313,6 +352,7 @@ std::vector<pose> compare_hist(const int width, const int height,const float x_m
         float* cam_r3 = thrust::raw_pointer_cast(cam_row3.data());
         float* bounding_box = thrust::raw_pointer_cast(bb.data());
         int* hist = thrust::raw_pointer_cast(h.data());
+        int* roi = thrust::raw_pointer_cast(c_region.data());
         // glm::mat4* a = thrust::raw_pointer_cast(cam_matrix.data());
 
 
@@ -322,34 +362,11 @@ std::vector<pose> compare_hist(const int width, const int height,const float x_m
                                                         x_min, y_min, theta_min,x_max, y_max, theta_max,
                                                         trans_res,angle_res,x_num,y_num,angle_num,
                                                         h_ob,s_ob,v_ob,
-                                                        cam_r1,cam_r2,cam_r3,bounding_box,hist);
+                                                        cam_r1,cam_r2,cam_r3,bounding_box,hist,roi);
         cudaDeviceSynchronize();
     }
+    
 
-
-
-
-    // std::vector<int> min_x(x_num*y_num*angle_num);
-    // std::vector<int> max_x(x_num*y_num*angle_num);
-    // std::vector<int> min_y(x_num*y_num*angle_num);
-    // std::vector<int> max_y(x_num*y_num*angle_num);
-    // {
-    //     thrust::transform(d_output1.begin(), d_output1.end(),
-    //                       d_output1.begin(), max2zero_functor());
-    //     thrust::copy(d_output1.begin(), d_output1.end(), min_x.begin());
-
-    //     thrust::transform(d_output2.begin(), d_output2.end(),
-    //                       d_output2.begin(), max2zero_functor());
-    //     thrust::copy(d_output2.begin(), d_output2.end(), max_x.begin());
-
-    //     thrust::transform(d_output3.begin(), d_output3.end(),
-    //                       d_output3.begin(), max2zero_functor());
-    //     thrust::copy(d_output3.begin(), d_output3.end(), min_y.begin());
-
-    //     thrust::transform(d_output4.begin(), d_output4.end(),
-    //                       d_output4.begin(), max2zero_functor());
-    //     thrust::copy(d_output4.begin(), d_output4.end(), max_y.begin());
-    // }
     std::vector<int> score(x_num*y_num*angle_num);
     std::vector<int> x(x_num*y_num*angle_num);
     std::vector<int> y(x_num*y_num*angle_num);
@@ -372,6 +389,22 @@ std::vector<pose> compare_hist(const int width, const int height,const float x_m
 
 
     }
+
+    HANDLE_ERROR(cudaEventRecord(stop1, 0));
+    HANDLE_ERROR(cudaEventSynchronize (stop1) );
+
+    HANDLE_ERROR(cudaEventElapsedTime(&elapsed1, start1, stop1) );
+
+    HANDLE_ERROR(cudaEventDestroy(start1));
+    HANDLE_ERROR(cudaEventDestroy(stop1));
+
+    printf("The constructing hist time was %.2f ms\n", elapsed1);
+
+    HANDLE_ERROR(cudaEventCreate(&start2));
+    HANDLE_ERROR(cudaEventCreate(&stop2));
+
+    HANDLE_ERROR( cudaEventRecord(start2, 0));
+
     
     {
 
@@ -380,7 +413,7 @@ std::vector<pose> compare_hist(const int width, const int height,const float x_m
         int* hist = thrust::raw_pointer_cast(h.data());
 
         dim3 numBlocks((valid_num[0] + threadsPerBlock - 1) / threadsPerBlock, 1);
-        compare_hist<<<numBlocks, threadsPerBlock>>>(ob_pixel_num,valid_num[0],output_p,hist,output_s);
+        compare_hist<<<numBlocks, threadsPerBlock>>>(ob_pixel_num,valid_num[0],output_p,hist,output_s,y_num,angle_num);
         cudaDeviceSynchronize();
     }
     {   
@@ -394,20 +427,31 @@ std::vector<pose> compare_hist(const int width, const int height,const float x_m
         thrust::sort_by_key(output_score.begin(), output_score.end(), output_score.begin());
         thrust::transform(output_score.begin(), output_score.end(),
                           output_score.begin(), max2zero_functor());
-        thrust::copy(output_score.begin(), output_score.end(), score.begin());
+        thrust::copy(output_score.begin(), output_score.begin()+valid_num[0], score.begin());
         
 
 
     }
+    HANDLE_ERROR(cudaEventRecord(stop2, 0));
+    HANDLE_ERROR(cudaEventSynchronize (stop2) );
 
+    HANDLE_ERROR(cudaEventElapsedTime(&elapsed2, start2, stop2) );
+
+    HANDLE_ERROR(cudaEventDestroy(start2));
+    HANDLE_ERROR(cudaEventDestroy(stop2));
+
+    printf("The comparing hist time was %.2f ms\n", elapsed2);
     std::vector<pose> v(valid_num[0]);
     thrust::copy(d_output_p.begin(), d_output_p.begin()+valid_num[0], v.begin());
     std::cout<<"aaaaaaa"<<valid_num[0]<<std::endl;
     std::vector<std::vector<int> > res;
-    for(int i =0; i <valid_num[0]; i ++){
-        pose a = v[i];
-        // std::cout<<a.x<<","<<a.y<<","<<a.theta<<":"<<score[i]<<std::endl;
-    }
+    s_pose a;
+    a.ps = v;
+    a.score = score;
+    // for(int i =0; i <valid_num[0]; i ++){
+    //     pose a = v[i];
+    //     std::cout<<a.x<<","<<a.y<<","<<a.theta<<":"<<score[i]<<std::endl;
+    // }
     // for(int i =0; i <score.size(); i ++){
     //     std::cout<<score[i]<<",";
     // }
@@ -420,7 +464,7 @@ std::vector<pose> compare_hist(const int width, const int height,const float x_m
     //     std::cout<<min_x[i]<<","<<max_x[i]<<","<<min_y[i]<<","<<max_y[i]<<std::endl;
     // }
 
-    return v;
+    return a;
 }
 
 

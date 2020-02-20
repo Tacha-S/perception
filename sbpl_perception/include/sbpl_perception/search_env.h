@@ -82,6 +82,7 @@ struct EnvParams {
   int use_external_pose_list;
   int use_icp;
   int shift_pose_centroid;
+  std::vector<int> estimate_score;
 };
 
 struct PERCHParams {

@@ -1,3 +1,0 @@
-[[[[[[[[  Stats  ]]]]]]]]:
-#Rendered #Valid Rendered #Expands Time Cost
-188 189 1 4.67451 528647

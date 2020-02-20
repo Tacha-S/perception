@@ -878,6 +878,8 @@ int EnvObjectRecognition::GetBestSuccessorID(int state_id) {
 void EnvObjectRecognition::ComputeCostsInParallel(std::vector<CostComputationInput> &input,
                                                   std::vector<CostComputationOutput> *output,
                                                   bool lazy) {
+  auto start_t = chrono::steady_clock::now();
+  
   std::map<std::string,cv::Mat> mymap;
   std::vector<cv::Mat> bounding_points;
   cuda_renderer::Model model = render_models_[0];
@@ -984,11 +986,13 @@ void EnvObjectRecognition::ComputeCostsInParallel(std::vector<CostComputationInp
       
       // Eigen::Matrix4d cam_matrix =cam_z_front.matrix().inverse();
       Eigen::Matrix4d pose_in_cam = cam_matrix*transform;
-      if(cur.x()==0.15 &&cur.y()==-0.26&&cur.yaw()==1){
-        std::cout<<transform<<std::endl;
-      }
+      // if(n==0){
+      //   std::cout<<transform<<std::endl;
+      //   std::cout<<"Aaaaaaaaa";
+      //   std::cout<<pose_in_cam<<std::endl;
+      // }
       // std::cout<<transform<<std::endl;
-      // std::cout<<cam_matrix<<std::endl;
+      // std::cout<<pose_in_cam<<std::endl;
       cuda_renderer::Model::mat4x4 mat4;
       //multiply 100 to change scale, data scale is in meter
       mat4.a0 = pose_in_cam(0,0)*100;
@@ -1038,20 +1042,21 @@ void EnvObjectRecognition::ComputeCostsInParallel(std::vector<CostComputationInp
 
   // myStream.close();
   #ifdef CUDA_ON
-  int render_size = 500;
+  int render_size = 200;
   int total_render_num = mat4_v.size();
   int num_render = (total_render_num-1)/render_size+1;
   std::vector<int> total_result_cost;
   int count_p = 0;
   std::ofstream myfile;
-  myfile.open ("/home/jessy/testa.txt",std::ios_base::app);
+  myfile.open ("/home/jessy/testb.txt",std::ios_base::app);
   for(int i =0; i <num_render; i ++){
+
     auto last = std::min(total_render_num, i*render_size + render_size);
     std::vector<cuda_renderer::Model::mat4x4>::const_iterator start = mat4_v.begin() + i*render_size;
     std::vector<cuda_renderer::Model::mat4x4>::const_iterator finish = mat4_v.begin() + last;
     std::vector<cuda_renderer::Model::mat4x4> cur_transform(start,finish);
-    std::vector<std::vector<uint8_t>> result_gpu = cuda_renderer::render_cuda(render_models_[0].tris,cur_transform,
-                                                      env_params_.width, env_params_.height, env_params_.proj_mat);
+    // std::vector<std::vector<uint8_t>> result_gpu = cuda_renderer::render_cuda(render_models_[0].tris,cur_transform,
+    //                                                   env_params_.width, env_params_.height, env_params_.proj_mat);
     // std::vector<uint8_t> r_v;
     // std::vector<uint8_t> g_v;
     // std::vector<uint8_t> b_v;
@@ -1068,162 +1073,135 @@ void EnvObjectRecognition::ComputeCostsInParallel(std::vector<CostComputationInp
     // observed.push_back(r_v);
     // observed.push_back(g_v);
     // observed.push_back(b_v);
-
-    int height = 540;
-    int width = 960;
-    cv::Mat cur_mat = cv::Mat(height,width,CV_8UC3);
-    // cv::imshow("gpu_mask1", cur_mat); 
-    // cv::waitKey(0); 
-    
-    for(int n = 0; n <cur_transform.size(); n ++){
-        std::cout<<contposes[count_p].x()<<","<<contposes[count_p].y()<<","<<contposes[count_p].yaw()<<std::endl;
-        
-        
-        for(int i = 0; i < height; i ++){
-            for(int j = 0; j <width; j ++){
-                int index = n*width*height+(i*width+j);
-                int red = result_gpu[0][index];
-                int green = result_gpu[1][index];
-                int blue = result_gpu[2][index];
-                cur_mat.at<cv::Vec3b>(i, j) = cv::Vec3b(blue, green,red);
-                // if(red == 0&& green ==0&&blue==0){
-                //   cur_mat.at<cv::Vec3b>(i, j) = cv_input_color_image.at<cv::Vec3b>(i, j);
-                // }else{
-                //   cur_mat.at<cv::Vec3b>(i, j) = cv::Vec3b(blue, green,red);
-                // }
-                
-                // std::cout<<red<<","<<green<<","<<blue<<std::endl;
-                
-            }
-        }
-
-        float min_x=10000;
-        float max_x=-10000;
-        float min_y=10000;
-        float max_y=-10000;
-        for(int m=0; m <8;m++){
-            float x = bounding_boxes[count_p][m][0];
-            float y = bounding_boxes[count_p][m][1];
-            if(x<min_x) min_x = x;
-            if(x>max_x) max_x = x;
-            if(y<min_y) min_y = y;
-            if(y>max_y) max_y = y;
-            // cur_mat.at<Vec3b>(y, x) = Vec3b(0, 255,0);
-        }
-        // std::cout<<min_x<<","<<max_x<<","<<min_y<<","<<max_y<<std::endl;
-        cv::Mat ob_mat = cv::Mat::zeros(height,width,CV_8UC3);
-        int a = 0;
-        for(int cur_x = min_x;cur_x<=max_x;cur_x++){
-            for(int cur_y=min_y;cur_y<=max_y;cur_y++){
-              int cur_ind = cur_y*960+cur_x;
-              ob_mat.at<cv::Vec3b>(cur_y, cur_x) = cv::Vec3b(b_v[cur_ind], g_v[cur_ind],r_v[cur_ind]);
-              a+=b_v[cur_ind];
-              a+=g_v[cur_ind];
-              a+=r_v[cur_ind];
-              // ob_mat.at<cv::Vec3b>(cur_y, cur_x) = cv::Vec3b(255, 0,0);
-
-            }
-        }
-        cv::Rect roi1(  min_x,min_y, max_x-min_x+1, max_y-min_y+1 );
-        cv::Mat sub1( cur_mat, roi1 );
-        cv::Mat sub_hsv;
-        cv::cvtColor(sub1, sub_hsv, CV_BGR2HSV);
-        cv::Mat sub2( ob_mat, roi1 );
-        cv::Mat observed_hsv;
-        cv::cvtColor(cv_input_color_image, observed_hsv, CV_BGR2HSV);
-        // double s = cv::sum(sub1)[0]+ cv::sum(sub1)[1]+ cv::sum(sub1)[2];
-        // double s1 = cv::sum(sub2)[0]+ cv::sum(sub2)[1]+ cv::sum(sub2)[2];
-        // std::cout<<test[0][n]<<std::endl;
-      
-        // cv::imshow("gpu_mask1", sub1); 
-        // cv::imshow("aaa",sub1);
-        // cv::waitKey(0); 
-        std::vector<cv::Mat> bgr_planes;
-        cv::split( sub_hsv, bgr_planes );
-        std::vector<int> his(7);
-        cv::Size s = sub_hsv.size();
-        for(int i =0; i <s.height; i ++){
-          for(int j = 0; j <s.width; j ++){
-            cv::Vec3b hsv=sub_hsv.at<cv::Vec3b>(i,j);
-            if(hsv.val[1]!=0||hsv.val[2]!=0){
-              int h_value = hsv.val[0];
-              // sub_hsv.at<cv::Vec3b>(i,j) = cv::Vec3b(255,0,0);
-              if(0<=h_value &&h_value<30){
-                his[0]+=1;
-              }else if(30<=h_value &&h_value<60){
-                his[1]+=1;
-                sub1.at<cv::Vec3b>(i,j) = cv::Vec3b(255,0,0);
-              }
-              else if(60<=h_value &&h_value<90){
-                his[2]+=1;
-              }
-              else if(90<=h_value &&h_value<120){
-                his[3]+=1;
-              }
-              else if(120<=h_value &&h_value<150){
-                his[4]+=1;
-              }
-              else if(150<=h_value &&h_value<180){
-                his[5]+=1;
-              }
-
-            }else{
-              his[6]+=1;
-            }
-          }
-        }
-        // std::cout<<his[0]<<","<<his[1]<<","<<his[2]<<","<<his[3]<<","<<his[4]<<","<<his[5]<<std::endl;
-        // std::cout<<his[0]+his[1]+his[2]+his[3]+his[4]+his[5]<<std::endl;
-        // !!!!Most recent file save!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        myfile<<"\t"<<contposes[count_p].x()<<"\t"<<contposes[count_p].y()<<"\t"<<contposes[count_p].yaw()<<"\t"<<his[0]<<"\t"<<his[1]<<"\t"<<his[2]<<"\t"<<his[3]<<"\t"<<his[4]<<"\t"<<his[5]<<"\t"<<his[6]<<std::endl;
-       
-        // cv::imshow("aaa",sub_hsv);
-        // cv::imshow("aaab",observed_hsv);
-        // cv::waitKey(0); 
-        count_p = count_p+1;
-    }
-   
-    // std::vector<int> result_cost = cuda_renderer::compute_explained_pixels(result_gpu,observed,env_params_.height,env_params_.width,cur_transform.size());
-    std::vector<int> result_cost = cuda_renderer::compute_cost(result_gpu,observed,env_params_.height,env_params_.width,cur_transform.size());
-    
+// render histogram (used in offline)!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     // int height = 540;
     // int width = 960;
+    // cv::Mat cur_mat = cv::Mat(height,width,CV_8UC3);
+    // // // // // cv::imshow("gpu_mask1", cur_mat); 
+    // // // // // cv::waitKey(0); 
+    
     // for(int n = 0; n <cur_transform.size(); n ++){
-    //   // std::cout<<contposes[i*render_size+n].x()<<","<<contposes[i*render_size+n].y()<<"     ";
-    //   if(contposes[i*render_size+n].x()<-0.05 &&contposes[i*render_size+n].x()>-0.10){
-    //     std::cout<<contposes[i*render_size+n].x()<<","<<contposes[i*render_size+n].y()<<std::endl;
-    //     cv::Mat cur_mat = cv::Mat(height,width,CV_8UC3);
-    //     for(int r = 0; r < height; r ++){
-    //         for(int c = 0; c <width; c ++){
-    //             int index = n*width*height+(r*width+c);
-    //             // int index_ob =(r*width+c);
-    //             int v = result_cost[index];
-    //             // int red = r_v[index_ob];
-    //             // int green = g_v[index_ob];
-    //             // int blue = b_v[index_ob];
-    //             if(v==-1){
-    //               cur_mat.at<cv::Vec3b>(r, c) = cv::Vec3b(255, 0,0);
-    //             }if(v==1){
-    //               cur_mat.at<cv::Vec3b>(r, c) = cv::Vec3b(0, 255,0);
-
-    //             }else{
-    //               cur_mat.at<cv::Vec3b>(r, c) =cv_input_color_image.at<cv::Vec3b>(r, c);;
-    //             }
+    //     std::cout<<contposes[count_p].x()<<","<<contposes[count_p].y()<<","<<contposes[count_p].yaw()<<std::endl;
+    //     for(int i = 0; i < height; i ++){
+    //         for(int j = 0; j <width; j ++){
+    //             int index = n*width*height+(i*width+j);
+    //             int red = result_gpu[0][index];
+    //             int green = result_gpu[1][index];
+    //             int blue = result_gpu[2][index];
+    //             cur_mat.at<cv::Vec3b>(i, j) = cv::Vec3b(blue, green,red);
+    //             // if(red == 0&& green ==0&&blue==0){
+    //             //   cur_mat.at<cv::Vec3b>(i, j) = cv_input_color_image.at<cv::Vec3b>(i, j);
+    //             // }else{
+    //             //   cur_mat.at<cv::Vec3b>(i, j) = cv::Vec3b(blue, green,red);
+    //             // }
+                
     //             // std::cout<<red<<","<<green<<","<<blue<<std::endl;
                 
     //         }
     //     }
 
-    //     cv::imshow("gpu_mask1", cur_mat); 
-    //   //   // cv::FileStorage file("/home/jessy/Desktop/a.txt", cv::FileStorage::WRITE);
-    //   //   // file << "matName" << cur_mat;
-    //     cv::waitKey(0); 
-    //   }
-        
+    //     cv::imshow("aaa",cur_mat);
+    //     cv::waitKey(0);
+    //     count_p = count_p+1;
     // }
+    //     float min_x=10000;
+    //     float max_x=-10000;
+    //     float min_y=10000;
+    //     float max_y=-10000;
+    //     for(int m=0; m <8;m++){
+    //         float x = bounding_boxes[count_p][m][0];
+    //         float y = bounding_boxes[count_p][m][1];
+    //         if(x<min_x) min_x = x;
+    //         if(x>max_x) max_x = x;
+    //         if(y<min_y) min_y = y;
+    //         if(y>max_y) max_y = y;
+    //         // cur_mat.at<Vec3b>(y, x) = Vec3b(0, 255,0);
+    //     }
+    //     // std::cout<<min_x<<","<<max_x<<","<<min_y<<","<<max_y<<std::endl;
+    //     cv::Mat ob_mat = cv::Mat::zeros(height,width,CV_8UC3);
+    //     int a = 0;
+    //     std::vector<int> his(13);
+    //     if(min_x>=0 && min_x<width&&max_x>=0 && max_x<width&&
+    //         min_y>=0 && min_y<height&&max_y>=0 && max_y<height){
+    //         // for(int cur_x = min_x;cur_x<=max_x;cur_x++){
+    //         //     for(int cur_y=min_y;cur_y<=max_y;cur_y++){
+    //         //       int cur_ind = cur_y*960+cur_x;
+    //         //       ob_mat.at<cv::Vec3b>(cur_y, cur_x) = cv::Vec3b(b_v[cur_ind], g_v[cur_ind],r_v[cur_ind]);
+    //         //       a+=b_v[cur_ind];
+    //         //       a+=g_v[cur_ind];
+    //         //       a+=r_v[cur_ind];
+    //         //       // ob_mat.at<cv::Vec3b>(cur_y, cur_x) = cv::Vec3b(255, 0,0);
+
+    //         //     }
+    //         // }
+    //         cv::Rect roi1(  min_x,min_y, max_x-min_x+1, max_y-min_y+1 );
+    //         cv::Mat sub1( cur_mat, roi1 );
+    //         cv::Mat sub_hsv;
+    //         cv::cvtColor(sub1, sub_hsv, CV_BGR2HSV);
+    //         // cv::Mat sub2( ob_mat, roi1 );
+    //         // cv::Mat observed_hsv;
+    //         // cv::cvtColor(cv_input_color_image, observed_hsv, CV_BGR2HSV);
+    //         // double s = cv::sum(sub1)[0]+ cv::sum(sub1)[1]+ cv::sum(sub1)[2];
+    //         // double s1 = cv::sum(sub2)[0]+ cv::sum(sub2)[1]+ cv::sum(sub2)[2];
+    //         // std::cout<<test[0][n]<<std::endl;
+          
+            
+    //         std::vector<cv::Mat> bgr_planes;
+    //         cv::split( sub_hsv, bgr_planes );
+           
+    //         // std::vector<int> his(7);
+    //         cv::Size s = sub_hsv.size();
+    //         for(int i =0; i <s.height; i ++){
+    //           for(int j = 0; j <s.width; j ++){
+    //             cv::Vec3b hsv=sub_hsv.at<cv::Vec3b>(i,j);
+    //             if(hsv.val[1]!=0||hsv.val[2]!=0){
+    //               int h_value = hsv.val[0];
+    //               int index = h_value/15;
+    //               his[index] +=1;
+    //               // sub_hsv.at<cv::Vec3b>(i, j) = cv::Vec3b(index*20, 100,100);
+    //             }else{
+    //               his[12]+=1;
+    //             }
+    //           }
+    //         }
+    //         // cv::imshow("gpu_mask1", sub1); 
+    //         // cv::imshow("aaa",sub_hsv);
+    //         // cv::waitKey(0); 
+    //     }
+    //     // else{
+    //     //   his[0]=0; his[1]=0; his[2]=0; his[3]=0; his[4]=0; his[5]=0; his[6]=0;
+    //     // }
+        
+        
+    //     // std::cout<<his[0]<<","<<his[1]<<","<<his[2]<<","<<his[3]<<","<<his[4]<<","<<his[5]<<std::endl;
+    //     // std::cout<<his[0]+his[1]+his[2]+his[3]+his[4]+his[5]<<std::endl;
+    //     // !!!!Most recent file save!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    //     myfile<<"\t"<<contposes[count_p].x()<<"\t"<<contposes[count_p].y()<<"\t"<<contposes[count_p].yaw()<<"\t"
+    //     <<his[0]<<"\t"<<his[1]<<"\t"<<his[2]<<"\t"<<his[3]<<"\t"<<his[4]<<"\t"<<his[5]<<"\t"<<his[6]<<"\t"
+    //     <<his[7]<<"\t"<<his[8]<<"\t"<<his[9]<<"\t"<<his[10]<<"\t"<<his[11]<<"\t"<<his[12]<<std::endl;
+       
+    //     // cv::imshow("aaa",sub_hsv);
+    //     // cv::imshow("aaab",observed_hsv);
+    //     // cv::waitKey(0); 
+    //     count_p = count_p+1;
+    // }
+    // std::cout<<count_p<<",";
+   //commented when rendering
+    // std::vector<int> result_cost = cuda_renderer::compute_cost(result_gpu,observed,env_params_.height,env_params_.width,cur_transform.size());
+    std::vector<int> result_cost = cuda_renderer::render_cuda_cal_cost(render_models_[0].tris,cur_transform,
+                                                      env_params_.width, env_params_.height, env_params_.proj_mat,observed);
+    
     total_result_cost.insert(end(total_result_cost),begin(result_cost),end(result_cost));
-    for(int i = 0; i < result_cost.size(); i ++){
-      std::cout<<result_cost[i]<<","<<contposes[i].x()<<","<<contposes[i].y()<<","<<contposes[i].yaw()<<std::endl;
+    // for(int j = 0; j < result_cost.size(); j ++){
+    //   std::cout<<result_cost[j]<<","<<contposes[j].x()<<","<<contposes[j].y()<<","<<contposes[j].yaw()<<std::endl;
+    // }
+    int aaaa = result_cost.size();
+    int total_last = total_result_cost.size()-1;
+    std::cout<<*std::min_element(result_cost.begin(),result_cost.end())<<"!!!!!!!!!!"<<env_params_.estimate_score[total_last]<<std::endl;
+    
+    if(env_params_.estimate_score[total_last]>*std::min_element(total_result_cost.begin(),total_result_cost.end())){
+      std::cout<<"aaaaaaaaaaaaa";
+      break;
     }
   }
   // std::cout<<total_result_cost.size()<<"ohhhhhhhhhh";
@@ -1248,6 +1226,7 @@ void EnvObjectRecognition::ComputeCostsInParallel(std::vector<CostComputationInp
       
   // }
   int num= input.size();
+  // int num = total_result_cost.size();
   assert(output != nullptr);
   output->clear();
   output->resize(num);
@@ -1267,12 +1246,18 @@ void EnvObjectRecognition::ComputeCostsInParallel(std::vector<CostComputationInp
   int total_pixel = env_params_.height*env_params_.width;
   //for a single object!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   for(int i =0; i <num; i ++){
+    int cost;
+    if(i < total_result_cost.size()){
+      cost = total_result_cost[i];
+    }else{
+      cost = 2*518400;
+    }
     CostComputationOutput cur_unit;
-    cur_unit.cost = total_result_cost[i];
+    cur_unit.cost = cost;
     cur_unit.adjusted_state = input[i].child_state;
     cur_unit.state_properties.last_max_depth = kKinectMaxDepth;
     cur_unit.state_properties.last_min_depth = 0;
-    cur_unit.state_properties.target_cost =  total_result_cost[i];
+    cur_unit.state_properties.target_cost =  cost;
     cur_unit.state_properties.source_cost = 0;
     cur_unit.state_properties.last_level_cost = 0;
     cur_unit.depth_image = source_depth_image;
@@ -1286,6 +1271,9 @@ void EnvObjectRecognition::ComputeCostsInParallel(std::vector<CostComputationInp
   *output = output_gpu;
  
   std::cout<<"done!!!!!!!!!!!!!!!11";
+  auto end_t = chrono::steady_clock::now();
+  std::cout<< "time for whole operation!!!: " << chrono::duration_cast<chrono::milliseconds>(end_t - start_t).count() << std::endl;
+ 
   #endif
   // int count = 0;
   // int original_count = 0;
@@ -4741,12 +4729,12 @@ void EnvObjectRecognition::GenerateSuccessorStates(const GraphState
     {
         printf("States for model : %s\n", obj_models_[ii].name().c_str());
         int succ_count = 0;
-        std::map<hist_prioritize::pose,std::vector<int>> hist_map;
-        std::vector<int> hist_total;
+        
         if (source_state.object_states().size() == 0) 
         { 
-          
-          std::ifstream file("/home/jessy/test.txt");
+          auto start_l = chrono::steady_clock::now();
+          std::vector<int> hist_total;
+          std::ifstream file("/home/jessy/testb.txt");
           std::string   line;
 
           while(std::getline(file, line))
@@ -4763,22 +4751,22 @@ void EnvObjectRecognition::GenerateSuccessorStates(const GraphState
               float                 h5;
               float                 h6;
               float                 h7;
+              float                 h8;
+              float                 h9;
+              float                 h10;
+              float                 h11;
+              float                 h12;
+              float                 h13;
               std::getline(linestream, data, '\t');
-              std::cout<<data;
-              linestream >> x >> y>> theta >> h1>> h2 >> h3>> h4 >> h5>> h6 >> h7;
+              // std::cout<<data;
+              // linestream >> x >> y>> theta >> h1>> h2 >> h3>> h4 >> h5>> h6 >> h7;
+              linestream >> x >> y>> theta >> h1>> h2 >> h3>> h4 >> h5>> h6 >> h7>> h8>> h9 >> h10>> h11 >> h12>> h13;
               // std::cout<<x<<","<<y<<","<<theta<<","<<h1<<","<<h2<<","<<h3<<","<<h4<<","<<h5<<","<<h6<<","<<std::endl;
-              hist_prioritize::pose p;
-              p.x = x;
-              p.y = y;
-              p.theta = theta;
-              // std::vector<int> h;
-              // h.push_back(h1); h.push_back(h2); h.push_back(h3); h.push_back(h4); h.push_back(h5); h.push_back(h6);
+        
               hist_total.push_back(h1); hist_total.push_back(h2); hist_total.push_back(h3); hist_total.push_back(h4); hist_total.push_back(h5); hist_total.push_back(h6);hist_total.push_back(h7);  
-              // hist_map.insert(std::pair<hist_prioritize::pose,std::vector<int>>(p,h));
-              // std::vector<int> cur_h = hist_map[p];
-              // std::cout<<cur_h[0]<<cur_h[1]<<cur_h[2]<<cur_h[3]<<cur_h[4]<<cur_h[5];          
+              hist_total.push_back(h8); hist_total.push_back(h9); hist_total.push_back(h10); hist_total.push_back(h11); hist_total.push_back(h12); hist_total.push_back(h13);      
           }
-
+          
           cuda_renderer::Model model = render_models_[ii];
           std::vector<float> gpu_bb;
           gpu_bb.push_back(model.bbox_min.x);gpu_bb.push_back(model.bbox_min.y);gpu_bb.push_back(model.bbox_min.z);
@@ -4799,6 +4787,7 @@ void EnvObjectRecognition::GenerateSuccessorStates(const GraphState
                             0, -1, 0, 0,
                             0, 0, 0, 1;
           cam_z_front1 = cam_to_world_ * cam_to_body1;
+          std::cout<<cam_to_world_.matrix();
           Eigen::Matrix4d cam_matrix1 =cam_z_front1.matrix().inverse();
           Eigen::Matrix4d gpu_cam = env_params_.cam_intrinsic_eigen*cam_matrix1;
           cam_r1.push_back(gpu_cam(0,0));cam_r1.push_back(gpu_cam(0,1));cam_r1.push_back(gpu_cam(0,2));cam_r1.push_back(gpu_cam(0,3));
@@ -4848,14 +4837,19 @@ void EnvObjectRecognition::GenerateSuccessorStates(const GraphState
           observed.push_back(h_v);
           observed.push_back(s_v);
           observed.push_back(v_v);
+
+          auto end_l = chrono::steady_clock::now();
+          std::cout<< "hist matrix loading time!!!: " << chrono::duration_cast<chrono::milliseconds>(end_l - start_l).count() << std::endl;
           std::cout<<"total pixel number"<< non_zero<<std::endl;
-          std::vector<hist_prioritize::pose> test =  hist_prioritize::compare_hist(env_params_.width,env_params_.height,env_params_.x_min,env_params_.x_max,
+          start = chrono::steady_clock::now();
+          hist_prioritize::s_pose test =  hist_prioritize::compare_hist(env_params_.width,env_params_.height,env_params_.x_min,env_params_.x_max,
                                                                               env_params_.y_min,env_params_.y_max,
                                                                               0,2 * M_PI,
                                                                               res,env_params_.theta_res,non_zero,
                                                                               observed,gpu_cam_m,gpu_bb,hist_total);
-          for(int i =0; i < test.size(); i ++){
-            ContPose p(test[i].x, test[i].y, env_params_.table_height, 0.0, 0.0, test[i].theta);
+          env_params_.estimate_score = test.score;
+          for(int i =0; i < test.ps.size(); i ++){
+            ContPose p(test.ps[i].x, test.ps[i].y, env_params_.table_height, 0.0, 0.0, test.ps[i].theta);
             GraphState s = source_state; // Can only add objects, not remove them
             const ObjectState new_object(ii, obj_models_[ii].symmetric(), p);
             s.AppendObject(new_object);
@@ -4866,6 +4860,7 @@ void EnvObjectRecognition::GenerateSuccessorStates(const GraphState
             succ_states->push_back(s);
             succ_count += 1;
           }
+// use following lines for offline rendering
 //           for (double x = env_params_.x_min; x <= env_params_.x_max;
 //               x += res) {
 //             for (double y = env_params_.y_min; y <= env_params_.y_max;
@@ -5173,6 +5168,8 @@ void EnvObjectRecognition::GenerateSuccessorStates(const GraphState
 //               }
 //             }
 //           }
+// comment till this line
+
         }
         else
         {

@@ -31,6 +31,16 @@ namespace hist_prioritize {
 // thrust device vector can't be used in cpp by design
 // same codes in cuda renderer,
 // because we don't want these two related to each other
+static void HandleError( cudaError_t err,
+                         const char *file,
+                         int line ) {
+    if (err != cudaSuccess) {
+        printf( "%s in %s at line %d\n", cudaGetErrorString( err ),
+                file, line );
+        exit( EXIT_FAILURE );
+    }
+}
+#define HANDLE_ERROR( err ) (HandleError( err, __FILE__, __LINE__ ))
 template <typename T>
 class device_vector_holder{
 public:
@@ -59,10 +69,15 @@ struct pose
     float x;
     float y;
     float theta;
-    int hist[7];
+    int hist[13];
     bool const operator<(const pose &p) const{
         return x < p.x || (x == p.x && y < p.y) || (x==p.x && y == p.y && theta < p.theta);
     }
+};
+struct s_pose
+{
+    std::vector<pose> ps;
+    std::vector<int> score;
 };
 extern template class device_vector_holder<int>;
 #endif
@@ -75,7 +90,7 @@ extern template class device_vector_holder<int>;
 
 
 #ifdef CUDA_ON
-std::vector<pose> compare_hist(const int width, const int height,const float x_min,const float x_max,
+s_pose compare_hist(const int width, const int height,const float x_min,const float x_max,
                               const float y_min,const float y_max,
                               const float theta_min,const float theta_max,
                               const float trans_res, const float angle_res,
@@ -83,7 +98,8 @@ std::vector<pose> compare_hist(const int width, const int height,const float x_m
                               const std::vector<std::vector<uint8_t>>& observed,
                               const std::vector<std::vector<float> >& cam_matrix,
                               const std::vector<float>& bounding_boxes,
-                              const std::vector<int>& hist_vector
+                              const std::vector<int>& hist_vector,
+                              const std::vector<int>& color_region ={0}
                               );
 #endif
 

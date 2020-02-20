@@ -221,7 +221,7 @@ __device__ inline int32_t myatomicMin(int32_t *addr, int32_t value){
 __device__
 void rasterization(const Model::Triangle dev_tri, Model::float3 last_row,
                                         int32_t* depth_entry, size_t width, size_t height,
-                                        const Model::ROI roi, uint8_t* red_entry,uint8_t* green_entry,uint8_t* blue_entry,int32_t* red_entry1){
+                                        const Model::ROI roi, uint8_t* red_entry,uint8_t* green_entry,uint8_t* blue_entry,int32_t* lock){
                                         // float* l_entry,float* a_entry,float* b_entry){
     // refer to tiny renderer
     // https://github.com/ssloy/tinyrenderer/blob/master/our_gl.cpp
@@ -279,14 +279,14 @@ void rasterization(const Model::Triangle dev_tri, Model::float3 last_row,
             int32_t& depth_to_write = depth_entry[x_to_write+y_to_write*real_width];
             bool wait = true;
             while(wait){
-                if(0 == atomicExch(&red_entry1[x_to_write+y_to_write*real_width], 1)){
+                if(0 == atomicExch(&lock[x_to_write+y_to_write*real_width], 1)){
                     if(depth< depth_entry[x_to_write+y_to_write*real_width]){
                         depth_entry[x_to_write+y_to_write*real_width]=depth;
                         red_entry[x_to_write+y_to_write*real_width] = (uint8_t)(dev_tri.color.v0);
                         green_entry[x_to_write+y_to_write*real_width] = (uint8_t)(dev_tri.color.v1);
                         blue_entry[x_to_write+y_to_write*real_width] = (uint8_t)(dev_tri.color.v2);
                     }
-                    red_entry1[x_to_write+y_to_write*real_width] = 0;
+                    lock[x_to_write+y_to_write*real_width] = 0;
                     wait = false;
                 }
             }
@@ -315,7 +315,7 @@ void rasterization(const Model::Triangle dev_tri, Model::float3 last_row,
 __global__ void render_triangle(Model::Triangle* device_tris_ptr, size_t device_tris_size,
                                 Model::mat4x4* device_poses_ptr, size_t device_poses_size,
                                 int32_t* depth_image_vec, size_t width, size_t height, const Model::mat4x4 proj_mat,
-                                 const Model::ROI roi,uint8_t* red_image_vec,uint8_t* green_image_vec,uint8_t* blue_image_vec,int32_t* red_image_vec1){
+                                 const Model::ROI roi,uint8_t* red_image_vec,uint8_t* green_image_vec,uint8_t* blue_image_vec,int32_t* lock_vec){
                                  // float* l_vec,float* a_vec,float* b_vec){
     size_t pose_i = blockIdx.y;
     size_t tri_i = blockIdx.x*blockDim.x + threadIdx.x;
@@ -331,7 +331,7 @@ __global__ void render_triangle(Model::Triangle* device_tris_ptr, size_t device_
     }
 
     int32_t* depth_entry = depth_image_vec + pose_i*real_width*real_height; //length: width*height 32bits int
-    int32_t* red_entry1 = red_image_vec1 + pose_i*real_width*real_height; 
+    int32_t* lock = lock_vec + pose_i*real_width*real_height; 
     uint8_t* red_entry = red_image_vec + pose_i*real_width*real_height;
     uint8_t* green_entry = green_image_vec + pose_i*real_width*real_height;
     uint8_t* blue_entry = blue_image_vec + pose_i*real_width*real_height;
@@ -355,7 +355,7 @@ __global__ void render_triangle(Model::Triangle* device_tris_ptr, size_t device_
     local_tri = transform_triangle(local_tri, proj_mat);
 
     // rasterization(local_tri, last_row, depth_entry, width, height, roi,red_entry,green_entry,blue_entry,l_entry,a_entry,b_entry);
-    rasterization(local_tri, last_row, depth_entry, width, height, roi,red_entry,green_entry,blue_entry,red_entry1);
+    rasterization(local_tri, last_row, depth_entry, width, height, roi,red_entry,green_entry,blue_entry,lock);
 }
 __global__ void bgr_to_gray_kernel( uint8_t* red_in,uint8_t* green_in,uint8_t* blue_in,
                                     uint8_t* red_ob, uint8_t* green_ob,uint8_t* blue_ob, 
@@ -583,7 +583,7 @@ std::vector<std::vector<uint8_t>> render_cuda(const std::vector<Model::Triangle>
     // atomic min only support int32
     
     thrust::device_vector<int32_t> device_depth_int(poses.size()*real_width*real_height, INT_MAX);
-    thrust::device_vector<int32_t> device_red_int1(poses.size()*real_width*real_height, 0);
+    thrust::device_vector<int32_t> device_lock(poses.size()*real_width*real_height, 0);
     thrust::device_vector<uint8_t> device_red_int(poses.size()*real_width*real_height, 0);
     thrust::device_vector<uint8_t> device_green_int(poses.size()*real_width*real_height, 0);
     thrust::device_vector<uint8_t> device_blue_int(poses.size()*real_width*real_height, 0);
@@ -594,7 +594,7 @@ std::vector<std::vector<uint8_t>> render_cuda(const std::vector<Model::Triangle>
         Model::Triangle* device_tris_ptr = thrust::raw_pointer_cast(device_tris.data());
         Model::mat4x4* device_poses_ptr = thrust::raw_pointer_cast(device_poses.data());
         int32_t* depth_image_vec = thrust::raw_pointer_cast(device_depth_int.data());
-        int32_t* red_image_vec1 = thrust::raw_pointer_cast(device_red_int1.data());
+        int32_t* lock_vec = thrust::raw_pointer_cast(device_lock.data());
         uint8_t* red_image_vec = thrust::raw_pointer_cast(device_red_int.data());
         uint8_t* green_image_vec = thrust::raw_pointer_cast(device_green_int.data());
         uint8_t* blue_image_vec = thrust::raw_pointer_cast(device_blue_int.data());
@@ -610,31 +610,27 @@ std::vector<std::vector<uint8_t>> render_cuda(const std::vector<Model::Triangle>
         render_triangle<<<numBlocks, threadsPerBlock>>>(device_tris_ptr, tris.size(),
                                                         device_poses_ptr, poses.size(),
                                                         depth_image_vec, width, height, proj_mat, roi,
-                                                        red_image_vec,green_image_vec,blue_image_vec,red_image_vec1);
+                                                        red_image_vec,green_image_vec,blue_image_vec,lock_vec);
         cudaDeviceSynchronize();
         // gpuErrchk(cudaPeekAtLastError());
     }
 
 
-    std::vector<int32_t> result_depth(poses.size()*real_width*real_height);
-    {
-        thrust::transform(device_depth_int.begin(), device_depth_int.end(),
-                          device_depth_int.begin(), max2zero_functor());
-        thrust::copy(device_depth_int.begin(), device_depth_int.end(), result_depth.begin());
+    // std::vector<int32_t> result_depth(poses.size()*real_width*real_height);
+    // {
+    //     thrust::transform(device_depth_int.begin(), device_depth_int.end(),
+    //                       device_depth_int.begin(), max2zero_functor());
+    //     thrust::copy(device_depth_int.begin(), device_depth_int.end(), result_depth.begin());
 
-    }
+    // }
     
     std::vector<uint8_t> result_red(poses.size()*real_width*real_height);
-    std::vector<int32_t> result_red1(poses.size()*real_width*real_height);
     std::vector<uint8_t> result_green(poses.size()*real_width*real_height);
     std::vector<uint8_t> result_blue(poses.size()*real_width*real_height);
     std::vector<float> result_l(poses.size()*real_width*real_height);
     std::vector<float> result_a(poses.size()*real_width*real_height);
     std::vector<float> result_b(poses.size()*real_width*real_height);
     {
-        thrust::transform(device_red_int1.begin(), device_red_int1.end(),
-                          device_red_int1.begin(), max2zero_functor());
-        thrust::copy(device_red_int1.begin(), device_red_int1.end(), result_red1.begin());
         thrust::transform(device_red_int.begin(), device_red_int.end(),
                           device_red_int.begin(), max2zero_functor());
         thrust::copy(device_red_int.begin(), device_red_int.end(), result_red.begin());
@@ -661,20 +657,20 @@ std::vector<std::vector<uint8_t>> render_cuda(const std::vector<Model::Triangle>
     result_color.push_back(result_red);
     result_color.push_back(result_green);
     result_color.push_back(result_blue);
-    int tr=0;
-    int tg=0;
-    int tb=0;
-    int td = 0;
-    for(int i=0;i<result_red1.size(); i ++){
-        tr+=result_red1[i];
-        tg+=result_green[i];
-        tb+=result_blue[i];
-        td+= result_depth[i];
-        // if(result_red[i]!=0){
-        //     std::cout<<result_red[i];
-        // }
-    }
-    std::cout<<tr<<","<<tg<<","<<tb<<","<<td<<std::endl;
+    // int tr=0;
+    // int tg=0;
+    // int tb=0;
+    // int td = 0;
+    // for(int i=0;i<result_red.size(); i ++){
+    //     tr+=result_red[i];
+    //     tg+=result_green[i];
+    //     tb+=result_blue[i];
+    //     // td+= result_depth[i];
+    //     // if(result_red[i]!=0){
+    //     //     std::cout<<result_red[i];
+    //     // }
+    // }
+    // std::cout<<tr<<","<<tg<<","<<tb<<","<<td<<std::endl;
     // result_lab.push_back(result_l);
     // result_lab.push_back(result_a);
     // result_lab.push_back(result_b);
@@ -682,6 +678,108 @@ std::vector<std::vector<uint8_t>> render_cuda(const std::vector<Model::Triangle>
     return result_color;
 }
 
+
+std::vector<int> render_cuda_cal_cost(const std::vector<Model::Triangle>& tris,const std::vector<Model::mat4x4>& poses,
+                            size_t width, size_t height, const Model::mat4x4& proj_mat,
+                            const std::vector<std::vector<uint8_t>>& observed,const Model::ROI roi){
+
+    const size_t threadsPerBlock = 256;
+    // std::cout <<tris[0].color.v1;
+    thrust::device_vector<Model::Triangle> device_tris = tris;
+    thrust::device_vector<Model::mat4x4> device_poses = poses;
+    size_t real_width = width;
+    size_t real_height = height;
+    if(roi.width > 0 && roi.height > 0){
+        real_width = roi.width;
+        real_height = roi.height;
+        assert(roi.x + roi.width <= width && "roi out of image");
+        assert(roi.y + roi.height <= height && "roi out of image");
+    }
+    // atomic min only support int32
+    
+    thrust::device_vector<int32_t> device_depth_int(poses.size()*real_width*real_height, INT_MAX);
+    thrust::device_vector<int32_t> device_lock(poses.size()*real_width*real_height, 0);
+    thrust::device_vector<uint8_t> device_red_int(poses.size()*real_width*real_height, 0);
+    thrust::device_vector<uint8_t> device_green_int(poses.size()*real_width*real_height, 0);
+    thrust::device_vector<uint8_t> device_blue_int(poses.size()*real_width*real_height, 0);
+    // thrust::device_vector<float> l(poses.size()*real_width*real_height, 0);
+    // thrust::device_vector<float> a(poses.size()*real_width*real_height, 0);
+    // thrust::device_vector<float> b(poses.size()*real_width*real_height, 0);
+    {
+        Model::Triangle* device_tris_ptr = thrust::raw_pointer_cast(device_tris.data());
+        Model::mat4x4* device_poses_ptr = thrust::raw_pointer_cast(device_poses.data());
+        int32_t* depth_image_vec = thrust::raw_pointer_cast(device_depth_int.data());
+        int32_t* lock_vec = thrust::raw_pointer_cast(device_lock.data());
+        uint8_t* red_image_vec = thrust::raw_pointer_cast(device_red_int.data());
+        uint8_t* green_image_vec = thrust::raw_pointer_cast(device_green_int.data());
+        uint8_t* blue_image_vec = thrust::raw_pointer_cast(device_blue_int.data());
+        // float* l_vec = thrust::raw_pointer_cast(l.data());
+        // float* a_vec = thrust::raw_pointer_cast(a.data());
+        // float* b_vec = thrust::raw_pointer_cast(b.data());
+
+        dim3 numBlocks((tris.size() + threadsPerBlock - 1) / threadsPerBlock, poses.size());
+        // render_triangle<<<numBlocks, threadsPerBlock>>>(device_tris_ptr, tris.size(),
+        //                                                 device_poses_ptr, poses.size(),
+        //                                                 depth_image_vec, width, height, proj_mat, roi,
+        //                                                 red_image_vec,green_image_vec,blue_image_vec,l_vec,a_vec,b_vec);
+        render_triangle<<<numBlocks, threadsPerBlock>>>(device_tris_ptr, tris.size(),
+                                                        device_poses_ptr, poses.size(),
+                                                        depth_image_vec, width, height, proj_mat, roi,
+                                                        red_image_vec,green_image_vec,blue_image_vec,lock_vec);
+        cudaDeviceSynchronize();
+        // gpuErrchk(cudaPeekAtLastError());
+    }
+
+  
+    // size_t bytes = input[0].size();
+    // size_t bytes_ob = observed[0].size();
+   
+    // //Allocate device memory
+    int32_t num_rendered = poses.size();
+    thrust::device_vector<int> d_output(num_rendered*width*height, 0);
+
+    thrust::device_vector<uint8_t> d_red_ob = observed[0];
+    thrust::device_vector<uint8_t> d_green_ob = observed[1];
+    thrust::device_vector<uint8_t> d_blue_ob = observed[2];
+
+    {
+
+        int32_t* depth_vec = thrust::raw_pointer_cast(d_output.data());
+        uint8_t* red_ob = thrust::raw_pointer_cast(d_red_ob.data());
+        uint8_t* green_ob = thrust::raw_pointer_cast(d_green_ob.data());
+        uint8_t* blue_ob = thrust::raw_pointer_cast(d_blue_ob.data());
+        uint8_t* red_image_vec = thrust::raw_pointer_cast(device_red_int.data());
+        uint8_t* green_image_vec = thrust::raw_pointer_cast(device_green_int.data());
+        uint8_t* blue_image_vec = thrust::raw_pointer_cast(device_blue_int.data());
+
+        dim3 block(16,16);
+        dim3 grid((width*num_rendered + block.x - 1)/block.x, (height + block.y - 1)/block.y);
+        bgr_to_gray_kernel<<<grid,block>>>(red_image_vec,green_image_vec, blue_image_vec,
+                                       red_ob,green_ob,blue_ob,
+                                       depth_vec,
+                                       width,height,num_rendered);
+        cudaDeviceSynchronize();
+        // gpuErrchk(cudaPeekAtLastError());
+    }
+
+   
+    std::vector<int> result_depth(num_rendered*width*height);
+    {
+        thrust::transform(d_output.begin(), d_output.end(),
+                          d_output.begin(), max2zero_functor());
+        thrust::copy(d_output.begin(), d_output.end(), result_depth.begin());
+
+    }
+    
+    // //Copy back data from destination device meory to OpenCV output image
+    std::vector<int> cost(num_rendered);
+    for(int i = 0 ; i < num_rendered; i ++){
+        // 518400 is the pixel number of the whole image to make sure the cost is positive
+        cost[i] = std::accumulate(result_depth.begin()+i*width*height,result_depth.begin()+(i+1)*width*height,0)+518400;
+    }
+    
+    
+    return cost;}
 // std::vector<int32_t> render_cuda(device_vector_holder<Model::Triangle>& device_tris,const std::vector<Model::mat4x4>& poses,
 //                             size_t width, size_t height, const Model::mat4x4& proj_mat, const Model::ROI roi){
 
