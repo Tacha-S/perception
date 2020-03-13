@@ -270,9 +270,11 @@ void EnvObjectRecognition::LoadObjFiles(const ModelBank
     pcl::io::loadPolygonFilePLY (model_meta_data.file.c_str(), mesh);
     
     
-    ObjectModel obj_model(mesh, model_meta_data.name,
+    ObjectModel obj_model(mesh, 
+                          model_meta_data.name,
                           model_meta_data.symmetric,
-                          model_meta_data.flipped);
+                          model_meta_data.flipped,
+                          env_params_.use_external_pose_list);
     obj_models_.push_back(obj_model);
 
     if (IsMaster(mpi_comm_)) {
@@ -1797,6 +1799,10 @@ void EnvObjectRecognition::ComputeGreedyCostsInParallelGPU(const std::vector<int
       }
       else
       {
+        if ((int)rendered_cost_gpu[i] == 100 && (int)observed_cost_gpu[i] == 100)
+        {
+          points_diff_cost_gpu[i] = 100.0;
+        }
         // cur_unit.cost = (int) (rendered_cost_gpu[i] + observed_cost_gpu[i] + abs(points_diff_cost_gpu[i]));
         cur_unit.cost = (int) (rendered_cost_gpu[i] + observed_cost_gpu[i]);
       }
@@ -2446,6 +2452,7 @@ GraphState EnvObjectRecognition::ComputeGreedyRenderPoses() {
   // ComputeGreedyCostsInParallelGPU(source_result_depth, last_object_states, &cost_computation_output);
 
 
+  // std::sort(cost_computation_output.begin(), cost_computation_output.end(), compareCostComputationOutput);
   // ComputeCostsInParallelGPU(cost_computation_input, &cost_computation_output, false);
   ObjectState temp(-1, false, DiscPose(0, 0, 0, 0, 0, 0));
   vector<int> lowest_cost_per_object(env_params_.num_models, INT_MAX);
@@ -5714,7 +5721,7 @@ void EnvObjectRecognition::SetInput(const RecognitionInput &input) {
     cv::Mat cv_depth_image, cv_predicted_mask_image;
     input_depth_image_path = input.input_depth_image;
     if (env_params_.use_external_pose_list == 1) {
-      gpu_stride = 5;
+      gpu_stride = 8;
       // For FAT dataset, we have 16bit images
       cv_depth_image = cv::imread(input.input_depth_image, CV_LOAD_IMAGE_ANYDEPTH);
       cv_predicted_mask_image = cv::imread(input.predicted_mask_image, CV_LOAD_IMAGE_UNCHANGED);
@@ -5937,6 +5944,7 @@ double EnvObjectRecognition::GetICPAdjustedPose(const PointCloudPtr cloud_in,
   }
 
   pcl::IterativeClosestPointNonLinear<PointT, PointT> icp;
+  // pcl::GeneralizedIterativeClosestPoint<PointT, PointT> icp;
 
   // int num_points_original = cloud_in->points.size();
 
@@ -5987,10 +5995,12 @@ double EnvObjectRecognition::GetICPAdjustedPose(const PointCloudPtr cloud_in,
   // icp.setInputTarget(downsampled_observed_cloud_);
   // icp.setInputTarget(observed_cloud_);
 
-  pcl::registration::TransformationEstimation2D<PointT, PointT>::Ptr est;
-  est.reset(new pcl::registration::TransformationEstimation2D<PointT, PointT>);
-  icp.setTransformationEstimation(est);
-
+  if (env_params_.use_external_pose_list == 0)
+  {
+    pcl::registration::TransformationEstimation2D<PointT, PointT>::Ptr est;
+    est.reset(new pcl::registration::TransformationEstimation2D<PointT, PointT>);
+    icp.setTransformationEstimation(est);
+  }
 
   // SVD Transformation
   // pcl::registration::TransformationEstimationSVD<PointT, PointT>::Ptr est;
@@ -6016,6 +6026,7 @@ double EnvObjectRecognition::GetICPAdjustedPose(const PointCloudPtr cloud_in,
   // Set the euclidean distance difference epsilon (criterion 3)
   // icp.setEuclideanFitnessEpsilon(perch_params_.sensor_resolution);  // 1e-5
   icp.setEuclideanFitnessEpsilon(1e-5);  // 1e-5
+  // icp.setEuclideanFitnessEpsilon(0.0075);  // 1e-5
 
   icp.align(*cloud_out);
   double score = 100.0;
@@ -6514,13 +6525,15 @@ void EnvObjectRecognition::GetShiftedCentroidPosesGPU(const vector<ObjectState>&
 
   // if (env_params_.use_external_pose_list == 1)
   // {
-  //   for (ObjectState state : objects)
-  //   {
-  //     // TODO : observed points total should be calculated in setinput()
-  //     pose_segmentation_label.push_back(state.segmentation_label_id());
-  //     int required_object_id = state.segmentation_label_id() - 1; 
-  //     pose_observed_points_total.push_back(segmented_observed_point_count[required_object_id]);
-  //   }
+  // vector<ObjectState> render_object_states;
+  // for (ObjectState state : objects)
+  // {
+  //   ContPose pose_in = state.cont_pose();
+  //   ContPose pose_out = 
+  //     ContPose(0, 0, pose_in.z(), pose_in.qx(), pose_in.qy(), pose_in.qz(), pose_in.qw());
+
+  //   ObjectState modified_object_state(state.id(), state.symmetric(), pose_out, state.segmentation_label_id());
+  //   render_object_states.push_back(modified_object_state);
   // }
 
   // GetStateImagesGPU(
@@ -6554,9 +6567,12 @@ void EnvObjectRecognition::GetShiftedCentroidPosesGPU(const vector<ObjectState>&
   {
     state = "DEBUG";
   }
+  // env_params_.height *= 1.5;
+  // env_params_.width *= 1.5;
   GetStateImagesUnifiedGPU(
     state,
     objects,
+    // render_object_states,
     random_color,
     // source_result_depth,
     random_depth,
@@ -6579,6 +6595,8 @@ void EnvObjectRecognition::GetShiftedCentroidPosesGPU(const vector<ObjectState>&
   {
     PrintGPUImages(result_depth, result_color, num_poses, "succ_pre_shift", random_poses_occluded);
   }
+  // env_params_.height = kCameraHeight;
+  // env_params_.width = kCameraWidth;
   vector<float> pose_centroid_x(num_poses, 0.0);
   vector<float> pose_centroid_y(num_poses, 0.0);
   vector<float> pose_centroid_z(num_poses, 0.0);
@@ -6633,7 +6651,7 @@ void EnvObjectRecognition::GetShiftedCentroidPosesGPU(const vector<ObjectState>&
     float x_diff = pose_in.x()-pose_centroid_x[i];
     float y_diff = pose_in.y()-pose_centroid_y[i];
     float z_diff = pose_in.z()-pose_centroid_z[i];
-    // printf("Centroid diff for pose %d : %f,%f,%f\n", i, x_diff, y_diff, z_diff);
+    printf("Centroid diff for pose %d : %f,%f,%f\n", i, x_diff, y_diff, z_diff);
 
     
     ContPose pose_out = 
@@ -6894,8 +6912,8 @@ void EnvObjectRecognition::GenerateSuccessorStates(const GraphState
               // std::copy(shifted_object_states.begin(), shifted_object_states.end(), valid_succ_cache[ii].begin());
               for (size_t i = 0; i < shifted_object_states.size(); i++)
               {
-                cout << " un-shifted " << unshifted_object_states[i] << endl;
-                cout << " shifted " << shifted_object_states[i] << endl;
+                // cout << " un-shifted " << unshifted_object_states[i] << endl;
+                // cout << " shifted " << shifted_object_states[i] << endl;
                 const ObjectState object_state = shifted_object_states[i];
                 GraphState s = source_state; 
                 s.AppendObject(object_state);

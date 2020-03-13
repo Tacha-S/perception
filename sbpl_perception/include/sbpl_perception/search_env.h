@@ -47,6 +47,7 @@
 #include <pcl/visualization/image_viewer.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/filters/statistical_outlier_removal.h>
+#include <pcl/registration/gicp.h>
 
 #include <memory>
 #include <string>

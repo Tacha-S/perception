@@ -1084,7 +1084,7 @@ class FATImage:
             # First (half: 0, whole: 1) Second (0:0, 1:0-pi, 2:0-2pi)
             "002_master_chef_can": [0,0], #half_0
             "003_cracker_box": [0,0], #half_0-pi
-            "004_sugar_box": [0,4], #half_0-pi
+            "004_sugar_box": [0,0], #half_0-pi
             "005_tomato_soup_can": [0,0], #half_0
             "006_mustard_bottle": [0,0], #whole_0-pi
             "007_tuna_fish_can": [0,0], #half_0
@@ -1224,7 +1224,7 @@ class FATImage:
             boxes.append([cmin, rmin, cmax, rmax])
             centroids_2d.append(np.array([(cmin+cmax)/2, (rmin+rmax)/2]))
 
-        print(boxes)
+        # print(boxes)
         return labels, masks, boxes, centroids_2d 
 
     def overlay_masks(self, cv_image, bboxes, masks, labels, centroids):
@@ -1299,7 +1299,7 @@ class FATImage:
             
         elif mask_type == "posecnn":
             predicted_mask_path = os.path.join(os.path.dirname(depth_img_path), os.path.splitext(os.path.basename(color_img_path))[0] + '.predicted_mask_posecnn.png')
-            labels_all, mask_list_all, boxes_all, centroids_2d_all = self.get_posecnn_mask(mask_image_id, centroid_type="mask")
+            labels_all, mask_list_all, boxes_all, centroids_2d_all = self.get_posecnn_mask(mask_image_id, centroid_type="roi")
             composite = self.overlay_masks(color_img, boxes_all, mask_list_all, labels_all, centroids_2d_all)
             composite_image_path = '{}/mask_posecnn.png'.format(rotation_output_dir)
             # composite_image_path = '{}/mask.png'.format(rotation_output_dir)
@@ -1414,7 +1414,7 @@ class FATImage:
             #     centroid_min = np.flip(np.min(np.argwhere(mask_list[box_id] > 0), axis=0))
             #     centroid = np.array([centroid_max[0]*0.7+centroid_min[0]*0.5, centroid_max[1]*0.6+centroid_min[1]*    0.4])
 
-            for _, depth in enumerate(np.arange(min_depth, max_depth, resolution)):
+            for _, depth in enumerate(np.arange(min_depth, max_depth + resolution, resolution)):
                 ## Vary depth only
                 centre_world_point = self.get_world_point(centroid.tolist() + [depth])
                 for quaternion in object_rotation_list:
@@ -2675,6 +2675,7 @@ def run_ycb_gpu():
 
 
 def run_ycb_6d(dataset_cfg=None):
+    from bad_images import cracker_list
     
     image_directory = dataset_cfg['image_dir']
     # annotation_file = image_directory + 'instances_keyframe_pose.json'
@@ -2709,20 +2710,22 @@ def run_ycb_6d(dataset_cfg=None):
     f_runtime = open('{}/runtime_6d_{}.txt'.format(fat_image.python_debug_dir, ts), "w", 1)
     f_runtime.write("{} {} {} {} {}\n".format('name', 'expands', 'runtime', 'icp_runtime', 'peak_gpu_mem'))
 
-    #filter_objects = ['010_potted_meat_can'] - 49, 59, 53
-    filter_objects = ['003_cracker_box']
+    # filter_objects = ['004_sugar_box']
+    required_objects = ['003_cracker_box']
     # required_objects = ['025_mug', '007_tuna_fish_can', '002_master_chef_can']
     # required_objects = fat_image.category_names
     # required_objects = ['002_master_chef_can', '025_mug', '007_tuna_fish_can']
     # required_objects = ['040_large_marker', '024_bowl', '007_tuna_fish_can', '002_master_chef_can', '005_tomato_soup_can']
-    # required_objects = ['002_master_chef_can']
+    # required_objects = ['004_sugar_box']
     # required_objects = ['021_bleach_cleanser'] # 51, 54, 55, 57
     # required_objects = ['037_scissors'] # 51
-    required_objects = ['003_cracker_box'] # 50 54 59
+    # required_objects = ['003_cracker_box'] # 50 54 59
+    # ['010_potted_meat_can'] - 49, 59, 53
     # required_objects = ['019_pitcher_base','005_tomato_soup_can','004_sugar_box' ,'007_tuna_fish_can', '010_potted_meat_can', '024_bowl', '002_master_chef_can', '025_mug', '003_cracker_box', '006_mustard_bottle']
     # required_objects = fat_image.category_names
     # required_objects = [
     #     "002_master_chef_can",
+    #     "003_cracker_box",
     #     "004_sugar_box",
     #     "005_tomato_soup_can",
     #     "006_mustard_bottle",
@@ -2731,11 +2734,15 @@ def run_ycb_6d(dataset_cfg=None):
     #     "010_potted_meat_can",
     #     "011_banana",
     #     "019_pitcher_base",
+    #     "021_bleach_cleanser",
     #     "024_bowl",
     #     "025_mug",
+    #     "037_scissors",
     #     "040_large_marker",
     #     "061_foam_brick"
     # ]
+    filter_objects = required_objects
+
     if "posecnn" not in mask_type or print_poses:
         fat_image.init_model(cfg_file, print_poses=print_poses, required_objects=required_objects, model_weights=dataset_cfg['maskrcnn_model_path'])
     f_accuracy.write("name,")
@@ -2757,20 +2764,19 @@ def run_ycb_6d(dataset_cfg=None):
     # Trying 80 for sugar
 
     IMG_LIST = np.loadtxt(os.path.join(image_directory, 'image_sets/keyframe.txt'), dtype=str).tolist()
-
-    # for scene_i in range(48, 60):
-    for scene_i in [54]:
-        for img_i in reversed(range(1700, 2500)):
+    for scene_i in range(48, 50):
+    # for scene_i in [54]:
+        # for img_i in (range(1, 2)):
         # for img_i in IMG_LIST:
         # for img_i in tuna_list:
         # for img_i in can_list:
         # for img_i in s_list:
-        # for img_i in bleach_list:
+        for img_i in cracker_list:
             # if "0050" not in img_i:
             #     continue
             # Get Image
-            image_name = 'data/00{}/00{}-color.png'.format(str(scene_i), str(img_i).zfill(4))
-            # image_name = '{}'.format(img_i)
+            # image_name = 'data/00{}/00{}-color.png'.format(str(scene_i), str(img_i).zfill(4))
+            image_name = '{}'.format(img_i)
             # if image_name in skip_list:
             #     continue
             # image_data, annotations = fat_image.get_random_image(name='{}_16k/kitchen_4/000005.left.jpg'.format(category_name))
@@ -2841,7 +2847,7 @@ def run_ycb_6d(dataset_cfg=None):
                         use_external_render=0, required_object=labels,
                         camera_optical_frame=False, use_external_pose_list=1,
                         # model_poses_file=model_poses_file, use_centroid_shifting=0,
-                        model_poses_file=model_poses_file, use_centroid_shifting=1,
+                        model_poses_file=model_poses_file, use_centroid_shifting=0,
                         predicted_mask_path=predicted_mask_path, num_cores=0
                     )
                 else:
