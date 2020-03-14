@@ -2764,9 +2764,9 @@ def run_ycb_6d(dataset_cfg=None):
     # Trying 80 for sugar
 
     IMG_LIST = np.loadtxt(os.path.join(image_directory, 'image_sets/keyframe.txt'), dtype=str).tolist()
-    for scene_i in range(48, 50):
+    for scene_i in range(48, 49):
     # for scene_i in [54]:
-        # for img_i in (range(1, 2)):
+        # for img_i in (range(1, 2500)):
         # for img_i in IMG_LIST:
         # for img_i in tuna_list:
         # for img_i in can_list:

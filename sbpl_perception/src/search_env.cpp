@@ -81,7 +81,7 @@ namespace {
 
   bool kUseOctomapPruning = false;
 
-  bool cost_debug_msgs = false;
+  bool cost_debug_msgs = true;
 
   // bool kUseGPU = true;
 
@@ -1173,7 +1173,8 @@ void EnvObjectRecognition::GetICPAdjustedPosesCPU(const vector<ObjectState>& obj
           string model_name = obj_models_[objects[n].id()].name();
           int required_object_id = distance(segmented_object_names.begin(), 
           find(segmented_object_names.begin(), segmented_object_names.end(), model_name));
-          GetICPAdjustedPose(
+          // GetICPAdjustedPose(
+          GetVGICPAdjustedPose(
             transformed_cloud, pose_in, cloud_out, &pose_out, parent_counted_pixels, 
             segmented_object_clouds[required_object_id], model_name);
         }
@@ -5926,6 +5927,7 @@ void EnvObjectRecognition::Initialize(const EnvConfig &env_config) {
   }
 }
 
+
 double EnvObjectRecognition::GetICPAdjustedPose(const PointCloudPtr cloud_in,
                                                 const ContPose &pose_in, PointCloudPtr &cloud_out, ContPose *pose_out,
                                                 const std::vector<int> counted_indices /*= std::vector<int>(0)*/,
@@ -5988,7 +5990,11 @@ double EnvObjectRecognition::GetICPAdjustedPose(const PointCloudPtr cloud_in,
   }
   else
   {
-    // printf("Target cloud size : %d\n", target_cloud->points.size());
+    if (cost_debug_msgs)
+    {
+      printf("Target cloud size : %d\n", target_cloud->points.size());
+      printf("Source cloud size : %d\n", cloud_in->points.size());
+    }
     icp.setInputTarget(target_cloud);
   }
   
@@ -6034,6 +6040,9 @@ double EnvObjectRecognition::GetICPAdjustedPose(const PointCloudPtr cloud_in,
   if (icp.hasConverged()) {
     score = icp.getFitnessScore();
     Eigen::Matrix4f transformation = icp.getFinalTransformation();
+    // cout << "pcl transform " << transformation << endl;
+    // cout << "pcl fitness " << score << endl;
+
     Eigen::Matrix4f transformation_old = pose_in.GetTransform().matrix().cast<float>();
     Eigen::Matrix4f transformation_new = transformation * transformation_old;
     Eigen::Vector4f vec_out;
@@ -6096,14 +6105,111 @@ double EnvObjectRecognition::GetICPAdjustedPose(const PointCloudPtr cloud_in,
   }
 
   auto finish = std::chrono::high_resolution_clock::now();
+
   if (cost_debug_msgs)
     std::cout << "GetICPAdjustedPose() took "
               << std::chrono::duration_cast<std::chrono::milliseconds>(finish - start).count()
               << " milliseconds\n";
 
+
+
   return score;
 }
 
+
+
+double EnvObjectRecognition::GetVGICPAdjustedPose(const PointCloudPtr cloud_in,
+                                                const ContPose &pose_in, PointCloudPtr &cloud_out, ContPose *pose_out,
+                                                const std::vector<int> counted_indices /*= std::vector<int>(0)*/,
+                                                const PointCloudPtr target_cloud,
+                                                const std::string object_name) {
+  if (cost_debug_msgs)
+    printf("GetVGICPAdjustedPose()\n");
+
+
+
+  ///////////////////////////////
+  auto start_v = std::chrono::high_resolution_clock::now();
+  fast_gicp::FastGICP<pcl::PointXYZ, pcl::PointXYZ> vgicp;
+  pcl::PointCloud<pcl::PointXYZ>::Ptr vt(new pcl::PointCloud<pcl::PointXYZ>);
+  pcl::PointCloud<pcl::PointXYZ>::Ptr vs(new pcl::PointCloud<pcl::PointXYZ>);
+  // observed
+  pcl::copyPointCloud(*cloud_in, *vs);
+  // rendered
+  pcl::copyPointCloud(*target_cloud, *vt);
+
+  printf("Target cloud size : %d\n", vt->points.size());
+  printf("Source cloud size : %d\n", vs->points.size());
+
+  pcl::PointCloud<pcl::PointXYZ>::Ptr aligned(new pcl::PointCloud<pcl::PointXYZ>);
+  // vgicp.setResolution(0.01);
+  vgicp.setMaximumIterations(perch_params_.max_icp_iterations);
+  vgicp.setCorrespondenceRandomness(10);
+  // fast_gicp reuses calculated covariances if an input cloud is the same as the previous one
+  // to prevent this for benchmarking, force clear source and target clouds
+  vgicp.clearTarget();
+  vgicp.clearSource();
+  vgicp.setInputTarget(vt);
+  vgicp.setInputSource(vs);
+  vgicp.align(*aligned);
+  cout << "vgicp mt tranform " << vgicp.getFinalTransformation() << endl;
+  cout << "vgicp mt fitness " << vgicp.getFitnessScore() << endl;
+  cout << "vgicp converged " << vgicp.hasConverged() << endl;
+  Eigen::Matrix4f transformation = vgicp.getFinalTransformation();
+
+  auto finish_v = std::chrono::high_resolution_clock::now();
+  if (cost_debug_msgs)  
+    std::cout << "GetVGICPAdjustedPose() took "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(finish_v - start_v).count()
+              << " milliseconds\n";
+  
+
+  Eigen::Matrix4f transformation_old = pose_in.GetTransform().matrix().cast<float>();
+  Eigen::Matrix4f transformation_new = transformation * transformation_old;
+  Eigen::Vector4f vec_out;
+
+  if (vgicp.hasConverged())
+  {
+    if (env_params_.use_external_pose_list == 0)
+    {
+      Eigen::Vector4f vec_in;
+      vec_in << pose_in.x(), pose_in.y(), pose_in.z(), 1.0;
+      vec_out = transformation * vec_in;
+      double yaw = atan2(transformation(1, 0), transformation(0, 0));
+
+      double yaw1 = pose_in.yaw();
+      double yaw2 = yaw;
+      double cos_term = cos(yaw1 + yaw2);
+      double sin_term = sin(yaw1 + yaw2);
+      double total_yaw = atan2(sin_term, cos_term);
+      *pose_out = ContPose(vec_out[0], vec_out[1], vec_out[2], pose_in.roll(), pose_in.pitch(), total_yaw);
+    }
+    else
+    {
+      vec_out << transformation_new(0,3), transformation_new(1,3), transformation_new(2,3), 1.0;
+      Matrix3f rotation_new(3,3);
+      for (int i = 0; i < 3; i++){
+        for (int j = 0; j < 3; j++){
+          rotation_new(i, j) = transformation_new(i, j);
+        }
+      }
+      auto euler = rotation_new.eulerAngles(2,1,0);
+      double roll_ = euler[0];
+      double pitch_ = euler[1];
+      double yaw_ = euler[2];
+
+      Quaternionf quaternion(rotation_new.cast<float>());
+
+      *pose_out = ContPose(vec_out[0], vec_out[1], vec_out[2], quaternion.x(), quaternion.y(), quaternion.z(), quaternion.w());
+    }
+  }
+  else
+  {
+    cloud_out = cloud_in;
+    *pose_out = pose_in;
+  }
+
+}
 
 // Feature-based and ICP Planners
 GraphState EnvObjectRecognition::ComputeGreedyICPPoses() {

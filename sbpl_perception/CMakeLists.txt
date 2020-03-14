@@ -51,6 +51,7 @@ find_package(catkin REQUIRED COMPONENTS
   image_transport
   kinect_sim
   cuda_renderer
+  fast_gicp
   perception_utils
   pcl_ros
   roscpp
@@ -136,6 +137,7 @@ catkin_package(
     cv_bridge
     kinect_sim
     cuda_renderer
+    fast_gicp
     perception_utils
     pcl_ros
     roscpp
