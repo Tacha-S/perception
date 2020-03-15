@@ -166,32 +166,43 @@ RUN apt-get update && apt-get install -y --allow-unauthenticated\
     xvfb \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Latest Eigen, for fast_gicp
+RUN git clone https://github.com/eigenteam/eigen-git-mirror.git \
+ && cd eigen-git-mirror \
+ && mkdir build \
+ && cd build \
+ && cmake .. -DCMAKE_INSTALL_PREFIX=/usr/ \
+ && sudo make install 
+
+#  && python setup.py install --cuda_ext --cpp_ext
+
+
 ### Release Version below, code cloned inside docker ###
-RUN cd /ros_python3_ws/src \
-    && git clone https://github.com/SBPL-Cruz/improved-mha-planner -b renamed \
-    && git clone https://github.com/SBPL-Cruz/sbpl_utils.git -b renamed \
-    && git clone https://github.com/SBPL-Cruz/perception -b gpu_icp_ycb
+# RUN cd /ros_python3_ws/src \
+#     && git clone https://github.com/SBPL-Cruz/improved-mha-planner -b renamed \
+#     && git clone https://github.com/SBPL-Cruz/sbpl_utils.git -b renamed \
+#     && git clone https://github.com/SBPL-Cruz/perception -b gpu_icp_ycb
 
-# If release then clone the main code, else it will be mounted by user during runtime
-# RUN echo "$TYPE"
-# RUN if [[ "$TYPE" = "RELEASE" ]; then "cd /ros_python3_ws/src \
-#     && git clone https://github.com/SBPL-Cruz/perception -b gpu_icp_ycb"; else echo "Not cloning code"; fi
+# # If release then clone the main code, else it will be mounted by user during runtime
+# # RUN echo "$TYPE"
+# # RUN if [[ "$TYPE" = "RELEASE" ]; then "cd /ros_python3_ws/src \
+# #     && git clone https://github.com/SBPL-Cruz/perception -b gpu_icp_ycb"; else echo "Not cloning code"; fi
 
-RUN /bin/bash -c '. /opt/ros/kinetic/setup.bash; cd /ros_python3_ws/; catkin build sbpl_perception'
-ENTRYPOINT /bin/bash -c '. /opt/ros/kinetic/setup.bash; \
-                         . /ros_python3_ws/devel/setup.bash; \
-                         cd /ros_python3_ws/src/perception/sbpl_perception/src/scripts/tools/fat_dataset; \
-                         Xvfb :5 -screen 0 800x600x24 & export DISPLAY=:5; \
-                         python fat_pose_image.py --config config_docker.yaml'
+# RUN /bin/bash -c '. /opt/ros/kinetic/setup.bash; cd /ros_python3_ws/; catkin build sbpl_perception'
+# ENTRYPOINT /bin/bash -c '. /opt/ros/kinetic/setup.bash; \
+#                          . /ros_python3_ws/devel/setup.bash; \
+#                          cd /ros_python3_ws/src/perception/sbpl_perception/src/scripts/tools/fat_dataset; \
+#                          Xvfb :5 -screen 0 800x600x24 & export DISPLAY=:5; \
+#                          python fat_pose_image.py --config config_docker.yaml'
 
 
 
 
 ### Debug Version below, code not cloned inside docker ###
-# RUN cd /ros_python3_ws/src \
-#     && git clone https://github.com/SBPL-Cruz/improved-mha-planner -b renamed \
-#     && git clone https://github.com/SBPL-Cruz/sbpl_utils.git -b renamed 
+RUN cd /ros_python3_ws/src \
+    && git clone https://github.com/SBPL-Cruz/improved-mha-planner -b renamed \
+    && git clone https://github.com/SBPL-Cruz/sbpl_utils.git -b renamed 
 
-# RUN /bin/bash -c 'Xvfb :5 -screen 0 800x600x24 & export DISPLAY=:5; \
-#                         . /opt/ros/kinetic/setup.bash; \
-#                         cd /ros_python3_ws/;'
+RUN /bin/bash -c 'Xvfb :5 -screen 0 800x600x24 & export DISPLAY=:5; \
+                        . /opt/ros/kinetic/setup.bash; \
+                        cd /ros_python3_ws/;'

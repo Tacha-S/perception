@@ -1084,7 +1084,7 @@ class FATImage:
             # First (half: 0, whole: 1) Second (0:0, 1:0-pi, 2:0-2pi)
             "002_master_chef_can": [0,0], #half_0
             "003_cracker_box": [0,0], #half_0-pi
-            "004_sugar_box": [0,0], #half_0-pi
+            "004_sugar_box": [0,3], #half_0-pi
             "005_tomato_soup_can": [0,0], #half_0
             "006_mustard_bottle": [0,0], #whole_0-pi
             "007_tuna_fish_can": [0,0], #half_0
@@ -1130,7 +1130,9 @@ class FATImage:
             elif name_sym_dict[label][1] == 3:
                 xyz_rotation_angles = [-phi, 0, theta]
                 all_rots.append(xyz_rotation_angles)
-                xyz_rotation_angles = [-phi, math.pi/2, theta]
+                # xyz_rotation_angles = [-phi, math.pi/2, theta]
+                # all_rots.append(xyz_rotation_angles)
+                xyz_rotation_angles = [-phi, 2*math.pi/3, theta]
                 all_rots.append(xyz_rotation_angles)
             elif name_sym_dict[label][1] == 4:
                 # For upright sugar box
@@ -2711,12 +2713,12 @@ def run_ycb_6d(dataset_cfg=None):
     f_runtime.write("{} {} {} {} {}\n".format('name', 'expands', 'runtime', 'icp_runtime', 'peak_gpu_mem'))
 
     # filter_objects = ['004_sugar_box']
-    required_objects = ['003_cracker_box']
+    # required_objects = ['003_cracker_box']
     # required_objects = ['025_mug', '007_tuna_fish_can', '002_master_chef_can']
     # required_objects = fat_image.category_names
     # required_objects = ['002_master_chef_can', '025_mug', '007_tuna_fish_can']
     # required_objects = ['040_large_marker', '024_bowl', '007_tuna_fish_can', '002_master_chef_can', '005_tomato_soup_can']
-    # required_objects = ['004_sugar_box']
+    required_objects = ['004_sugar_box']
     # required_objects = ['021_bleach_cleanser'] # 51, 54, 55, 57
     # required_objects = ['037_scissors'] # 51
     # required_objects = ['003_cracker_box'] # 50 54 59
@@ -2764,19 +2766,19 @@ def run_ycb_6d(dataset_cfg=None):
     # Trying 80 for sugar
 
     IMG_LIST = np.loadtxt(os.path.join(image_directory, 'image_sets/keyframe.txt'), dtype=str).tolist()
-    for scene_i in range(48, 49):
+    for scene_i in range(54, 60):
     # for scene_i in [54]:
-        # for img_i in (range(1, 2500)):
+        for img_i in (range(1000, 2500)):
         # for img_i in IMG_LIST:
         # for img_i in tuna_list:
         # for img_i in can_list:
         # for img_i in s_list:
-        for img_i in cracker_list:
+        # for img_i in cracker_list:
             # if "0050" not in img_i:
             #     continue
             # Get Image
-            # image_name = 'data/00{}/00{}-color.png'.format(str(scene_i), str(img_i).zfill(4))
-            image_name = '{}'.format(img_i)
+            image_name = 'data/00{}/00{}-color.png'.format(str(scene_i), str(img_i).zfill(4))
+            # image_name = '{}'.format(img_i)
             # if image_name in skip_list:
             #     continue
             # image_data, annotations = fat_image.get_random_image(name='{}_16k/kitchen_4/000005.left.jpg'.format(category_name))

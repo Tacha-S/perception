@@ -120,9 +120,9 @@ if True:
     SELECTED_OBJECTS = []
     # SCENES = []
     # IMAGE_DIR_LIST = ['data']
-    IMG_LIST = np.loadtxt('/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset/image_sets/keyframe.txt', dtype=str).tolist()
+    # IMG_LIST = np.loadtxt('/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset/image_sets/keyframe.txt', dtype=str).tolist()
     # IMG_LIST = np.loadtxt('/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset/image_sets/train.txt', dtype=str).tolist()
-    # IMG_LIST = np.loadtxt('/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset/image_sets/val.txt', dtype=str).tolist()
+    IMG_LIST = np.loadtxt('/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset/image_sets/val.txt', dtype=str).tolist()
     # IMG_LIST = []
     # for img_dir in keyframes:
     #     path = img_dir.split('/')
@@ -130,9 +130,9 @@ if True:
     #     SCENES.append(path[0])
     #     IMG_LIST.append(path[1])
     object_settings_file = Path(os.path.join(ROOT_DIR, "image_sets/classes.txt"))
-    OUTFILE_NAME = 'instances_keyframe_bbox_pose'
-    # OUTFILE_NAME = 'instances_train_pose'
-    # OUTFILE_NAME = 'instances_val_pose'
+    # OUTFILE_NAME = 'instances_keyframe_bbox_pose'
+    # OUTFILE_NAME = 'instances_train_bbox_pose'
+    OUTFILE_NAME = 'instances_val_bbox_pose'
     IMG_SUBFOLDER = "data"
     
     # print(SCENES)
@@ -764,16 +764,16 @@ def load_ycb_bbox_dataset():
 
     CATEGORIES, FIXED_TRANSFORMS, CAMERA_INTRINSICS = pre_load_ycb_dataset()
 
-    VIEWPOINTS = [viewpoints_xyz[i].tolist() for i in range(0, len(viewpoints_xyz))]
+    # VIEWPOINTS = [viewpoints_xyz[i].tolist() for i in range(0, len(viewpoints_xyz))]
 
-    INPLANE_ROTATIONS = [inplane_rot_angles[i] for i in range(0, len(inplane_rot_angles))]
+    # INPLANE_ROTATIONS = [inplane_rot_angles[i] for i in range(0, len(inplane_rot_angles))]
 
     coco_output = {
         "info": INFO,
         "licenses": LICENSES,
         "categories": CATEGORIES,
-        "viewpoints" : VIEWPOINTS,
-        "inplane_rotations" : INPLANE_ROTATIONS,
+        # "viewpoints" : VIEWPOINTS,
+        # "inplane_rotations" : INPLANE_ROTATIONS,
         "camera_intrinsic_settings": CAMERA_INTRINSICS,
         "fixed_transforms": FIXED_TRANSFORMS,
         "images": [],
@@ -787,7 +787,7 @@ def load_ycb_bbox_dataset():
     for ii in trange(len(IMG_LIST)):
         IMG = IMG_LIST[ii]
         image_filename = os.path.join(IMG_SUBFOLDER, IMG + '-color.png')
-        depth_image_filename = os.path.join(IMG_SUBFOLDER, IMG + '-depth.png')
+        # depth_image_filename = os.path.join(IMG_SUBFOLDER, IMG + '-depth.png')
         # print(image_filename)
         
         img_size = (640, 480)
@@ -800,7 +800,10 @@ def load_ycb_bbox_dataset():
         # plt.show()
         
         label_filename = os.path.join(ROOT_DIR, IMG_SUBFOLDER, IMG + '-bbox-meta.mat')
-        label_data = scipy.io.loadmat(label_filename)['object']
+        try:
+            label_data = scipy.io.loadmat(label_filename)['object']
+        except:
+            print("Couldnt read MAT file")
         # print(label_data)
 
         boxes = []
@@ -845,7 +848,7 @@ def load_ycb_bbox_dataset():
             class_bounding_box = bboxes[:,:,i].flatten()
             # print(class_bounding_box)
             quat = get_xyzw_quaternion(RT_transform.mat2quat(pose_matrix[:3,:3]).tolist())
-            angles = RT_transform.mat2euler(pose_matrix[:3,:3])
+            # angles = RT_transform.mat2euler(pose_matrix[:3,:3])
             # print(quat)
             loc = RT_transform.translation_from_matrix(pose_matrix)
             
@@ -856,22 +859,22 @@ def load_ycb_bbox_dataset():
 
             # if np.isclose(angles[1], 0):
             #     print("Test")
-            theta, phi = euler2sphere(angles[1], angles[0])
-            actual_angles = np.array([1, theta, phi])
-            xyz_coord = sphere2cart(1, theta, phi)
+            # theta, phi = euler2sphere(angles[1], angles[0])
+            # actual_angles = np.array([1, theta, phi])
+            # xyz_coord = sphere2cart(1, theta, phi)
             
-            viewpoint_id = find_viewpoint_id(viewpoints_xyz, xyz_coord)
-            r_xyz = get_viewpoint_from_id(viewpoints_xyz, viewpoint_id)
-            recovered_angles = np.array(cart2sphere(r_xyz[0], r_xyz[1], r_xyz[2]))
+            # viewpoint_id = find_viewpoint_id(viewpoints_xyz, xyz_coord)
+            # r_xyz = get_viewpoint_from_id(viewpoints_xyz, viewpoint_id)
+            # recovered_angles = np.array(cart2sphere(r_xyz[0], r_xyz[1], r_xyz[2]))
 
-            inplane_rotation_id = find_inplane_rotation_id(inplane_rot_angles, angles[2])
+            # inplane_rotation_id = find_inplane_rotation_id(inplane_rot_angles, angles[2])
             # inplate_rotation_angle = get_inplane_rotation_from_id(INPLANE_ROTATIONS, inplane_rotation_id)
 
 
-            if np.all(np.isclose(actual_angles, recovered_angles, atol=0.4)) == False:
-                print("Mismatch in : {}".format(label_filename))
-                print("sphere2cart angles : {}".format(actual_angles))
-                print("cart2sphere angles : {}".format(recovered_angles))
+            # if np.all(np.isclose(actual_angles, recovered_angles, atol=0.4)) == False:
+            #     print("Mismatch in : {}".format(label_filename))
+            #     print("sphere2cart angles : {}".format(actual_angles))
+            #     print("cart2sphere angles : {}".format(recovered_angles))
             # elif np.all(np.isclose(actual_angles, recovered_angles, atol=0.4)) == True:
             #     print("Match")
 
@@ -891,13 +894,13 @@ def load_ycb_bbox_dataset():
                 img_size, tolerance=2, bounding_box=class_bounding_box)
             
             if annotation_info is not None:
-                annotation_info['viewpoint_id'] = int(viewpoint_id)
-                annotation_info['inplane_rotation_id'] = int(inplane_rotation_id)
+                # annotation_info['viewpoint_id'] = int(viewpoint_id)
+                # annotation_info['inplane_rotation_id'] = int(inplane_rotation_id)
                 annotation_info['camera_pose'] = camera_pose
                 annotation_info['camera_intrinsics'] = camera_intrinsics
                 annotation_info['location'] = loc.tolist()
                 annotation_info['quaternion_xyzw'] = quat
-                annotation_info['depth_image_filename'] = depth_image_filename
+                # annotation_info['depth_image_filename'] = depth_image_filename
                 # print(annotation_info)
                 coco_output["annotations"].append(annotation_info)
                 coco_output["images"].append(image_info)

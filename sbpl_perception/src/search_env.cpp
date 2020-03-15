@@ -6131,6 +6131,7 @@ double EnvObjectRecognition::GetVGICPAdjustedPose(const PointCloudPtr cloud_in,
   ///////////////////////////////
   auto start_v = std::chrono::high_resolution_clock::now();
   fast_gicp::FastGICP<pcl::PointXYZ, pcl::PointXYZ> vgicp;
+  // fast_gicp::FastVGICP<pcl::PointXYZ, pcl::PointXYZ> vgicp;
   pcl::PointCloud<pcl::PointXYZ>::Ptr vt(new pcl::PointCloud<pcl::PointXYZ>);
   pcl::PointCloud<pcl::PointXYZ>::Ptr vs(new pcl::PointCloud<pcl::PointXYZ>);
   // observed
@@ -6142,7 +6143,7 @@ double EnvObjectRecognition::GetVGICPAdjustedPose(const PointCloudPtr cloud_in,
   printf("Source cloud size : %d\n", vs->points.size());
 
   pcl::PointCloud<pcl::PointXYZ>::Ptr aligned(new pcl::PointCloud<pcl::PointXYZ>);
-  // vgicp.setResolution(0.01);
+  // vgicp.setResolution(0.2);
   vgicp.setMaximumIterations(perch_params_.max_icp_iterations);
   vgicp.setCorrespondenceRandomness(10);
   // fast_gicp reuses calculated covariances if an input cloud is the same as the previous one
