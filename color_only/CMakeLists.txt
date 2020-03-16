@@ -40,9 +40,9 @@ include_directories( ${OPENGL_INCLUDE_DIR} )
 LIST(APPEND LINK_LIBS "${OPENGL_LIBRARIES}")
 LIST(APPEND LIB_DIRS  "${OPENGL_LIBRARY_DIR}" )
 
-
-
 find_package(CUDA REQUIRED)
+set(OpenCV_DIR /usr/local/share/OpenCV)
+
 include_directories(${OpenCV_INCLUDE_DIRS})
 
 # Load catkin and all dependencies required for this package
@@ -54,6 +54,7 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   roslib
   eigen_conversions
+  pcl_ros
   )
 
 
@@ -66,24 +67,33 @@ include_directories(${catkin_INCLUDE_DIRS})
 catkin_package(
   CATKIN_DEPENDS
     cv_bridge
+    image_transport
     cuda_renderer
     hist_prioritize
     roscpp
     roslib
+    pcl_ros
   DEPENDS
   INCLUDE_DIRS
     include
   LIBRARIES
     ${PROJECT_NAME}
   )
-add_library(color_only
+add_library(${PROJECT_NAME}
             test.cpp
 )
+
 target_include_directories(color_only PUBLIC ${renderer_inc})
-target_link_libraries(color_only PUBLIC ${renderer_lib})
+target_link_libraries(color_only PUBLIC ${renderer_lib} ${catkin_LIBRARIES} )
 
 add_executable(color_test test.cpp)
-target_link_libraries(color_test cuda_renderer hist_prioritize)
+target_link_libraries(color_test ${catkin_LIBRARIES} )
+catkin_package(
+    INCLUDE_DIRS include
+    LIBRARIES ${PROJECT_NAME}
+)
+add_executable(image_pub image_pub.cpp)
+target_link_libraries(image_pub ${catkin_LIBRARIES} )
 catkin_package(
     INCLUDE_DIRS include
     LIBRARIES ${PROJECT_NAME}

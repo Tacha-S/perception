@@ -16,6 +16,8 @@
 
   <!-- Dependencies needed to compile this package. -->
   <build_depend>cv_bridge</build_depend>
+  <build_depend>image_transport</build_depend>
+  <build_depend>pcl_ros</build_depend>
 
   <build_depend>eigen_conversions</build_depend>
   <build_depend>cuda_renderer</build_depend>
@@ -29,10 +31,11 @@
 
   <!-- Dependencies needed after this package is compiled. -->
   <run_depend>cv_bridge</run_depend>
+  <run_depend>image_transport</run_depend>
   <run_depend>eigen_conversions</run_depend>
   <run_depend>cuda_renderer</run_depend>
   <run_depend>hist_prioritize</run_depend>
-
+  <run_depend>pcl_ros</run_depend>
   <run_depend>roscpp</run_depend>
   <run_depend>roslib</run_depend>
  
