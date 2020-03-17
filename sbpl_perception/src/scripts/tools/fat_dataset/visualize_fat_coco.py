@@ -92,16 +92,20 @@ def render_pose(rendered_dir, count, class_name, fixed_transforms_dict, camera_i
 # annotation_file = '/media/aditya/A69AFABA9AFA85D9/Datasets/fat/mixed/extra/instances_fat_train_pose_6_obj_2018.json'
 # scale = 100
 
+pose = False
+
 image_directory = "/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset"
-# annotation_file = image_directory + '/instances_keyframe_pose.json'
-# annotation_file = image_directory + '/instances_keyframe_pose.json'
-annotation_file = image_directory + '/instances_keyframe_bbox_pose.json'
+annotation_file = image_directory + '/instances_keyframe_pose.json'
+# annotation_file = image_directory + '/instances_train_pose.json'
+# annotation_file = image_directory + '/instances_syn_bbox_pose.json'
+# annotation_file = image_directory + '/instances_val_bbox_pose.json'
 scale = 1
 example_coco = COCO(annotation_file)
 camera_intrinsics = example_coco.dataset['camera_intrinsic_settings']
-viewpoints_xyz = np.array(example_coco.dataset['viewpoints'])
-inplane_rotations = np.array(example_coco.dataset['inplane_rotations'])
-fixed_transforms_dict = example_coco.dataset['fixed_transforms']
+if pose:
+    viewpoints_xyz = np.array(example_coco.dataset['viewpoints'])
+    inplane_rotations = np.array(example_coco.dataset['inplane_rotations'])
+    fixed_transforms_dict = example_coco.dataset['fixed_transforms']
 
 categories = example_coco.loadCats(example_coco.getCatIds())
 category_names = [category['name'] for category in categories]
@@ -139,36 +143,43 @@ pylab.rcParams['figure.figsize'] = (8.0, 10.0)
 annotation_ids = example_coco.getAnnIds(imgIds=image_data['id'], catIds=category_ids, iscrowd=None)
 annotations = example_coco.loadAnns(annotation_ids)
 example_coco.showAnns(annotations)
+for ann in annotations:
+    bbox = ann['bbox']
+    rect = plt.Rectangle((bbox[0], bbox[1]),
+                        bbox[2],
+                        bbox[3], fill=False,
+                        edgecolor=(0, 0, 0), linewidth=2.5)
+    plt.gca().add_patch(rect)
 plt.savefig(os.path.join(directory, 'masks.png'))
 # print(annotations)
 
 
+if pose:
+    count = 1
+    for annotation in annotations:
+        viewpoint_xyz = get_viewpoint_from_id(viewpoints_xyz, annotation['viewpoint_id'])
+        r, theta, phi = cart2sphere(viewpoint_xyz[0], viewpoint_xyz[1], viewpoint_xyz[2])
+        theta, phi = sphere2euler(theta, phi)
+        inplane_rotation_angle = get_inplane_rotation_from_id(inplane_rotations, annotation['inplane_rotation_id'])
+        xyz_rotation_angles = [phi, theta, inplane_rotation_angle]
+        class_name = categories[annotation['category_id']]['name']
+        print("*****{}*****".format(class_name))
+        print("Recovered rotation : {}".format(xyz_rotation_angles))
+        quat = annotation['quaternion_xyzw']
+        # print(quat)
+        print("Actual rotation : {}".format(RT_transform.quat2euler(get_wxyz_quaternion(quat))))
+        # print("Actual rotation : {}".format(RT_transform.quat2euler(get_wxyz_quaternion(quat), 'rxyz')))
 
-count = 1
-for annotation in annotations:
-    viewpoint_xyz = get_viewpoint_from_id(viewpoints_xyz, annotation['viewpoint_id'])
-    r, theta, phi = cart2sphere(viewpoint_xyz[0], viewpoint_xyz[1], viewpoint_xyz[2])
-    theta, phi = sphere2euler(theta, phi)
-    inplane_rotation_angle = get_inplane_rotation_from_id(inplane_rotations, annotation['inplane_rotation_id'])
-    xyz_rotation_angles = [phi, theta, inplane_rotation_angle]
-    class_name = categories[annotation['category_id']]['name']
-    print("*****{}*****".format(class_name))
-    print("Recovered rotation : {}".format(xyz_rotation_angles))
-    quat = annotation['quaternion_xyzw']
-    # print(quat)
-    print("Actual rotation : {}".format(RT_transform.quat2euler(get_wxyz_quaternion(quat))))
-    # print("Actual rotation : {}".format(RT_transform.quat2euler(get_wxyz_quaternion(quat), 'rxyz')))
-
-    # FOR YCB DATASET
-    if camera_intrinsics is None:
-        camera_intrinsics = np.array(annotation['camera_intrinsics'])
-    rgb, depth = render_pose(directory, count, class_name, fixed_transforms_dict, 
-                    camera_intrinsics, annotation['camera_pose'], xyz_rotation_angles, annotation['location'], annotation['quaternion_xyzw'],
-                    scale)
-    plt.subplot(4,4,count+1)    
-    plt.imshow(rgb)    
-    plt.subplot(4,4,count+2)
-    plt.imshow(depth)    
-    count += 2
-plt.savefig(os.path.join(directory, 'rendering.png'))
-plt.show()
+        # FOR YCB DATASET
+        if camera_intrinsics is None:
+            camera_intrinsics = np.array(annotation['camera_intrinsics'])
+        rgb, depth = render_pose(directory, count, class_name, fixed_transforms_dict, 
+                        camera_intrinsics, annotation['camera_pose'], xyz_rotation_angles, annotation['location'], annotation['quaternion_xyzw'],
+                        scale)
+        plt.subplot(4,4,count+1)    
+        plt.imshow(rgb)    
+        plt.subplot(4,4,count+2)
+        plt.imshow(depth)    
+        count += 2
+    plt.savefig(os.path.join(directory, 'rendering.png'))
+    plt.show()

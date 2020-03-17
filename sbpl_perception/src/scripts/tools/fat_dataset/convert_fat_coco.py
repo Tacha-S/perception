@@ -114,15 +114,15 @@ if False:
     OUTFILE_NAME = 'instances_newmap1_reduced_2_2018'
     # OUTFILE_NAME = 'instances_newmap1_roman_2018'
 
-if True:
+if False:
     DATASET_TYPE = "ycb"
     ROOT_DIR = '/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset'
     SELECTED_OBJECTS = []
     # SCENES = []
     # IMAGE_DIR_LIST = ['data']
-    # IMG_LIST = np.loadtxt('/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset/image_sets/keyframe.txt', dtype=str).tolist()
+    IMG_LIST = np.loadtxt('/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset/image_sets/keyframe.txt', dtype=str).tolist()
     # IMG_LIST = np.loadtxt('/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset/image_sets/train.txt', dtype=str).tolist()
-    IMG_LIST = np.loadtxt('/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset/image_sets/val.txt', dtype=str).tolist()
+    # IMG_LIST = np.loadtxt('/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset/image_sets/val.txt', dtype=str).tolist()
     # IMG_LIST = []
     # for img_dir in keyframes:
     #     path = img_dir.split('/')
@@ -130,9 +130,9 @@ if True:
     #     SCENES.append(path[0])
     #     IMG_LIST.append(path[1])
     object_settings_file = Path(os.path.join(ROOT_DIR, "image_sets/classes.txt"))
-    # OUTFILE_NAME = 'instances_keyframe_bbox_pose'
+    OUTFILE_NAME = 'instances_keyframe_bbox_pose'
     # OUTFILE_NAME = 'instances_train_bbox_pose'
-    OUTFILE_NAME = 'instances_val_bbox_pose'
+    # OUTFILE_NAME = 'instances_val_bbox_pose'
     IMG_SUBFOLDER = "data"
     
     # print(SCENES)
@@ -144,7 +144,7 @@ if False:
     SELECTED_OBJECTS = []
     IMG_LIST = [str(x).zfill(6) for x in range(0, 80000)]
     object_settings_file = Path(os.path.join(ROOT_DIR, "image_sets/classes.txt"))
-    OUTFILE_NAME = 'instances_syn_pose'
+    OUTFILE_NAME = 'instances_syn_bbox_pose'
     IMG_SUBFOLDER = "data_syn"
 
 ng = 642
@@ -804,6 +804,7 @@ def load_ycb_bbox_dataset():
             label_data = scipy.io.loadmat(label_filename)['object']
         except:
             print("Couldnt read MAT file")
+            continue
         # print(label_data)
 
         boxes = []
@@ -845,8 +846,13 @@ def load_ycb_bbox_dataset():
             # print(class_name)
             # print(pose_matrix)
             # [xmin, ymin, xmax, ymax]
-            class_bounding_box = bboxes[:,:,i].flatten()
-            # print(class_bounding_box)
+            class_bbox_coord = bboxes[:,:, i].flatten()
+            # [xmin, ymin, width, height]
+            class_bbbox = np.array([class_bbox_coord[0],
+                           class_bbox_coord[1],
+                           class_bbox_coord[2] - class_bbox_coord[0],
+                           class_bbox_coord[3] - class_bbox_coord[1]])
+            # print(class_bbbox)
             quat = get_xyzw_quaternion(RT_transform.mat2quat(pose_matrix[:3,:3]).tolist())
             # angles = RT_transform.mat2euler(pose_matrix[:3,:3])
             # print(quat)
@@ -891,7 +897,7 @@ def load_ycb_bbox_dataset():
             
             annotation_info = pycococreatortools.create_annotation_info(
                 segmentation_global_id, image_global_id, category_info, binary_mask,
-                img_size, tolerance=2, bounding_box=class_bounding_box)
+                img_size, tolerance=2, bounding_box=class_bbbox)
             
             if annotation_info is not None:
                 # annotation_info['viewpoint_id'] = int(viewpoint_id)
