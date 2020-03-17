@@ -25,11 +25,15 @@
 #include <tf_conversions/tf_eigen.h>
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
+#include <image_transport/image_transport.h>
+#include <opencv2/highgui/highgui.hpp>
+#include <cv_bridge/cv_bridge.h>
+
 
 using namespace std;
 using namespace sbpl_perception;
 
-const string kDebugDir = ros::package::getPath("sbpl_perception") +
+string kDebugDir = ros::package::getPath("sbpl_perception") +
                          "/visualization/";
 
 int main(int argc, char **argv) {
@@ -38,9 +42,12 @@ int main(int argc, char **argv) {
   std::shared_ptr<boost::mpi::communicator> world(new
                                                   boost::mpi::communicator());
   ros::Publisher pose_pub_, pose_array_pub_, mesh_marker_pub_, mesh_marker_array_pub_;
+  image_transport::Publisher pose_rgb_pub_;
   if (IsMaster(world)) {
     ros::init(argc, argv, "perch_fat_experiments");
     ros::NodeHandle nh("~");
+    image_transport::ImageTransport it(nh);
+    pose_rgb_pub_ = it.advertise("perch_pose_rgb_image", 1);
     pose_pub_ = nh.advertise<geometry_msgs::PoseStamped>("perch_pose", 1);
     pose_array_pub_ = nh.advertise<geometry_msgs::PoseArray>("perch_pose_array", 1);
     mesh_marker_pub_ = nh.advertise<visualization_msgs::Marker>("perch_marker", 1);
@@ -66,12 +73,16 @@ int main(int argc, char **argv) {
   // cout << config_file << endl;
 
   bool image_debug = true;
-
-  string experiment_dir = kDebugDir + output_dir_name.stem().string() + "/";
-  string debug_dir = kDebugDir + output_dir_name.stem().string() + "/";
+  if (IsMaster(world)) {
+    ros::NodeHandle nh("~");
+    nh.getParam("/perch_debug_dir", kDebugDir);
+  }
+  string experiment_dir = kDebugDir + "/" + output_dir_name.stem().string() + "/";
+  string debug_dir = kDebugDir + "/" + output_dir_name.stem().string() + "/";
 
   string pose_file = experiment_dir + "output_poses.txt";
   string stats_file = experiment_dir + "output_stats.txt";
+  string output_rgb_file = experiment_dir + "output_color_image.png";
 
   // Delete directories if they exist
   if (IsMaster(world) &&
@@ -110,6 +121,8 @@ int main(int argc, char **argv) {
 
   RecognitionInput input_global;
   std::vector<Eigen::Affine3f> object_transforms, preprocessing_object_transforms;
+  std::vector<ContPose> object_poses;
+  std::vector<std::string> detected_model_names;
 
   if (IsMaster(world)) {
       RecognitionInput input;
@@ -128,6 +141,7 @@ int main(int argc, char **argv) {
       nh.getParam("/depth_factor", input.depth_factor);
       nh.getParam("/use_icp", input.use_icp);
       nh.getParam("/shift_pose_centroid", input.shift_pose_centroid);
+      nh.getParam("/rendered_root_dir", input.rendered_root_dir);
       // std::string required_object;
       // nh.getParam("/required_object", required_object);
       std::vector<double> camera_pose_list;
@@ -164,14 +178,21 @@ int main(int argc, char **argv) {
   // vector<ContPose> detected_poses;
   // object_recognizer.LocalizeObjects(input, &detected_poses);
 
-  if (false) {
+  int type = 1;
+  if (type == 0) {
     object_recognizer.LocalizeObjectsGreedyICP(
       input_global, &object_transforms, &preprocessing_object_transforms
     );
   }
-  else {
+  else if (type == 2) {
     object_recognizer.LocalizeObjects(
       input_global, &object_transforms, &preprocessing_object_transforms
+    );
+  }
+  else if (type == 1) {
+    object_recognizer.LocalizeObjectsGreedyRender(
+      input_global, &object_transforms, &preprocessing_object_transforms, 
+      &object_poses, &detected_model_names
     );
   }
 
@@ -213,8 +234,7 @@ int main(int argc, char **argv) {
     visualization_msgs::MarkerArray marker_array;
     geometry_msgs::PoseArray pose_msg_array;
 
-
-    for (size_t ii = 0; ii < input_global.model_names.size(); ++ii) {
+    for (size_t ii = 0; ii < detected_model_names.size(); ++ii) {
         // std::cout << ii;
         // Eigen::Matrix4d eigen_pose(rosmsg_object_transforms[ii].data.data());
         Eigen::Affine3d object_transform = object_transforms[ii].cast<double>();
@@ -222,7 +242,7 @@ int main(int argc, char **argv) {
         // // Transpose to convert column-major raw data initialization to row-major.
         // object_transform.matrix() = eigen_pose.transpose();
 
-        std::cout << "Pose for Object: " << input_global.model_names[ii] << std::endl <<
+        std::cout << "Pose for Object: " << detected_model_names[ii] << std::endl <<
                         object_transform.matrix() << std::endl << std::endl;
 
         geometry_msgs::PoseStamped pose_msg;
@@ -234,7 +254,7 @@ int main(int argc, char **argv) {
         pose_msg_array.header = pose_msg.header;
         pose_msg_array.poses.push_back(pose_msg.pose);
 
-        const string &model_name = input_global.model_names[ii];
+        const string &model_name = detected_model_names[ii];
         const string &model_file = model_bank_[model_name].file;
         cout << model_file << endl;
         pcl::PolygonMesh mesh;
@@ -270,7 +290,7 @@ int main(int argc, char **argv) {
         mesh_marker_pub_.publish(marker);
         marker_array.markers.push_back(marker);
 
-        fs_poses << input_global.model_names[ii] << endl;
+        fs_poses << detected_model_names[ii] << endl;
         fs_poses << "translation " << pose_msg.pose.position.x << " " << pose_msg.pose.position.y << " " << pose_msg.pose.position.z << endl; 
         fs_poses << "quaternion "  << pose_msg.pose.orientation.x << " " << pose_msg.pose.orientation.y 
           << " " << pose_msg.pose.orientation.z << " " << pose_msg.pose.orientation.w << " " << endl;
@@ -280,14 +300,18 @@ int main(int argc, char **argv) {
     }
     mesh_marker_array_pub_.publish(marker_array);
     pose_array_pub_.publish(pose_msg_array);
-    
+    // cv::Mat image = cv::imread(argv[1], CV_LOAD_IMAGE_COLOR);
+    // sensor_msgs::ImagePtr pose_rgb_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", image).toImageMsg();
+    // pose_rgb_pub_.publish(pose_rgb_msg);
+
     fs_stats << "[[[[[[[[  Stats  ]]]]]]]]:" << endl;
     fs_stats << "#Rendered " << "#Valid Rendered " <<  "#Expands " << "Time "
-             << "Cost" << endl;
+             << "Cost " << "ICP-Time " << "Peak-GPU-Mem" << endl;
     fs_stats << env_stats.scenes_rendered << " " << env_stats.scenes_valid << " "
              <<
              stats_vector[0].expands
-             << " " << stats_vector[0].time << " " << stats_vector[0].cost << endl;
+             << " " << stats_vector[0].time << " " << stats_vector[0].cost 
+             << " " << env_stats.icp_time << " " << env_stats.peak_gpu_mem << endl;
 
     // for (const auto &pose : detected_poses) {
     //   fs_poses << pose.x() << " " << pose.y() << " " << input.table_height <<

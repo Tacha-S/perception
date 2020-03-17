@@ -1,8 +1,9 @@
 #include <stdio.h>
 #include <cuda.h>
 #include <cublas.h>
-#include "cuda_renderer/renderer.h"
+// #include "cuda_renderer/renderer.h"
 #include "cuda_renderer/knncuda.h"
+// #include "cuda_renderer/common.cuh"
 #include <thrust/transform_reduce.h>
 #include <thrust/functional.h>
 
@@ -271,156 +272,7 @@ __global__ void add_query_points_norm_and_sqrt(float * array, int width, int pit
     if (xIndex<width && yIndex<k)
         array[yIndex*pitch + xIndex] = sqrt(array[yIndex*pitch + xIndex] + norm[xIndex]);
 }
-__global__ void depth_to_mask(int32_t* depth, int* mask, int width, int height, int stride, int* pose_occluded)
-{
-    int n = (int)floorf((blockIdx.x * blockDim.x + threadIdx.x)/(width/stride));
-    int x = (blockIdx.x * blockDim.x + threadIdx.x)%(width/stride);
-    int y = blockIdx.y*blockDim.y + threadIdx.y;
-    x = x*stride;
-    y = y*stride;
-    if(x >= width) return;
-    if(y >= height) return;
-    uint32_t idx_depth = n * width * height + x + y*width;
-    uint32_t idx_mask = n * width * height + x + y*width;
 
-    if(depth[idx_depth] > 0 && !pose_occluded[n]) 
-    {
-        mask[idx_mask] = 1;
-    }
-}
-
-__global__ void depth_to_cloud(
-    int32_t* depth, float* cloud, int cloud_point_num, int* mask, int width, int height, 
-    float kCameraCX, float kCameraCY, float kCameraFX, float kCameraFY, float depth_factor,
-    int stride)
-{
-    int n = (int)floorf((blockIdx.x * blockDim.x + threadIdx.x)/(width/stride));
-    int x = (blockIdx.x * blockDim.x + threadIdx.x)%(width/stride);
-    int y = blockIdx.y * blockDim.y + threadIdx.y;
-
-    // uint32_t x = blockIdx.x*blockDim.x + threadIdx.x;
-    // uint32_t y = blockIdx.y*blockDim.y + threadIdx.y;
-    x = x*stride;
-    y = y*stride;
-    if(x >= width) return;
-    if(y >= height) return;
-    uint32_t idx_depth = n * width * height + x + y*width;
-
-    if(depth[idx_depth] <= 0) return;
-
-    // printf("depth:%d\n", depth[idx_depth]);
-    // uchar depth_val = depth[idx_depth];
-    float z_pcd = static_cast<float>(depth[idx_depth])/depth_factor;
-    float x_pcd = (static_cast<float>(x) - kCameraCX)/kCameraFX * z_pcd;
-    float y_pcd = (static_cast<float>(y) - kCameraCY)/kCameraFY * z_pcd;
-    // printf("kCameraCX:%f,kCameraFX:%f, kCameraCY:%f, kCameraCY:%f\n", kCameraCX,kCameraFX,kCameraCY, y_pcd, z_pcd);
-
-    // printf("x:%d,y:%d, x_pcd:%f, y_pcd:%f, z_pcd:%f\n", x,y,x_pcd, y_pcd, z_pcd);
-    uint32_t idx_mask = n * width * height + x + y*width;
-    int cloud_idx = mask[idx_mask];
-    cloud[cloud_idx + 0*cloud_point_num] = x_pcd;
-    cloud[cloud_idx + 1*cloud_point_num] = y_pcd;
-    cloud[cloud_idx + 2*cloud_point_num] = z_pcd;
-    // cloud[3*cloud_idx + 0] = x_pcd;
-    // cloud[3*cloud_idx + 1] = y_pcd;
-    // cloud[3*cloud_idx + 2] = z_pcd;
-}
-
-bool depth2cloud_global(int32_t* depth_data,
-                        float* &result_cloud,
-                        int* &dc_index,
-                        int &point_num,
-                        int width, 
-                        int height, 
-                        int num_poses,
-                        int* pose_occluded,
-                        float kCameraCX, 
-                        float kCameraCY, 
-                        float kCameraFX, 
-                        float kCameraFY,
-                        float depth_factor,
-                        int stride,
-                        int point_dim)
-{
-    printf("depth2cloud_global()\n");
-    // int size = num_poses * width * height * sizeof(float);
-    // int point_dim = 3;
-    // int* depth_data = result_depth.data();
-    // float* cuda_cloud;
-    // // int* mask;
-
-    // cudaMalloc(&cuda_cloud, point_dim*size);
-    // cudaMalloc(&mask, size);
-
-    int32_t* depth_data_cuda;
-    int* pose_occluded_cuda;
-    // int stride = 5;
-    cudaMalloc(&depth_data_cuda, num_poses * width * height * sizeof(int32_t));
-    cudaMemcpy(depth_data_cuda, depth_data, num_poses * width * height * sizeof(int32_t), cudaMemcpyHostToDevice);
-    
-    cudaMalloc(&pose_occluded_cuda, num_poses * sizeof(int));
-    cudaMemcpy(pose_occluded_cuda, pose_occluded, num_poses * sizeof(int), cudaMemcpyHostToDevice);
-
-    dim3 threadsPerBlock(16, 16);
-    dim3 numBlocks((width/stride * num_poses + threadsPerBlock.x - 1)/threadsPerBlock.x, (height/stride + threadsPerBlock.y - 1)/threadsPerBlock.y);
-
-    thrust::device_vector<int> mask(width*height*num_poses, 0);
-    int* mask_ptr = thrust::raw_pointer_cast(mask.data());
-
-    depth_to_mask<<<numBlocks, threadsPerBlock>>>(depth_data_cuda, mask_ptr, width, height, stride, pose_occluded_cuda);
-    if (cudaGetLastError() != cudaSuccess) 
-    {
-        printf("ERROR: Unable to execute kernel\n");
-        return false;
-    }
-    cudaDeviceSynchronize();
-
-    // Create mapping from pixel to corresponding index in point cloud
-    int mask_back_temp = mask.back();
-    thrust::exclusive_scan(mask.begin(), mask.end(), mask.begin(), 0); // in-place scan
-    point_num = mask.back() + mask_back_temp;
-    printf("Actual points in all clouds : %d\n", point_num);
-
-    float* cuda_cloud;
-    cudaMalloc(&cuda_cloud, point_dim * point_num * sizeof(float));
-    result_cloud = (float*) malloc(point_dim * point_num * sizeof(float));
-    dc_index = (int*) malloc(num_poses * width * height * sizeof(int));
-
-    depth_to_cloud<<<numBlocks, threadsPerBlock>>>(
-                        depth_data_cuda, cuda_cloud, point_num, mask_ptr, width, height, 
-                        kCameraCX, kCameraCY, kCameraFX, kCameraFY, depth_factor, stride);
-        
-    cudaDeviceSynchronize();
-    cudaMemcpy(result_cloud, cuda_cloud, point_dim * point_num * sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(dc_index, mask_ptr, num_poses * width * height * sizeof(int), cudaMemcpyDeviceToHost);
-
-    // for(int n = 0; n < num_poses; n ++)
-    // {
-    //     for(int i = 0; i < height; i ++)
-    //     {
-    //         for(int j = 0; j < width; j ++)
-    //         {
-    //             int index = n*width*height + (i*width + j);
-    //             int cloud_index = mask[index];
-    //             // printf("cloud_i:%d\n", cloud_index);
-    //             if (depth_data[index] > 0)
-    //             {
-    //                 // printf("x:%f,y:%f,z:%f\n", 
-    //                 // result_cloud[3*cloud_index], result_cloud[3*cloud_index + 1], result_cloud[3*cloud_index + 2]);
-    //             }
-    //         }
-    //     }
-    // }
-    if (cudaGetLastError() != cudaSuccess) 
-    {
-        printf("ERROR: Unable to execute kernel\n");
-        return false;
-    }
-    printf("depth2cloud_global() Done\n");
-    cudaFree(depth_data_cuda);
-    cudaFree(cuda_cloud);
-    return true;
-}
 bool knn_cuda_global(const float * ref,
                      int           ref_nb,
                      const float * query,
@@ -431,6 +283,7 @@ bool knn_cuda_global(const float * ref,
                      int *         knn_index) {
 
     // Constants
+    // ref is observed, query is rendered
     const unsigned int size_of_float = sizeof(float);
     const unsigned int size_of_int   = sizeof(int);
 

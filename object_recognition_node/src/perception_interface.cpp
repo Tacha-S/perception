@@ -41,6 +41,9 @@ using namespace std;
 using namespace perception_utils;
 using namespace sbpl_perception;
 
+const string kDebugDir = ros::package::getPath("sbpl_perception") +
+                         "/visualization/";
+
 namespace {
 std::vector<std::vector<int>> kColorPalette = {
   {240, 163, 255}, {0, 117, 220}, {153, 63, 0}, {76, 0, 92}, {25, 25, 25}, {0, 92, 49}, {43, 206, 72},
@@ -66,6 +69,7 @@ PerceptionInterface::PerceptionInterface(ros::NodeHandle nh) : nh_(nh),
   private_nh.param("use_external_pose_list", use_external_pose_list,0);
   private_nh.param("use_input_images", use_input_images,0);
   private_nh.param("use_icp", use_icp, 1);
+  private_nh.param("use_render_greedy", use_render_greedy, 1);
   private_nh.param("camera_frame", camera_frame_,
                    std::string("/head_mount_kinect_rgb_link"));
   private_nh.param("camera_optical_frame", camera_optical_frame_,
@@ -80,13 +84,19 @@ PerceptionInterface::PerceptionInterface(ros::NodeHandle nh) : nh_(nh),
 
   model_bank_ = ModelBankFromList(model_bank_list);
 
+  image_transport::ImageTransport it(nh);
+  pose_rgb_pub_ = it.advertise("perch_pose_rgb_image", 1);
+  input_image_repub_ = it.advertise("perch_input_color_image", 1);
   pose_pub_ = nh.advertise<geometry_msgs::PoseStamped>("perch_pose", 1);
   mesh_marker_pub_ = nh.advertise<visualization_msgs::Marker>("perch_marker", 1);
+
   cloud_sub_ = nh.subscribe("input_cloud", 1, &PerceptionInterface::CloudCB,
                             this);
-  keyboard_sub_ = nh.subscribe("/keypress_topic", 1,
-                               &PerceptionInterface::KeyboardCB,
-                               this);
+  color_image_sub_ = nh.subscribe("input_color_image", 1, &PerceptionInterface::ImageCB,
+                            this);
+  // keyboard_sub_ = nh.subscribe("/keypress_topic", 1,
+  //                              &PerceptionInterface::KeyboardCB,
+  //                              this);
   requested_objects_sub_ = nh.subscribe("/requested_object", 1,
                                         &PerceptionInterface::RequestedObjectsCB,
                                         this);
@@ -111,9 +121,17 @@ PerceptionInterface::PerceptionInterface(ros::NodeHandle nh) : nh_(nh),
   }
 }
 
+void PerceptionInterface::ImageCB(const sensor_msgs::ImageConstPtr& input_rgb_image_msg)
+{
+  recent_color_image_ = *input_rgb_image_msg;
+}
+
 void PerceptionInterface::CloudCB(const sensor_msgs::PointCloud2ConstPtr
                                   &sensor_cloud) {
 
+  // For tracking based testing, republish input until processing starts
+  // filtered_point_cloud_pub_.publish(sensor_cloud);
+  input_image_repub_.publish(recent_color_image_);
   if (capture_kinect_ == false) {
     ROS_ERROR("%s", "Capture kinect false");
     return;
@@ -348,6 +366,7 @@ void PerceptionInterface::CloudCBInternal(const PointCloudPtr
   req.use_external_pose_list = use_external_pose_list;
   req.use_icp = use_icp;
   req.use_input_images = use_input_images;
+  req.use_render_greedy = use_render_greedy;
   tf::matrixEigenToMsg(camera_pose.matrix(), req.camera_pose);
   pcl::toROSMsg(*table_removed_cloud, req.input_organized_cloud);
 
@@ -452,11 +471,16 @@ void PerceptionInterface::CloudCBInternal(const PointCloudPtr
       }
     }
 
+    string rgb_output_file = kDebugDir + "/output_color_image.png";
+    cv::Mat image = cv::imread(rgb_output_file, CV_LOAD_IMAGE_COLOR);
+    sensor_msgs::ImagePtr pose_rgb_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", image).toImageMsg();
+    pose_rgb_pub_.publish(pose_rgb_msg);
+
     // Set action client result if still active.
-      if (perch_server_->isActive()) {
-        perch_result_.object_poses = latest_object_poses_;
-        perch_server_->setSucceeded(perch_result_);
-      }
+    if (perch_server_->isActive()) {
+      perch_result_.object_poses = latest_object_poses_;
+      perch_server_->setSucceeded(perch_result_);
+    }
   } else {
       ROS_ERROR("Object localizer service failed.");
       // Set action client result if still active.
@@ -467,19 +491,31 @@ void PerceptionInterface::CloudCBInternal(const PointCloudPtr
   }
 }
 
-void PerceptionInterface::KeyboardCB(const keyboard::Key &pressed_key) {
-  if (static_cast<char>(pressed_key.code) == 'c') {
-    cout << "Its a c!" << endl;
-    capture_kinect_ = true;
-  }
-  return;
-}
+// void PerceptionInterface::KeyboardCB(const keyboard::Key &pressed_key) {
+//   if (static_cast<char>(pressed_key.code) == 'c') {
+//     cout << "Its a c!" << endl;
+//     capture_kinect_ = true;
+//   }
+//   return;
+// }
 
 void PerceptionInterface::RequestedObjectsCB(const std_msgs::String
                                              &object_name) {
+  latest_requested_objects_.clear();
   cout << "[Perception Interface]: Got request to identify " << object_name.data
        << endl;
-  latest_requested_objects_ = vector<string>({object_name.data});
+  // latest_requested_objects_ = vector<string>({object_name.data});
+  istringstream ss(object_name.data);
+  do {
+      string word;
+      ss >> word;
+      if (word.size() > 0)
+      {
+        cout << "Parsed requested object : " << word << endl;
+        latest_requested_objects_.push_back(word);
+      }
+  } while (ss);
+
   // latest_requested_objects_ = {"pepsi_can", "sprite_can", "coke_bottle"};
   // latest_requested_objects_ = {"004_sugar_box"};
   // latest_requested_objects_ = {"crate"};

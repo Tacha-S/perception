@@ -25,31 +25,12 @@
 #include <string.h>
 #include <sys/time.h>
 #include <time.h>
+#include <thrust/host_vector.h>
+#include <thrust/device_vector.h>
+#include <thrust/copy.h>
 
 namespace cuda_renderer {
     
-
-    bool depth2cloud_global(int32_t* depth_data, 
-                            float* &result_cloud, 
-                            int* &dc_index,
-                            int &point_num,
-                            int width, 
-                            int height, 
-                            int num_poses,
-                            int* pose_occluded,
-                            float kCameraCX, 
-                            float kCameraCY, 
-                            float kCameraFX, 
-                            float kCameraFY,
-                            float depth_factor,
-                            int stride,
-                            int point_dim);
-
-    // bool depth2cloud_global(
-    //     std::vector<int32_t> result_depth,  
-    //     int width, 
-    //     int height, 
-    //     cv::Mat cam_intrinsics);
 
     bool knn_cuda_global(const float * ref,
                         int           ref_nb,
