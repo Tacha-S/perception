@@ -5723,6 +5723,7 @@ void EnvObjectRecognition::SetInput(const RecognitionInput &input) {
     input_depth_image_path = input.input_depth_image;
     if (env_params_.use_external_pose_list == 1) {
       gpu_stride = 8;
+      // gpu_stride = 5; // For fast_vgicp
       // For FAT dataset, we have 16bit images
       cv_depth_image = cv::imread(input.input_depth_image, CV_LOAD_IMAGE_ANYDEPTH);
       cv_predicted_mask_image = cv::imread(input.predicted_mask_image, CV_LOAD_IMAGE_UNCHANGED);
@@ -6143,7 +6144,7 @@ double EnvObjectRecognition::GetVGICPAdjustedPose(const PointCloudPtr cloud_in,
   printf("Source cloud size : %d\n", vs->points.size());
 
   pcl::PointCloud<pcl::PointXYZ>::Ptr aligned(new pcl::PointCloud<pcl::PointXYZ>);
-  // vgicp.setResolution(0.2);
+  // vgicp.setResolution(0.05);
   vgicp.setMaximumIterations(perch_params_.max_icp_iterations);
   vgicp.setCorrespondenceRandomness(10);
   // fast_gicp reuses calculated covariances if an input cloud is the same as the previous one

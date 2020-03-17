@@ -1083,7 +1083,8 @@ class FATImage:
             # Second for changing raw. Here may need to rewrite the render or transition matrix!!!!!!!
             # First (half: 0, whole: 1) Second (0:0, 1:0-pi, 2:0-2pi)
             "002_master_chef_can": [0,0], #half_0
-            "003_cracker_box": [0,0], #half_0-pi
+            "003_cracker_box": [0,0], #half_0-pi #0,0 is fine with gicp
+            # "003_cracker_box": [0,6], #half_0-pi #0,0 is fine with gicp
             "004_sugar_box": [0,3], #half_0-pi
             "005_tomato_soup_can": [0,0], #half_0
             "006_mustard_bottle": [0,0], #whole_0-pi
@@ -1140,6 +1141,13 @@ class FATImage:
                 all_rots.append(xyz_rotation_angles)
             elif name_sym_dict[label][1] == 5:
                 xyz_rotation_angles = [phi, theta, math.pi]
+                all_rots.append(xyz_rotation_angles)
+            elif name_sym_dict[label][1] == 6:
+                xyz_rotation_angles = [-phi, 0, theta]
+                all_rots.append(xyz_rotation_angles)
+                xyz_rotation_angles = [-phi, math.pi/3, theta]
+                all_rots.append(xyz_rotation_angles)
+                xyz_rotation_angles = [-phi, 2*math.pi/3, theta]
                 all_rots.append(xyz_rotation_angles)
 
         return all_rots
@@ -2681,7 +2689,7 @@ def run_ycb_6d(dataset_cfg=None):
     
     image_directory = dataset_cfg['image_dir']
     # annotation_file = image_directory + 'instances_keyframe_pose.json'
-    annotation_file = image_directory + 'instances_keyframe_bbox_pose.json'
+    annotation_file = image_directory + 'instances_keyframe_bbox_pose_bkp.json'
     model_dir = dataset_cfg['model_dir']
 
     fat_image = FATImage(
@@ -2718,10 +2726,10 @@ def run_ycb_6d(dataset_cfg=None):
     # required_objects = fat_image.category_names
     # required_objects = ['002_master_chef_can', '025_mug', '007_tuna_fish_can']
     # required_objects = ['040_large_marker', '024_bowl', '007_tuna_fish_can', '002_master_chef_can', '005_tomato_soup_can']
-    required_objects = ['004_sugar_box']
+    # required_objects = ['004_sugar_box'] # 55
     # required_objects = ['021_bleach_cleanser'] # 51, 54, 55, 57
     # required_objects = ['037_scissors'] # 51
-    # required_objects = ['003_cracker_box'] # 50 54 59
+    required_objects = ['004_sugar_box'] # 50 54 59
     # ['010_potted_meat_can'] - 49, 59, 53
     # required_objects = ['019_pitcher_base','005_tomato_soup_can','004_sugar_box' ,'007_tuna_fish_can', '010_potted_meat_can', '024_bowl', '002_master_chef_can', '025_mug', '003_cracker_box', '006_mustard_bottle']
     # required_objects = fat_image.category_names
@@ -2766,9 +2774,9 @@ def run_ycb_6d(dataset_cfg=None):
     # Trying 80 for sugar
 
     IMG_LIST = np.loadtxt(os.path.join(image_directory, 'image_sets/keyframe.txt'), dtype=str).tolist()
-    for scene_i in range(54, 60):
+    for scene_i in range(55, 60):
     # for scene_i in [54]:
-        for img_i in (range(1000, 2500)):
+        for img_i in (range(1, 200)):
         # for img_i in IMG_LIST:
         # for img_i in tuna_list:
         # for img_i in can_list:

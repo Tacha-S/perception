@@ -6,7 +6,8 @@
 
 perch_params:
   min_points_for_constraint_cloud: 50
-  max_icp_iterations: 150
+  # max_icp_iterations: 200 #For fast_vgicp
+  max_icp_iterations: 150 #For fast_gicp
   icp_max_correspondence: 0.05 #m #0.075
   use_adaptive_resolution: false
   use_rcnn_heuristic: false
