@@ -70,12 +70,14 @@ void cuda_renderer::Model::recursive_render(const aiScene *sc, const aiNode *nd,
 {
     aiMultiplyMatrix4(&m, &nd->mTransformation);
 
+    printf("Reading faces\n");
     for (size_t n=0; n < nd->mNumMeshes; ++n){
         const struct aiMesh* mesh = sc->mMeshes[nd->mMeshes[n]];
 
         for (size_t t = 0; t < mesh->mNumFaces; ++t){
             const struct aiFace* face = &mesh->mFaces[t];
             // std::cout << face->mNumIndices << std::endl;
+            if (face->mNumIndices < 3) continue;
             assert(face->mNumIndices == 3 && "we only render triangle, use tools like meshlab to modify this models");
 
             Triangle tri_temp;
@@ -127,6 +129,7 @@ void cuda_renderer::Model::recursive_render(const aiScene *sc, const aiNode *nd,
     }
 
     // draw all children
+    printf("Reading children faces\n");
     for (size_t n = 0; n < nd->mNumChildren; ++n)
         recursive_render(sc, nd->mChildren[n], m);
 }

@@ -1,3 +1,4 @@
+# perch/perception_new/perception 48/1764
 import matplotlib.pyplot as plt
 import matplotlib.pylab as pylab
 import os
@@ -47,8 +48,7 @@ class FATImage:
             img_height=540,
             distance_scale=100,
             perch_debug_dir=None,
-            python_debug_dir="./model_outputs",
-            dataset_type="ycb"
+            python_debug_dir="./model_outputs"
         ):
         '''
             env_config : env_config.yaml in sbpl_perception/config to use with PERCH
@@ -58,7 +58,6 @@ class FATImage:
         self.width = img_width
         self.height = img_height
         self.distance_scale = distance_scale
-        self.dataset_type = dataset_type
         self.coco_image_directory = coco_image_directory
         self.example_coco = COCO(coco_annotation_file)
         example_coco = self.example_coco
@@ -106,7 +105,7 @@ class FATImage:
             'flipped' : models_flipped
         }
         # self.rendered_root_dir = os.path.join(self.model_dir, "rendered")
-        self.rendered_root_dir = os.path.join(os.path.abspath(os.path.join(self.model_dir, os.pardir)), "rendered")
+        self.rendered_root_dir = os.path.join(os.path.abspath(os.path.join(self.model_dir, os.pardir)), "rendered_yupeng")
         print("Rendering or Poses output dir : {}".format(self.rendered_root_dir))
         mkdir_if_missing(self.rendered_root_dir)
 
@@ -324,65 +323,6 @@ class FATImage:
         world_point[1] = (point[1] - self.camera_intrinsic_matrix[1,2]) * point[2] * (camera_fy_reciprocal_)
 
         return world_point
-
-    def get_scene_cloud(self, image_data, downsampling_leaf_size):
-        '''
-            Get PCL point cloud in camera frame from depth image
-        '''
-        import rospy
-        if '/opt/ros/kinetic/lib/python2.7/dist-packages' in sys.path:
-            sys.path.remove('/opt/ros/kinetic/lib/python2.7/dist-packages')
-        import cv2
-        from PIL import Image
-        
-        color_img_path = os.path.join(self.coco_image_directory, image_data['file_name'])
-        depth_img_path = self.get_depth_img_path(color_img_path)
-        print("depth_img_path : {}".format(depth_img_path))
-
-        depth_image = cv2.imread(depth_img_path, cv2.IMREAD_ANYDEPTH)
-        K_inv = np.linalg.inv(self.camera_intrinsic_matrix)
-        points_3d = np.zeros((depth_image.shape[0]*depth_image.shape[1], 3), dtype=np.float32)
-        count = 0
-        cloud = pcl.PointCloud()
-        depth_image_pil = np.asarray(Image.open(depth_img_path), dtype=np.float16)
-        for x in range(depth_image.shape[1]):
-            for y in range(depth_image.shape[0]):
-                point = np.array([x,y,depth_image[y,x]/self.depth_factor])
-                w_point = self.get_world_point(point)
-                points_3d[count, :] = w_point.tolist()
-                count += 1
-
-        cloud.from_array(points_3d)
-        seg = cloud.make_segmenter()
-        seg.set_optimize_coefficients (True)
-        seg.set_model_type (pcl.SACMODEL_PLANE)
-        seg.set_method_type (pcl.SAC_RANSAC)
-        seg.set_distance_threshold (0.02)
-        inliers, model = seg.segment()
-        # print(inliers)
-
-        # points_3d_filtered = points_3d[..., [i for i in range(points_3d.shape[0]) if i not in inliers]]
-
-        # points_3d_filtered = points_3d[points_3d != points_3d[inliers]]
-
-        points_3d_filtered = np.delete(points_3d, inliers, axis = 0)
-        cloud_n = pcl.PointCloud()
-        cloud_n.from_array(points_3d_filtered)
-        sor = cloud_n.make_voxel_grid_filter()
-        sor.set_leaf_size(downsampling_leaf_size, downsampling_leaf_size, downsampling_leaf_size)
-        cloud_n = sor.filter()
-
-        cloud_n_array = np.asarray(cloud_n)
-
-        cloud_color = np.zeros(cloud_n_array.shape[0])
-        pose_cloud_msg = self.xyzrgb_array_to_pointcloud2(
-            cloud_n_array, cloud_color, rospy.Time.now(), "camera"
-        )
-        self.scene_cloud_pub.publish(pose_cloud_msg)
-
-        return cloud_n
-
-
 
     def get_table_pose(self, depth_img_path, frame):
         # Creates a point cloud in camera frame and calculates table pose using RANSAC
@@ -622,7 +562,6 @@ class FATImage:
 
         cam_to_body = self.cam_to_body if camera_optical_frame == False else None
 
-        camera_pose_table = None
         if input_camera_pose is None:
             if (frame == 'camera' and get_table_pose) or frame =='table':
                 depth_img_path = self.get_depth_img_path(color_img_path)
@@ -649,7 +588,6 @@ class FATImage:
                 if frame == 'table':
                     location, quat = get_object_pose_in_world(annotation, camera_pose_table)
                     # location, quat = get_object_pose_in_world(annotation, camera_pose_table, self.world_to_fat_world)
-                    # Transform ground truth to original model frame from NDDS
                     location, quat = self.get_object_pose_with_fixed_transform(
                         class_name, location,
                         RT_transform.quat2euler(get_wxyz_quaternion(quat)),
@@ -746,16 +684,14 @@ class FATImage:
         # max_min_dict['zmin'] = table_pose_msg.pose.position.z
         # print("Yaw only objects in the image : {}".format(yaw_only_objects))
 
-        return yaw_only_objects, max_min_dict, transformed_annotations, camera_pose_table
+        return yaw_only_objects, max_min_dict, transformed_annotations
 
 
     def get_depth_img_path(self, color_img_path):
         # For FAT/NDDS
-        if self.dataset_type == "ndds":
-            return color_img_path.replace(os.path.splitext(color_img_path)[1], '.depth.png')
+        # return color_img_path.replace(os.path.splitext(color_img_path)[1], '.depth.png')
         # For YCB
-        elif self.dataset_type == "ycb":
-            return color_img_path.replace('color', 'depth')
+        return color_img_path.replace('color', 'depth')
 
     def get_mask_img_path(self, color_img_path):
         # For YCB
@@ -1083,23 +1019,22 @@ class FATImage:
             # Second for changing raw. Here may need to rewrite the render or transition matrix!!!!!!!
             # First (half: 0, whole: 1) Second (0:0, 1:0-pi, 2:0-2pi)
             "002_master_chef_can": [0,0], #half_0
-            "003_cracker_box": [0,0], #half_0-pi
-            "004_sugar_box": [0,0], #half_0-pi
+            # "003_cracker_box": [0,1], #half_0-pi
+            "004_sugar_box": [0,1], #half_0-pi
             "005_tomato_soup_can": [0,0], #half_0
-            "006_mustard_bottle": [0,0], #whole_0-pi
+            # "006_mustard_bottle": [1,1], #whole_0-pi
             "007_tuna_fish_can": [0,0], #half_0
-            "008_pudding_box": [0,0], #half_0-pi
-            "009_gelatin_box": [0,0], #half_0-pi
+            # "008_pudding_box": [0,1], #half_0-pi
+            # "009_gelatin_box": [0,1], #half_0-pi
             "010_potted_meat_can": [0,0], #half_0-pi
-            "011_banana": [1,0], #whole_0-2pi #from psc
-            "019_pitcher_base": [0,0], #whole_0-2pi
-            "021_bleach_cleanser": [0,0], #whole_0-2pi, 55 and 
-            # "021_bleach_cleanser": [0,2], #whole_0-2pi, 55 and 
+            # "011_banana": [1,2], #whole_0-2pi
+            # "019_pitcher_base": [1,2], #whole_0-2pi
+            # "021_bleach_cleanser": [1,2], #whole_0-2pi
             "024_bowl": [1,0], #whole_0
             "025_mug": [0,1], #whole_0-2pi
-            # "035_power_drill" : [1,0], #whole_0-2pi
+            # "035_power_drill" : [1,2], #whole_0-2pi
             "036_wood_block": [0,1], #half_0-pi
-            "037_scissors": [0,5], #whole_0-2pi
+            # "037_scissors": [1,2], #whole_0-2pi
             "040_large_marker" : [1,0], #whole_0
             # "051_large_clamp": [1,1], #whole_0-pi
             # "052_extra_large_clamp": [1,2], #whole_0-pi
@@ -1120,26 +1055,25 @@ class FATImage:
                     xyz_rotation_angles = [-phi, yaw_temp, theta]
                     # xyz_rotation_angles = [yaw_temp, -phi, theta]
                     all_rots.append(xyz_rotation_angles)
-            elif name_sym_dict[label][1] == 2:
-                # step_size = math.pi/2
-                # for yaw_temp in np.arange(0,math.pi, step_size):
-                xyz_rotation_angles = [-phi, 0, theta]
-                all_rots.append(xyz_rotation_angles)
-                xyz_rotation_angles = [-phi, math.pi, theta]
-                all_rots.append(xyz_rotation_angles)
-            elif name_sym_dict[label][1] == 3:
-                xyz_rotation_angles = [-phi, 0, theta]
-                all_rots.append(xyz_rotation_angles)
-                xyz_rotation_angles = [-phi, math.pi/2, theta]
-                all_rots.append(xyz_rotation_angles)
-            elif name_sym_dict[label][1] == 4:
-                # For upright sugar box
-                xyz_rotation_angles = [-phi, math.pi+theta, 0]
-                all_rots.append(xyz_rotation_angles)
-            elif name_sym_dict[label][1] == 5:
-                xyz_rotation_angles = [phi, theta, math.pi]
-                all_rots.append(xyz_rotation_angles)
-
+        # if name_sym_dict[label][1] == 1:
+        #     for viewpoint in viewpoints_xyz:
+        #         r, theta, phi = cart2sphere(viewpoint[0], viewpoint[1], viewpoint[2])
+        #         theta, phi = sphere2euler(theta, phi)
+        #         step_size = math.pi/5
+        #         for yaw_temp in np.arange(0,math.pi, step_size):
+        #             xyz_rotation_angles = [phi, theta, yaw_temp]
+        #             # cn+=1
+        #             all_rots.append(xyz_rotation_angles)
+        # if name_sym_dict[label][1] == 2:
+        #     for viewpoint in viewpoints_xyz:
+        #         r, theta, phi = cart2sphere(viewpoint[0], viewpoint[1], viewpoint[2])
+        #         theta, phi = sphere2euler(theta, phi)
+        #         step_size = math.pi/5
+        #         for yaw_temp in np.arange(-math.pi,math.pi, step_size):
+        #             xyz_rotation_angles = [phi, theta, yaw_temp]
+        #             # cn+=1
+        #             all_rots.append(xyz_rotation_angles)
+        # print("cn: {}".format(cn))
         return all_rots
 
     def get_posecnn_bbox(self, idx, posecnn_rois):
@@ -1181,10 +1115,7 @@ class FATImage:
             cmin -= delt
         return rmin, rmax, cmin, cmax
 
-    def get_posecnn_mask(self, mask_image_id=None, centroid_type="roi", annotations=None):
-        '''
-            Uses posecnn mask and computes centroid using different methods for rendering shift
-        '''
+    def get_posecnn_mask(self, mask_image_id=None):
         posecnn_meta = scio.loadmat('{0}/results_PoseCNN_RSS2018/{1}.mat'.format(self.coco_image_directory, str(mask_image_id).zfill(6)))
         overall_mask = np.array(posecnn_meta['labels'])
         posecnn_rois = np.array(posecnn_meta['rois'])
@@ -1197,76 +1128,18 @@ class FATImage:
         for idx in range(len(lst)):
             itemid = int(lst[idx])
             # print(itemid)
-            label = self.category_id_to_names[itemid-1]['name']
-            labels.append(label)
-            
+            labels.append(self.category_id_to_names[itemid-1]['name'])
+            rmin, rmax, cmin, cmax = self.get_posecnn_bbox(idx, posecnn_rois)
+            boxes.append([rmin, rmax, cmin, cmax])
+            centroids_2d.append(np.flip(np.array([(rmin+rmax)/2, (cmin+cmax)/2])))
             mask = np.copy(overall_mask)
             mask[mask != itemid] = 0
             masks.append(mask)
-
-            # rmin is min of row in np 2d array, #cmin is min of column in 2d np array
-            if centroid_type == "roi":
-                rmin, rmax, cmin, cmax = self.get_posecnn_bbox(idx, posecnn_rois)
-            elif centroid_type == "mask":
-                mask_args = np.argwhere(mask > 0)
-                rmin, rmax, cmin, cmax = np.min(mask_args[:,0]), np.max(mask_args[:,0]), np.min(mask_args[:,1]), np.max(mask_args[:,1])
-            elif centroid_type == "box_gt":
-                for ann in annotations:
-                    # box contains X(along width), Y, top left and bottom right
-                    if itemid-1 == ann['category_id']:
-                        box = ann['bbox']
-                        # boxes_all.append([int(x) for x in box])
-                        # X (along width), Y
-                        # centroids_2d_all.append(np.array([(box[0]+box[2])/2, (box[1]+box[3])/2]))
-                        rmin, rmax, cmin, cmax = box[1], box[3], box[0], box[2]
-                        break
-
-            boxes.append([cmin, rmin, cmax, rmax])
-            centroids_2d.append(np.array([(cmin+cmax)/2, (rmin+rmax)/2]))
-
-        # print(boxes)
+        
         return labels, masks, boxes, centroids_2d 
 
-    def overlay_masks(self, cv_image, bboxes, masks, labels, centroids):
-        import cv2
-        color = (0, 255, 0) 
-
-        for box_id in range(len(labels)):
-            label = labels[box_id]
-            if box_id >= len(bboxes) or box_id >= len(masks):
-                continue
-            box = [int(x) for x in bboxes[box_id]]
-            center = [int(x) for x in centroids[box_id]]
-            mask = masks[box_id].astype(np.uint8)
-            # print(mask)
-
-
-            top_left, bottom_right = box[:2], box[2:]
-            cv_image = cv2.rectangle(
-                cv_image, tuple(top_left), tuple(bottom_right), tuple(color), 1
-            )
-
-            contours, hierarchy = cv2.findContours(
-                mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE
-            )
-            cv_image = cv2.drawContours(cv_image, contours, -1, color, 3)
-
-            x, y = box[:2]
-            # # x, y = centroids[box_id]
-            # x, y = np.mean(np.argwhere(mask > 0), axis=0)
-            # x = int(y)
-            # y = int(x)
-            s = "{}".format(label)
-            cv2.putText(
-                cv_image, s, (x, y), cv2.FONT_HERSHEY_SIMPLEX, .3, (0, 0, 0), 1
-            )
-
-            cv_image = cv2.circle(cv_image, tuple(center), 8, (0, 0, 0), -1)
-        return cv_image
-
-
     def visualize_sphere_sampling(
-            self, image_data, annotations=None, print_poses=True, required_objects=None, num_samples=80, mask_type='mask_rcnn', mask_image_id=None):
+            self, image_data, print_poses=True, required_objects=None, num_samples=80, mask_type='mask_rcnn', mask_image_id=None):
         
         from maskrcnn_benchmark.config import cfg
         from dipy.core.geometry import cart2sphere, sphere2cart
@@ -1283,49 +1156,24 @@ class FATImage:
         depth_image = cv2.imread(depth_img_path, cv2.IMREAD_ANYDEPTH)
 
         rotation_output_dir = os.path.join(self.python_debug_dir, self.get_clean_name(image_data['file_name']))
-        # if print_poses:
-        shutil.rmtree(rotation_output_dir, ignore_errors=True)
-        mkdir_if_missing(rotation_output_dir)
+        if print_poses:
+            shutil.rmtree(rotation_output_dir, ignore_errors=True)
+            mkdir_if_missing(rotation_output_dir)
 
         if mask_type == "mask_rcnn":
             predicted_mask_path = os.path.join(os.path.dirname(depth_img_path), os.path.splitext(os.path.basename(color_img_path))[0] + '.predicted_mask.png')
             composite, mask_list_all, rotation_list, centroids_2d_all, boxes_all, overall_binary_mask \
                     = self.coco_demo.run_on_opencv_image(color_img, use_thresh=True)
             # if print_poses:
-            composite_image_path = '{}/mask_mask_rcnn.png'.format(rotation_output_dir)
-            # cv2.imwrite(composite_image_path, composite)
+            composite_image_path = '{}/mask.png'.format(rotation_output_dir)
+            cv2.imwrite(composite_image_path, composite)
             print(rotation_list['top_viewpoint_ids'])
             labels_all = rotation_list['labels']
             
         elif mask_type == "posecnn":
             predicted_mask_path = os.path.join(os.path.dirname(depth_img_path), os.path.splitext(os.path.basename(color_img_path))[0] + '.predicted_mask_posecnn.png')
-            labels_all, mask_list_all, boxes_all, centroids_2d_all = self.get_posecnn_mask(mask_image_id, centroid_type="roi")
-            composite = self.overlay_masks(color_img, boxes_all, mask_list_all, labels_all, centroids_2d_all)
-            composite_image_path = '{}/mask_posecnn.png'.format(rotation_output_dir)
-            # composite_image_path = '{}/mask.png'.format(rotation_output_dir)
-            # cv2.imwrite(composite_image_path, composite)
+            labels_all, mask_list_all, boxes_all, centroids_2d_all = self.get_posecnn_mask(mask_image_id)
             # print(labels_all)
-        
-        elif mask_type == "posecnn_gt_bbox":
-            predicted_mask_path = os.path.join(os.path.dirname(depth_img_path), os.path.splitext(os.path.basename(color_img_path))[0] + '.predicted_mask_posecnn.png')
-            labels_all, mask_list_all, boxes_all, centroids_2d_all = self.get_posecnn_mask(mask_image_id, centroid_type="box_gt", annotations=annotations)
-            # boxes_all = []
-            # centroids_2d_all = []
-            # for label in labels_all:
-            #     # print(label)
-            #     for ann in annotations:
-            #         # print(self.category_id_to_names[ann['category_id']])
-            #         if label == self.category_id_to_names[ann['category_id']]['name']:
-            #             box = ann['bbox']
-            #             boxes_all.append([int(x) for x in box])
-            #             # X (along width), Y
-            #             centroids_2d_all.append(np.array([(box[0]+box[2])/2, (box[1]+box[3])/2]))
-            # import pdb
-            # pdb.set_trace()
-            composite = self.overlay_masks(color_img, boxes_all, mask_list_all, labels_all, centroids_2d_all)
-            composite_image_path = '{}/mask_posecnn_gt_bbox.png'.format(rotation_output_dir)
-
-        cv2.imwrite(composite_image_path, composite)
         
 
         labels = labels_all
@@ -1346,7 +1194,7 @@ class FATImage:
                     mask_i = labels_all.index(label)
                     # print(str(mask_i) + " found")
                     filter_mask = mask_list_all[mask_i]
-                    # print(mask_label_i)
+                    print(mask_label_i)
                     # Use binary mask to assign label in overall mask
                     overall_binary_mask[filter_mask > 0] = mask_label_i
                     labels.append(label)
@@ -1397,24 +1245,14 @@ class FATImage:
                     cv2.imwrite("{}/label_{}_{}.png".format(rotation_output_dir, label, cnt), rgb_gl)
                     cnt += 1
                 
-            if label == "037_scissors":
-                resolution = 0.01
-            else:
-                resolution = 0.02
-            
-            # mask = np.argwhere(mask_list[box_id] > 0)
-            # centroid = [(np.max(mask[:,0])+np.min(mask[:,0]))/2, (np.max(mask[:,1])+np.min(mask[:,1]))/2]
-            # centroid = np.flip(centroid)
+            resolution = 0.02
+            # Sample rotation across depth
+            centroid = np.flip(np.mean(np.argwhere(mask_list[box_id] > 0), axis=0))
+            print("Centroid from mask : {}".format(centroid))
+            print("Centroid from box : {}".format(centroids_2d[box_id]))
+            # centroid[1] -= 60
             centroid = centroids_2d[box_id]
-            print("Centroid from min/max mask (X (along width), Y) : {}".format(centroid))
-            # print("Centroid from GT (X (along width), Y): {}".format(centroids_2d[box_id]))
-            
-            # if label == "021_bleach_cleanser" or label == "037_scissors":
-            #     centroid_max = np.flip(np.max(np.argwhere(mask_list[box_id] > 0), axis=0))
-            #     centroid_min = np.flip(np.min(np.argwhere(mask_list[box_id] > 0), axis=0))
-            #     centroid = np.array([centroid_max[0]*0.7+centroid_min[0]*0.5, centroid_max[1]*0.6+centroid_min[1]*    0.4])
-
-            for _, depth in enumerate(np.arange(min_depth, max_depth + resolution, resolution)):
+            for _, depth in enumerate(np.arange(min_depth, max_depth, resolution)):
                 ## Vary depth only
                 centre_world_point = self.get_world_point(centroid.tolist() + [depth])
                 for quaternion in object_rotation_list:
@@ -1426,8 +1264,867 @@ class FATImage:
                     })
                     grid_i += 1
 
+        return labels, annotations, predicted_mask_path
+    
+    def visualize_sphere_sampling_yupengFeb18(self, image_data, scene_i, img_i, print_poses=True, required_objects=None, num_samples=80, mask_type='mask_rcnn', mask_image_id=None):
+        
+        from maskrcnn_benchmark.config import cfg
+        from dipy.core.geometry import cart2sphere, sphere2cart
 
-        return labels, annotations, predicted_mask_path, composite_image_path
+        if '/opt/ros/kinetic/lib/python2.7/dist-packages' in sys.path:
+            sys.path.remove('/opt/ros/kinetic/lib/python2.7/dist-packages')
+        import cv2
+
+        # Load GT mask
+        color_img_path = os.path.join(self.coco_image_directory, image_data['file_name'])
+        color_img = cv2.imread(color_img_path)
+        # depth_img_path = color_img_path.replace('.jpg', '.depth.png')
+        depth_img_path = self.get_depth_img_path(color_img_path)
+        depth_image = cv2.imread(depth_img_path, cv2.IMREAD_ANYDEPTH)
+
+        rotation_output_dir = os.path.join(self.python_debug_dir, self.get_clean_name(image_data['file_name']))
+        # if print_poses:
+        shutil.rmtree(rotation_output_dir, ignore_errors=True)
+        mkdir_if_missing(rotation_output_dir)
+
+        if mask_type == "mask_rcnn":
+            predicted_mask_path = os.path.join(os.path.dirname(depth_img_path), os.path.splitext(os.path.basename(color_img_path))[0] + '.predicted_mask.png')
+            composite, mask_list_all, rotation_list, centroids_2d_all, boxes_all, overall_binary_mask \
+                    = self.coco_demo.run_on_opencv_image(color_img, use_thresh=True)
+            # if print_poses:
+            composite_image_path = '{}/mask.png'.format(rotation_output_dir)
+            cv2.imwrite(composite_image_path, composite)
+            print(rotation_list['top_viewpoint_ids'])
+            labels_all = rotation_list['labels']
+            
+        if mask_type == "posecnn":
+            predicted_mask_path = os.path.join(os.path.dirname(depth_img_path), os.path.splitext(os.path.basename(color_img_path))[0] + '.predicted_mask_posecnn.png')
+            labels_all, mask_list_all, boxes_all, centroids_2d_all = self.get_posecnn_mask(mask_image_id)
+            # print(labels_all)
+        
+
+        labels = labels_all
+        mask_list = mask_list_all
+        boxes = boxes_all
+        centroids_2d = centroids_2d_all
+
+        # Select only those labels from network output that are required objects
+        if required_objects is not None:
+            labels = []
+            boxes = []
+            mask_list = []
+            centroids_2d = []
+            overall_binary_mask = np.zeros((self.height, self.width))
+            mask_label_i = 1
+            for label in required_objects:
+                if label in labels_all:
+                    mask_i = labels_all.index(label)
+                    # print(str(mask_i) + " found")
+                    filter_mask = mask_list_all[mask_i]
+                    print(mask_label_i)
+                    # Use binary mask to assign label in overall mask
+                    overall_binary_mask[filter_mask > 0] = mask_label_i
+                    labels.append(label)
+                    boxes.append(boxes_all[mask_i])
+                    mask_list.append(filter_mask)
+                    centroids_2d.append(centroids_2d_all[mask_i])
+
+                    mask_label_i += 1
+
+        cv2.imwrite(predicted_mask_path, overall_binary_mask)
+
+        # Sample rotations
+        viewpoints_xyz = sphere_fibonacci_grid_points(num_samples)
+        annotations = []
+        grid_i = 0
+        
+        for box_id in range(len(labels)):
+            label = labels[box_id]
+            object_depth_mask = np.copy(depth_image)
+            object_depth_mask[mask_list[box_id] == 0] = 0
+            object_depth = np.mean(object_depth_mask)
+            min_depth = np.min(object_depth_mask[object_depth_mask > 0])/self.depth_factor
+            max_depth = np.max(object_depth_mask[object_depth_mask > 0])/self.depth_factor
+            d_depth = max_depth  - min_depth
+            print("Min depth :{} , Max depth : {} from mask".format(min_depth, max_depth))
+
+            if print_poses:
+                render_machine = self.render_machines[label]
+
+            cnt = 0
+            # object_rotation_list = []
+            # rotation_samples = self.get_rotation_samples(label, num_samples)
+            # # Sample sphere and collect rotations
+            # # for viewpoint in viewpoints_xyz:
+            # #     r, theta, phi = cart2sphere(viewpoint[0], viewpoint[1], viewpoint[2])
+            # #     theta, phi = sphere2euler(theta, phi)
+            # #     xyz_rotation_angles = [phi, theta, 0]
+            # #     print("Recovered rotation : {}".format(xyz_rotation_angles))
+            # #     quaternion =  get_xyzw_quaternion(RT_transform.euler2quat(phi, theta, 0).tolist())
+            # # #     object_rotation_list.append(quaternion)
+            # for xyz_rotation_angles in rotation_samples:
+            #     print("Recovered rotation : {}".format(xyz_rotation_angles))
+            #     quaternion =  get_xyzw_quaternion(RT_transform.euler2quat(xyz_rotation_angles[0], xyz_rotation_angles[1], xyz_rotation_angles[2]).tolist())
+            #     object_rotation_list.append(quaternion)
+            #     if print_poses:
+            #         rgb_gl, depth_gl = self.render_pose(
+            #                             label, render_machine, xyz_rotation_angles, [0, 0, 1*self.distance_scale]
+            #                         )
+            #         cv2.imwrite("{}/label_{}_{}.png".format(rotation_output_dir, label, cnt), rgb_gl)
+            #         cnt += 1
+                
+            # resolution = 0.02
+            # # Sample rotation across depth
+            # centroid = np.flip(np.mean(np.argwhere(mask_list[box_id] > 0), axis=0))
+            # print("Centroid from mask : {}".format(centroid))
+            # print("Centroid from box : {}".format(centroids_2d[box_id]))
+            # # centroid[1] -= 60
+            # centroid = centroids_2d[box_id]
+            # for _, depth in enumerate(np.arange(min_depth, max_depth, resolution)):
+            #     ## Vary depth only
+            #     centre_world_point = self.get_world_point(centroid.tolist() + [depth])
+            #     for quaternion in object_rotation_list:
+            #         annotations.append({
+            #             'location' : (centre_world_point*100).tolist(),
+            #             'quaternion_xyzw' : quaternion,
+            #             'category_id' : self.category_names_to_id[label],
+            #             'id' : grid_i
+            #         })
+            #         grid_i += 1
+
+
+        # Sample rotations
+        # viewpoints_xyz = sphere_fibonacci_grid_points(num_samples)
+        # from sphere_fibonacci_grid_points import sphere_fibonacci_grid_points_with_sym_metric
+        # from sphere_fibonacci_grid_points import euler_to_quaternion
+        annotations = []
+        grid_i = 0
+        rotation_output_dir = os.path.join(self.python_debug_dir, self.get_clean_name(image_data['file_name']))
+        mkdir_if_missing(rotation_output_dir)
+        for box_id in range(len(labels)):
+            label = labels[box_id]
+
+                
+            resolution = 0.02
+            # Sample rotation across depth
+
+            # pose_folder = '/ros_python3_ws/src/perception/Feb20_052_extra_large_clamp/'
+            cur_object_name = required_objects[0]
+            cur_obj_id = self.category_names_to_id[cur_object_name]
+            # print("type(cur_obj_id): ",type(cur_obj_id))
+            cur_obj_id += 1 # mapping in segmentation is 1 larger than here
+            # poses = np.load(pose_folder+"{0}_{1}_{2}.npy".format('%04d' % scene_i, '%06d' % img_i, '%02d' % cur_obj_id)) 
+            annotations = []
+            grid_i = 0
+            
+            # mar1
+            # For 052clamp only
+            # object_rotation_list = []
+            centroid = np.flip(np.mean(np.argwhere(mask_list[box_id] > 0), axis=0))
+            print("Centroid from mask : {}".format(centroid))
+            print("Centroid from box : {}".format(centroids_2d[box_id]))
+            centroid_max = np.flip(np.max(np.argwhere(mask_list[box_id] > 0), axis=0))
+            centroid_min = np.flip(np.min(np.argwhere(mask_list[box_id] > 0), axis=0))
+            centroid = centroids_2d[box_id]
+            yp_centroid = [centroid[0], centroid[1]]
+            # centroid[1] -= 60
+            
+            cb_poses = []
+            
+            numa = 15
+            numb = 4
+            for a in np.arange(-3.10, 3.07, 6.17/numa):
+                for b in np.arange(1.02, 2.12, 1.1/numb):
+                    cb_poses.append(euler_to_quaternion(b,a,0)) #第二项z轴, 第一项b是x轴 90左右
+            
+            
+
+            # for _, depth in enumerate(np.arange(min_depth+0.02, max_depth+0.02, resolution)):
+            for _, depth in enumerate(np.arange(min_depth, max_depth, resolution)):
+                centre_world_point = self.get_world_point(yp_centroid + [depth])
+                for quaternion in cb_poses:
+                    annotations.append({
+                        'location' : (centre_world_point*100).tolist(),
+                        'quaternion_xyzw' : quaternion,
+                        'category_id' : self.category_names_to_id[cur_object_name],
+                        'id' : grid_i
+                        })
+                    grid_i += 1
+            
+            '''
+            # For pudding_box
+            object_rotation_list = []
+            centroid = np.flip(np.mean(np.argwhere(mask_list[box_id] > 0), axis=0))
+            print("Centroid from mask : {}".format(centroid))
+            print("Centroid from box : {}".format(centroids_2d[box_id]))
+            centroid = centroids_2d[box_id]
+            centroid_max = np.flip(np.max(np.argwhere(mask_list[box_id] > 0), axis=0))
+            centroid_min = np.flip(np.min(np.argwhere(mask_list[box_id] > 0), axis=0))
+            # yp_centroid = [centroid_max[0]*0.5 + centroid_min[0]*0.5, centroid_max[1]*0.5 + centroid_min[1]*0.5]
+            # cent_ls = []
+
+
+
+            # yp_centroid = centroid
+            yp_centroid = [centroid[0], centroid[1]]
+            # yp_centroid = [centroid_max[0]*0.5+centroid_min[0]*0.5, centroid_max[1]*0.75+centroid_min[1]*0.25]
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            # cent_ls.append(yp_centroid)
+            # yp_centroid = [centroid_max[0]*0.5+centroid_min[0]*0.5, centroid_max[1]*0.8+centroid_min[1]*0.2]
+            # cent_ls.append(yp_centroid)
+            # yp_centroid_1 = [centroid_max[0]*0.5+centroid_min[0]*0.5, centroid_max[1]*0.7+centroid_min[1]*0.3]
+            # yp_centroid_1 = [centroid_max[0]*0.5+centroid_min[0]*0.5, centroid_max[1]*0.25+centroid[1]*0.75]
+            # centroid[1] -= 60
+            
+            cb_poses = []
+            
+            # viewpoints_xyz = sphere_fibonacci_grid_points_with_sym_metric(100000,0)
+            # t_r, t_c = np.where((viewpoints_xyz <- 0.93) & (viewpoints_xyz > -1))
+            # t_idx = t_r[np.where(t_c == 1)]
+            # # wht_num = 10
+            # wht_num = 8
+            # print(len(t_idx))
+            # tt_idx = np.arange(0,len(t_idx), round(len(t_idx)/wht_num))
+            # print(len(tt_idx))
+            # # viewpoints_xyz = viewpoints_xyz[t_idx[tt_idx[i]]]
+
+            # num_of_theta = 8
+            # # thetas = [- 0.23, 0.21, 0.43, 0.69, 1.02, 1.33, 1.55, 1.88, 2.22, 2.55, 2.79, 2.93]
+            # thetas = np.arange(-0.07, 3.13, 3.2/num_of_theta)
+            # print("thetas: ", thetas)
+            # for i in range(wht_num):
+            #     viewpoint = viewpoints_xyz[t_idx[tt_idx[i]]]
+            #     print(viewpoint)
+            #     # print(viewpoint)
+            #     for theta in thetas:
+            #         half_t = theta/2
+            #         quaternion = [math.sin(half_t)*viewpoint[0], math.sin(half_t)*viewpoint[1], math.sin(half_t)*viewpoint[2], math.cos(half_t) ]
+            #         cb_poses.append(quaternion)
+            # numx = 6
+            # numy = 10
+            # for x in np.arange(-0.33, 0.42, 0.75/numx):
+            #     for y in np.arange(-1.66, 1.53, 3.19/numy):
+            #         cb_poses.append(euler_to_quaternion(x,y,0))
+            
+            numx = 8
+            numy = 4
+            for z in np.arange(-0.07, 3.05, 3.12/numx):
+                for y in np.arange(-1.58, -1.03, 0.25/numy):
+                    cb_poses.append(euler_to_quaternion(y,z,0)) #第二项z轴, 第一项是y
+            
+            
+
+            # for _, depth in enumerate(np.arange(min_depth+0.02, max_depth+0.02, resolution)):
+            # d_depth = max_depth - min_depth
+            print('------------------------')
+            print('------------------------')
+            print('------------------------')
+            print(max_depth)
+            print(min_depth)
+            print('------------------------')
+            print('------------------------')
+            print('------------------------')
+            yp_centroid = [centroid_max[0]*0.4+centroid_min[0]*0.6, centroid_max[1]*0.55+centroid_min[1]*0.45]
+            for _, depth in enumerate(np.arange(min_depth, max_depth, resolution)):
+                centre_world_point = self.get_world_point(yp_centroid + [depth])
+                for quaternion in cb_poses:
+                    annotations.append({
+                        'location' : (centre_world_point*100).tolist(),
+                        # 'quaternion_xyzw' : cur_pose[:4].tolist(),
+                        'quaternion_xyzw' : quaternion,
+                        'category_id' : self.category_names_to_id[cur_object_name],
+                        'id' : grid_i
+                        })
+                    grid_i += 1
+            
+            yp_centroid = [centroid_max[0]*0.6+centroid_min[0]*0.4, centroid_max[1]*0.55+centroid_min[1]*0.45]
+            for _, depth in enumerate(np.arange(min_depth, max_depth, resolution)):
+                centre_world_point = self.get_world_point(yp_centroid + [depth])
+                for quaternion in cb_poses:
+                    annotations.append({
+                        'location' : (centre_world_point*100).tolist(),
+                        # 'quaternion_xyzw' : cur_pose[:4].tolist(),
+                        'quaternion_xyzw' : quaternion,
+                        'category_id' : self.category_names_to_id[cur_object_name],
+                        'id' : grid_i
+                        })
+                    grid_i += 1
+            yp_centroid = [centroid_max[0]*0.4+centroid_min[0]*0.6, centroid_max[1]*0.75+centroid_min[1]*0.25]
+            for _, depth in enumerate(np.arange(min_depth, max_depth, resolution)):
+                centre_world_point = self.get_world_point(yp_centroid + [depth])
+                for quaternion in cb_poses:
+                    annotations.append({
+                        'location' : (centre_world_point*100).tolist(),
+                        # 'quaternion_xyzw' : cur_pose[:4].tolist(),
+                        'quaternion_xyzw' : quaternion,
+                        'category_id' : self.category_names_to_id[cur_object_name],
+                        'id' : grid_i
+                        })
+                    grid_i += 1
+            yp_centroid = [centroid_max[0]*0.6+centroid_min[0]*0.4, centroid_max[1]*0.75+centroid_min[1]*0.25]
+            for _, depth in enumerate(np.arange(min_depth, max_depth, resolution)):
+                centre_world_point = self.get_world_point(yp_centroid + [depth])
+                for quaternion in cb_poses:
+                    annotations.append({
+                        'location' : (centre_world_point*100).tolist(),
+                        # 'quaternion_xyzw' : cur_pose[:4].tolist(),
+                        'quaternion_xyzw' : quaternion,
+                        'category_id' : self.category_names_to_id[cur_object_name],
+                        'id' : grid_i
+                        })
+                    grid_i += 1
+            '''
+            '''
+            # For cracker_box
+            object_rotation_list = []
+            centroid = np.flip(np.mean(np.argwhere(mask_list[box_id] > 0), axis=0))
+            print("Centroid from mask : {}".format(centroid))
+            print("Centroid from box : {}".format(centroids_2d[box_id]))
+            centroid = centroids_2d[box_id]
+            centroid_max = np.flip(np.max(np.argwhere(mask_list[box_id] > 0), axis=0))
+            centroid_min = np.flip(np.min(np.argwhere(mask_list[box_id] > 0), axis=0))
+            # yp_centroid = [centroid_max[0]*0.5 + centroid_min[0]*0.5, centroid_max[1]*0.5 + centroid_min[1]*0.5]
+            # cent_ls = []
+
+
+
+            # yp_centroid = centroid
+            yp_centroid = [centroid[0], centroid[1]]
+            # yp_centroid = [centroid_max[0]*0.5+centroid_min[0]*0.5, centroid_max[1]*0.75+centroid_min[1]*0.25]
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            # cent_ls.append(yp_centroid)
+            # yp_centroid = [centroid_max[0]*0.5+centroid_min[0]*0.5, centroid_max[1]*0.8+centroid_min[1]*0.2]
+            # cent_ls.append(yp_centroid)
+            # yp_centroid_1 = [centroid_max[0]*0.5+centroid_min[0]*0.5, centroid_max[1]*0.7+centroid_min[1]*0.3]
+            # yp_centroid_1 = [centroid_max[0]*0.5+centroid_min[0]*0.5, centroid_max[1]*0.25+centroid[1]*0.75]
+            # centroid[1] -= 60
+            
+            cb_poses = []
+            
+            # viewpoints_xyz = sphere_fibonacci_grid_points_with_sym_metric(100000,0)
+            # t_r, t_c = np.where((viewpoints_xyz <- 0.93) & (viewpoints_xyz > -1))
+            # t_idx = t_r[np.where(t_c == 1)]
+            # # wht_num = 10
+            # wht_num = 8
+            # print(len(t_idx))
+            # tt_idx = np.arange(0,len(t_idx), round(len(t_idx)/wht_num))
+            # print(len(tt_idx))
+            # # viewpoints_xyz = viewpoints_xyz[t_idx[tt_idx[i]]]
+
+            # num_of_theta = 8
+            # # thetas = [- 0.23, 0.21, 0.43, 0.69, 1.02, 1.33, 1.55, 1.88, 2.22, 2.55, 2.79, 2.93]
+            # thetas = np.arange(-0.07, 3.13, 3.2/num_of_theta)
+            # print("thetas: ", thetas)
+            # for i in range(wht_num):
+            #     viewpoint = viewpoints_xyz[t_idx[tt_idx[i]]]
+            #     print(viewpoint)
+            #     # print(viewpoint)
+            #     for theta in thetas:
+            #         half_t = theta/2
+            #         quaternion = [math.sin(half_t)*viewpoint[0], math.sin(half_t)*viewpoint[1], math.sin(half_t)*viewpoint[2], math.cos(half_t) ]
+            #         cb_poses.append(quaternion)
+            # numx = 6
+            # numy = 10
+            # for x in np.arange(-0.33, 0.42, 0.75/numx):
+            #     for y in np.arange(-1.66, 1.53, 3.19/numy):
+            #         cb_poses.append(euler_to_quaternion(x,y,0))
+            
+            numx = 4
+            numy = 6
+            for x in np.arange(1.23, 1.93, 0.7/numx):
+                for y in np.arange(-1.66, 1.53, 3.19/numy):
+                    cb_poses.append(euler_to_quaternion(x,y,0))
+            
+            
+
+            # for _, depth in enumerate(np.arange(min_depth+0.02, max_depth+0.02, resolution)):
+            # d_depth = max_depth - min_depth
+            print('------------------------')
+            print('------------------------')
+            print('------------------------')
+            print(max_depth)
+            print(min_depth)
+            print('------------------------')
+            print('------------------------')
+            print('------------------------')
+            for _, depth in enumerate(np.arange(min_depth, max_depth, resolution)):
+                centre_world_point = self.get_world_point(yp_centroid + [depth])
+                for quaternion in cb_poses:
+                    annotations.append({
+                        'location' : (centre_world_point*100).tolist(),
+                        # 'quaternion_xyzw' : cur_pose[:4].tolist(),
+                        'quaternion_xyzw' : quaternion,
+                        'category_id' : self.category_names_to_id[cur_object_name],
+                        'id' : grid_i
+                        })
+                    grid_i += 1
+            '''
+            
+            '''
+            # For wood_block only
+            object_rotation_list = []
+            centroid = np.flip(np.mean(np.argwhere(mask_list[box_id] > 0), axis=0))
+            print("Centroid from mask : {}".format(centroid))
+            print("Centroid from box : {}".format(centroids_2d[box_id]))
+            centroid_max = np.flip(np.max(np.argwhere(mask_list[box_id] > 0), axis=0))
+            centroid_min = np.flip(np.min(np.argwhere(mask_list[box_id] > 0), axis=0))
+            yp_centroid = [centroid_max[0]*0.5 + centroid_min[0]*0.5, centroid_max[1]*0.5 + centroid_min[1]*0.5]
+            # centroid[1] -= 60
+            # centroid = centroids_2d[box_id]
+            wood_block_poses = []
+            
+            # wood_block_poses = []
+            # num_y_rots = 10
+            # min_y_rot = (math.pi*(0.-0.07))
+            # max_y_rot = (math.pi*(1.02))
+            # int_y = (max_y_rot-min_y_rot)/num_y_rots
+            # y_rots = np.arange(min_y_rot, max_y_rot, int_y)
+            
+            # num_x_rots = 5
+            # min_x_rot = (math.pi*(-0.31)) #64.3
+            # max_x_rot = (math.pi*(0.45)) #113.4
+            # int_x = (max_x_rot-min_x_rot)/num_x_rots
+            # x_rots = np.arange(min_x_rot, max_x_rot, int_x)
+
+            # # num_z_rots = 3
+            # # min_z_rot = (-math.pi*0.23) #64.3
+            # # max_z_rot = (+math.pi*(0.19)) #113.4
+            # # int_z = (max_z_rot-min_z_rot)/num_z_rots
+            # # z_rots = np.arange(min_z_rot, max_z_rot, int_z)
+            # num_z_rots = 3
+            # min_z_rot = (math.pi*(-0.31)) #64.3
+            # max_z_rot = (math.pi*(0.23)) #113.4
+            # int_z = (max_z_rot-min_z_rot)/num_z_rots
+            # z_rots = np.arange(min_z_rot, max_z_rot, int_z)
+            # # z_rots = [-0.31, -0.17, 0.02, 0.16, 0.33]
+            # for y_rot in y_rots:
+            #     for x_rot in x_rots:
+            #         for z_rot in z_rots:
+            #             quaternion =  get_xyzw_quaternion(RT_transform.euler2quat(x_rot, y_rot, z_rot).tolist())
+            #             wood_block_poses.append(quaternion)
+            
+            viewpoints_xyz = sphere_fibonacci_grid_points_with_sym_metric(100000,0)
+            t_r, t_c = np.where((viewpoints_xyz <- 0.93) & (viewpoints_xyz > -1))
+            t_idx = t_r[np.where(t_c == 1)]
+            # wht_num = 10
+            wht_num = 8
+            print(len(t_idx))
+            tt_idx = np.arange(0,len(t_idx), round(len(t_idx)/wht_num))
+            print(len(tt_idx))
+            # viewpoints_xyz = viewpoints_xyz[t_idx[tt_idx[i]]]
+
+            num_of_theta = 15
+            # thetas = [- 0.23, 0.21, 0.43, 0.69, 1.02, 1.33, 1.55, 1.88, 2.22, 2.55, 2.79, 2.93]
+            thetas = np.arange(-0.07, 3.13, 3.2/num_of_theta)
+            print("thetas: ", thetas)
+            for i in range(wht_num):
+                viewpoint = viewpoints_xyz[t_idx[tt_idx[i]]]
+                print(viewpoint)
+                # print(viewpoint)
+                for theta in thetas:
+                    half_t = theta/2
+                    quaternion = [math.sin(half_t)*viewpoint[0], math.sin(half_t)*viewpoint[1], math.sin(half_t)*viewpoint[2], math.cos(half_t) ]
+                    wood_block_poses.append(quaternion)
+            
+            
+
+            # for _, depth in enumerate(np.arange(min_depth+0.02, max_depth+0.02, resolution)):
+            for _, depth in enumerate(np.arange(min_depth+0.02, max_depth+0.02, resolution)):
+                centre_world_point = self.get_world_point(yp_centroid + [depth])
+                for quaternion in wood_block_poses:
+                    annotations.append({
+                        'location' : (centre_world_point*100).tolist(),
+                        # 'quaternion_xyzw' : cur_pose[:4].tolist(),
+                        'quaternion_xyzw' : quaternion,
+                        'category_id' : self.category_names_to_id[cur_object_name],
+                        'id' : grid_i
+                        })
+                    grid_i += 1
+            '''
+        
+            
+            
+            # pose_folder = '/ros_python3_ws/src/perception/Feb20_052_extra_large_clamp/'
+            # nn_max_conf = poses[0][7]
+
+            # for i in range(len(poses)):
+            #     cur_pose = poses[i]
+            #     quaternion = [ cur_pose[1], cur_pose[2], cur_pose[3],cur_pose[0]]
+            #     annotations.append({
+            #         'location' : (cur_pose[4:7]*100).tolist(),
+            #         # 'quaternion_xyzw' : cur_pose[:4].tolist(),
+            #         'quaternion_xyzw' : quaternion,
+            #         'category_id' : self.category_names_to_id[cur_object_name],
+            #         'id' : grid_i
+            #     })
+            #     grid_i += 1
+
+            # pose_folder = '/ros_python3_ws/src/perception/Feb20_052_extra_large_clamp/'
+            # cur_pose = poses[0]
+            # loc = (cur_pose[4:]*100).tolist()
+            # quaternions = []
+            # num_of_theta = 6
+            # num_samples_sphere = 40
+            # thetas = np.arange((2*math.pi)/(2*num_of_theta), 2*math.pi+(2*math.pi)/(2*num_of_theta), (2*math.pi)/num_of_theta)
+            # print("thetas: ", thetas)
+            # viewpoints_xyz = sphere_fibonacci_grid_points_with_sym_metric(num_samples_sphere,1)
+            # for viewpoint in viewpoints_xyz:
+            #     print(viewpoint)
+            #     for theta in thetas:
+            #         half_t = theta/2
+            #         quaternion = [math.sin(half_t)*viewpoint[0], math.sin(half_t)*viewpoint[1], math.sin(half_t)*viewpoint[2], math.cos(half_t) ]
+            #         print(quaternion)
+            #         annotations.append({
+            #             'location' : loc,
+            #             # 'quaternion_xyzw' : cur_pose[:4].tolist(),
+            #             'quaternion_xyzw' : quaternion,
+            #             'category_id' : self.category_names_to_id[cur_object_name],
+            #             'id' : grid_i
+            #             })
+            #         grid_i += 1
+            # pose_folder = '/ros_python3_ws/src/perception/Feb20_052_extra_large_clamp/'
+            # cur_pose = poses[0]
+            # loc = (cur_pose[4:]*100).tolist()
+
+
+
+            # # crackerbox
+            # centroid = np.flip(np.mean(np.argwhere(mask_list[box_id] > 0), axis=0))
+            # print("Centroid from mask : {}".format(centroid))
+            # print("Centroid from box : {}".format(centroids_2d[box_id]))
+            # # centroid[1] -= 60
+            # centroid = centroids_2d[box_id]
+
+
+            # # quaternions = []
+            # num_of_theta = 4
+            # num_samples_sphere = 40
+            # thetas = np.arange((math.pi)/(2*num_of_theta), math.pi+(math.pi)/(2*num_of_theta), (math.pi)/num_of_theta)
+            # print("thetas: ", thetas)
+            # viewpoints_xyz = sphere_fibonacci_grid_points_with_sym_metric(num_samples_sphere,0)
+            # for viewpoint in viewpoints_xyz:
+            #     # print(viewpoint)
+            #     for theta in thetas:
+            #         half_t = theta/2
+            #         quaternion = [math.sin(half_t)*viewpoint[0], math.sin(half_t)*viewpoint[1], math.sin(half_t)*viewpoint[2], math.cos(half_t) ]
+            #         # print(quaternion)
+            #         for _, depth in enumerate(np.arange(min_depth, max_depth, resolution)):
+            #             centre_world_point = self.get_world_point(centroid.tolist() + [depth])
+            #             annotations.append({
+            #                 'location' : (centre_world_point*100).tolist(),
+            #                 # 'quaternion_xyzw' : cur_pose[:4].tolist(),
+            #                 'quaternion_xyzw' : quaternion,
+            #                 'category_id' : self.category_names_to_id[cur_object_name],
+            #                 'id' : grid_i
+            #                 })
+            #             grid_i += 1
+
+            # Feb24 using
+            '''
+            centroid = np.flip(np.mean(np.argwhere(mask_list[box_id] > 0), axis=0))
+            print("Centroid from mask : {}".format(centroid))
+            print("Centroid from box : {}".format(centroids_2d[box_id]))
+            # centroid[1] -= 60
+            centroid = centroids_2d[box_id]
+
+
+            quaternions = []
+            num_of_theta = 6
+            num_samples_sphere = 40
+            thetas = np.arange((2*math.pi)/(2*num_of_theta), 2*math.pi+(2*math.pi)/(2*num_of_theta), (2*math.pi)/num_of_theta)
+            print("thetas: ", thetas)
+            viewpoints_xyz = sphere_fibonacci_grid_points_with_sym_metric(num_samples_sphere,0)
+            for viewpoint in viewpoints_xyz:
+                print(viewpoint)
+                for theta in thetas:
+                    half_t = theta/2
+                    quaternion = [math.sin(half_t)*viewpoint[0], math.sin(half_t)*viewpoint[1], math.sin(half_t)*viewpoint[2], math.cos(half_t) ]
+                    # print(quaternion)
+                    for _, depth in enumerate(np.arange(min_depth, max_depth, resolution)):
+                        centre_world_point = self.get_world_point(centroid.tolist() + [depth])
+                        annotations.append({
+                            'location' : (centre_world_point*100).tolist(),
+                            # 'quaternion_xyzw' : cur_pose[:4].tolist(),
+                            'quaternion_xyzw' : quaternion,
+                            'category_id' : self.category_names_to_id[cur_object_name],
+                            'id' : grid_i
+                            })
+                        grid_i += 1
+            '''
+
+
+            '''
+            # For drill only
+            object_rotation_list = []
+            centroid = np.flip(np.mean(np.argwhere(mask_list[box_id] > 0), axis=0))
+            print("Centroid from mask : {}".format(centroid))
+            print("Centroid from box : {}".format(centroids_2d[box_id]))
+            # centroid[1] -= 60
+            centroid = centroids_2d[box_id]
+            drill_poses = []
+            num_plane = 15
+            num_plane_stand = 4
+            plane_rots = np.arange((2*math.pi)/(2*num_plane), 2*math.pi+(2*math.pi)/(2*num_plane), (2*math.pi)/num_plane)
+            for plane_rot in plane_rots:
+                thetas = np.arange((math.pi*3/4), (math.pi*5/4), (math.pi/(num_plane_stand*2)))
+                for theta in thetas:
+                    half_t = theta/2
+                    viewpoint = [math.sin(plane_rot), 0, math.cos(plane_rot)]
+                    quaternion = [math.sin(half_t)*viewpoint[0], math.sin(half_t)*viewpoint[1], math.sin(half_t)*viewpoint[2], math.cos(half_t) ]
+                    object_rotation_list.append(quaternion)
+            
+            
+            
+            num_y_rots = 6
+            num_x_rots = 3
+            y_rots = np.arange((2*math.pi)/(2*num_y_rots), 2*math.pi+(2*math.pi)/(2*num_y_rots), (2*math.pi)/num_y_rots)
+            x_rots = np.arange((math.pi/3), (math.pi*2/3), (math.pi/(num_x_rots*3)))
+            for y_rot in y_rots:
+                for x_rot in x_rots:
+                    quaternion =  get_xyzw_quaternion(RT_transform.euler2quat(x_rot, y_rot, 0).tolist())
+                    object_rotation_list.append(quaternion)
+                    quaternion =  get_xyzw_quaternion(RT_transform.euler2quat(x_rot, y_rot, math.pi).tolist())
+                    object_rotation_list.append(quaternion)
+
+            
+            for _, depth in enumerate(np.arange(min_depth, max_depth, resolution)):
+                centre_world_point = self.get_world_point(centroid.tolist() + [depth])
+                for quaternion in object_rotation_list:
+                    annotations.append({
+                        'location' : (centre_world_point*100).tolist(),
+                        # 'quaternion_xyzw' : cur_pose[:4].tolist(),
+                        'quaternion_xyzw' : quaternion,
+                        'category_id' : self.category_names_to_id[cur_object_name],
+                        'id' : grid_i
+                        })
+                    grid_i += 1
+            '''
+
+            
+            '''
+            # cracker_box
+            object_rotation_list = []
+            centroid = np.flip(np.mean(np.argwhere(mask_list[box_id] > 0), axis=0))
+            print("Centroid from mask : {}".format(centroid))
+            print("Centroid from box : {}".format(centroids_2d[box_id]))
+            # centroid[1] -= 60
+            centroid = centroids_2d[box_id] #box_center
+            drill_poses = []
+            # num_plane = 15
+            # num_plane_stand = 4
+            # plane_rots = np.arange((2*math.pi)/(2*num_plane), 2*math.pi+(2*math.pi)/(2*num_plane), (2*math.pi)/num_plane)
+            # for plane_rot in plane_rots:
+            #     thetas = np.arange((math.pi*1/4), (math.pi*3/4), (math.pi/(num_plane_stand*2)))
+            #     for theta in thetas:
+            #         half_t = theta/2
+            #         viewpoint = [math.sin(plane_rot), 0, math.cos(plane_rot)]
+            #         quaternion = [math.sin(half_t)*viewpoint[0], math.sin(half_t)*viewpoint[1], math.sin(half_t)*viewpoint[2], math.cos(half_t) ]
+            #         object_rotation_list.append(quaternion)
+            
+            
+            
+            num_y_rots = 9
+            min_y_rot = (-math.pi*0.03)
+            max_y_rot = (math.pi*(1.1))
+            int_y = (max_y_rot-min_y_rot)/num_y_rots
+            y_rots = np.arange(min_y_rot, max_y_rot, int_y)
+            
+            num_x_rots = 3
+            min_x_rot = (-math.pi*0.33)
+            max_x_rot = (math.pi*0.35)
+            int_x = (max_x_rot-min_x_rot)/num_x_rots
+            x_rots = np.arange(min_x_rot, max_x_rot, int_x)
+
+            for y_rot in y_rots:
+                for x_rot in x_rots:
+                    quaternion =  get_xyzw_quaternion(RT_transform.euler2quat(x_rot, y_rot, 0).tolist())
+                    drill_poses.append(quaternion)
+
+            num_y_rots = 9
+            min_y_rot = (-math.pi*0.07)
+            max_y_rot = (math.pi*(1.1))
+            int_y = (max_y_rot-min_y_rot)/num_y_rots
+            y_rots = np.arange(min_y_rot, max_y_rot, int_y)
+            
+            num_x_rots = 4
+            min_x_rot = (math.pi*0.21) #64.3
+            max_x_rot = (math.pi*(0.83)) #113.4
+            int_x = (max_x_rot-min_x_rot)/num_x_rots
+            x_rots = np.arange(min_x_rot, max_x_rot, int_x)
+
+            # num_z_rots = 3
+            # min_z_rot = (-math.pi*0.23) #64.3
+            # max_z_rot = (+math.pi*(0.19)) #113.4
+            # int_z = (max_z_rot-min_z_rot)/num_z_rots
+            # z_rots = np.arange(min_z_rot, max_z_rot, int_z)
+
+            for y_rot in y_rots:
+                for x_rot in x_rots:
+                    quaternion =  get_xyzw_quaternion(RT_transform.euler2quat(x_rot, y_rot, 0).tolist())
+                    drill_poses.append(quaternion)
+                    # for z_rot in z_rots:
+                    #     quaternion =  get_xyzw_quaternion(RT_transform.euler2quat(x_rot, y_rot, z_rot).tolist())
+                    #     drill_poses.append(quaternion)
+            # d_depth = max_depth - min_depth
+            
+            temp_d_min = min_depth + 0.15*d_depth
+            temp_d_max = max_depth - 0.15*d_depth
+            temp_d_int = ((temp_d_max - temp_d_min)/(7.0))
+            # print('                                    ')
+            # print('                                    ')
+            # print('                                    ')
+            # print("max_depth: ", max_depth)
+            # print("min_depth: ", min_depth)
+            
+            # print("temp_d_min: ", temp_d_min)
+            
+            # print("temp_d_max: ", temp_d_max)
+            
+            # print("temp_d_int: ", temp_d_int)
+            # print('                                    ')
+            # print('                                    ')
+            # print('                                    ')
+            
+            if temp_d_int <= 0.02:
+                temp_d_int = 0.02
+            if temp_d_int > 0.02:
+                temp_d_int = ((temp_d_max - temp_d_min)/(10.0))
+                temp_d_int = round(temp_d_int*200)*0.005
+                if temp_d_int <= 0.04:
+                    temp_d_int = 0.03
+                else:
+                    temp_d_int = 0.04
+            print("temp_d_int: ",temp_d_int)
+            temp_d_int = 0.02
+            for _, depth in enumerate(np.arange(temp_d_min, temp_d_max, temp_d_int)):
+                centre_world_point = self.get_world_point(centroid.tolist() + [depth])
+                for quaternion in drill_poses:
+                    annotations.append({
+                        'location' : (centre_world_point*100).tolist(),
+                        # 'quaternion_xyzw' : cur_pose[:4].tolist(),
+                        'quaternion_xyzw' : quaternion,
+                        'category_id' : self.category_names_to_id[cur_object_name],
+                        'id' : grid_i
+                        })
+                    grid_i += 1
+            '''
+
+
+            '''
+            # ypblc
+            object_rotation_list = []
+            centroid = np.flip(np.mean(np.argwhere(mask_list[box_id] > 0), axis=0))
+            centroid_max = np.flip(np.max(np.argwhere(mask_list[box_id] > 0), axis=0))
+            centroid_min = np.flip(np.min(np.argwhere(mask_list[box_id] > 0), axis=0))
+            yp_centroid = [centroid[0], centroid_max[1]*0.15 + centroid[1]*0.85]
+            # if centroids_2d[box_id][1] > centroid[1]:
+            #     yp_centroid = [centroid[0], centroid_max[1]*0.35 + centroid[1]*0.65]
+            # yp_cen_list = []
+            # centr_num = 1
+            # dist_y = centroid_max[1]-centroid_min[1]
+            # # yp_cen_list.append(centroid.tolist())
+
+            # for i in [1,2,3]:
+            #     pct = 0.1
+            #     # temp_cen = [centroid[0], centroid[1] + i*dist_y*pct]
+            #     temp_cen = [centroid[0], centroid_max[1]*i*0.1 + centroid[1]*(1-i*0.1)]
+            #     yp_cen_list.append(temp_cen)
+            #     # temp_cen = [centroid[0], centroid[1] - i*dist_y*pct]
+            #     # yp_cen_list.append(temp_cen)
+            print("Centroid from mask : {}".format(centroid))
+            print("Centroid from box : {}".format(centroids_2d[box_id]))
+            print("Centroid from yupeng : {}".format(yp_centroid))
+            # centroid[1] -= 60
+            # centroid = centroids_2d[box_id] #box_center
+            blc_poses = []
+            num_y_rots = 13
+            min_y_rot = (math.pi*(0.-0.07))
+            max_y_rot = (math.pi*(1.43))
+            int_y = (max_y_rot-min_y_rot)/num_y_rots
+            y_rots = np.arange(min_y_rot, max_y_rot, int_y)
+            
+            num_x_rots = 4
+            min_x_rot = (math.pi*0.34) #64.3
+            max_x_rot = (math.pi*(0.72)) #113.4
+            int_x = (max_x_rot-min_x_rot)/num_x_rots
+            x_rots = np.arange(min_x_rot, max_x_rot, int_x)
+
+            # num_z_rots = 3
+            # min_z_rot = (-math.pi*0.23) #64.3
+            # max_z_rot = (+math.pi*(0.19)) #113.4
+            # int_z = (max_z_rot-min_z_rot)/num_z_rots
+            # z_rots = np.arange(min_z_rot, max_z_rot, int_z)
+
+            for y_rot in y_rots:
+                for x_rot in x_rots:
+                    quaternion =  get_xyzw_quaternion(RT_transform.euler2quat(x_rot, y_rot, 0).tolist())
+                    blc_poses.append(quaternion)
+            
+            temp_d_int = 0.02
+            d_depth = max_depth - min_depth
+            # depth_step = d_depth/temp_d_int
+            # if depth_step <= 10:
+            # temp_d_min = min_depth + 0.2*d_depth
+            # temp_d_max = max_depth - 0*d_depth  
+            # else:
+            #     temp_percept = (1-((8*temp_d_int)/d_depth))/2
+            #     temp_d_min = min_depth + temp_percept*d_depth
+            #     temp_d_max = max_depth - temp_percept*d_depth
+            # temp_d_max = round(temp_d_max, 3)
+            # temp_d_min = round(temp_d_min, 3)
+            print('                                    ')
+            print('                                    ')
+            print('                                    ')
+            print("max_depth: ", max_depth)
+            print("min_depth: ", min_depth)
+            
+            # print("temp_d_min: ", temp_d_min)
+            
+            # print("temp_d_max: ", temp_d_max)
+            
+            print("temp_d_int: ", temp_d_int)
+            print('                                    ')
+            print('                                    ')
+            print('                                    ')
+            
+            # for _, depth in enumerate(np.arange(temp_d_min, temp_d_max, temp_d_int)):
+            for _, depth in enumerate(np.arange(min_depth, max_depth, temp_d_int)):
+                # centre_world_point = self.get_world_point(centroid.tolist() + [depth])
+                # for yp_centroid in yp_cen_list:
+                centre_world_point = self.get_world_point(yp_centroid + [depth])
+                for quaternion in blc_poses:
+                    annotations.append({
+                        'location' : (centre_world_point*100).tolist(),
+                        # 'quaternion_xyzw' : cur_pose[:4].tolist(),
+                        'quaternion_xyzw' : quaternion,
+                        'category_id' : self.category_names_to_id[cur_object_name],
+                        'id' : grid_i
+                        })
+                    grid_i += 1
+            '''
+
+
+            
+
+
+
+        return labels, annotations, predicted_mask_path
 
 
     def visualize_model_output(self, image_data, use_thresh=False, use_centroid=True, print_poses=True, required_objects=None):
@@ -1717,20 +2414,15 @@ class FATImage:
         rospy.set_param('camera_info_url', 'package://dope/config/camera_info.yaml')
         mkdir_if_missing("dope_outputs")
 
-        self.dopenode = DopeNode(fixed_transforms_dict = self.fixed_transforms_dict)
+        self.dopenode = DopeNode()
 
     def visualize_dope_output(self, image_data):
 
         color_img_path = os.path.join(self.coco_image_directory, image_data['file_name'])
         output_image_filepath = os.path.join("dope_outputs", (self.get_clean_name(image_data['file_name']) + ".png"))
-        # annotations = self.dopenode.run_on_image(color_img_path, self.category_names_to_id, output_image_filepath)
-        
-        cloud_scene = self.get_scene_cloud(image_data, 0.015)
-        annotations, runtime = self.dopenode.run_on_image_icp(
-            color_img_path, self.category_names_to_id, cloud_scene, output_image_filepath
-        )
+        annotations = self.dopenode.run_on_image(color_img_path, self.category_names_to_id, output_image_filepath)
 
-        return annotations, runtime
+        return annotations
 
     def compare_clouds(self, annotations_1, annotations_2, downsample=False, use_add_s=True, convert_annotation_2=False, use_points_file=False):
         from plyfile import PlyData, PlyElement
@@ -1747,7 +2439,6 @@ class FATImage:
             # print(annotation_1)
             if len(annotation_1) == 0:
                 # Possible in DOPE where wrong object may be detected
-                print("Wrong object, no matching object to ground truth found in detection")
                 return None, None
 
             # There might two occurences of same category, take ground truth closer to prediction - For 6D version
@@ -1961,6 +2652,12 @@ def run_6d():
     fat_image.init_model()
 
     ts = calendar.timegm(time.gmtime())
+    print('----------------------------------------------------------')
+    print('----------------------------------------------------------')
+    print('----------------------------------------------------------')
+    print(ts)
+    print('----------------------------------------------------------')
+    print('----------------------------------------------------------')
     f_accuracy = open('model_outputs/accuracy_6d_{}.txt'.format(ts), "w")
     f_runtime = open('model_outputs/runtime_6d_{}.txt'.format(ts), "w")
     f_runtime.write("{} {} {}\n".format('name', 'expands', 'runtime'))
@@ -2331,8 +3028,8 @@ def run_dope_sameshape():
     base_dir = "/media/aditya/A69AFABA9AFA85D9/Cruzr/code/Dataset_Synthesizer/Test/Zed"
     # base_dir = "/media/sbpl/Data/Aditya/datasets/Zed"
     image_directory = base_dir
-    annotation_file = base_dir + '/instances_newmap1_turbosquid_can_only_2018.json'
-    # annotation_file = base_dir + '/instances_newmap1_turbosquid_2018.json'
+    # annotation_file = base_dir + '/instances_newmap1_turbosquid_can_only_2018.json'
+    annotation_file = base_dir + '/instances_newmap1_turbosquid_2018.json'
     model_dir = "/media/aditya/A69AFABA9AFA85D9/Datasets/SameShape/turbosquid/models"
     # model_dir = "/media/sbpl/Data/Aditya/datasets/turbosquid/models"
     fat_image = FATImage(
@@ -2343,52 +3040,43 @@ def run_dope_sameshape():
         model_mesh_in_mm=True,
         # model_mesh_scaling_factor=0.005,
         model_mesh_scaling_factor=1,
-        models_flipped=False,
-        distance_scale=100,
-        img_width=960,
-        img_height=540,
-        dataset_type="ndds"
+        models_flipped=False
     )
 
-    f_runtime = open('runtime.txt', "w", 1)
-    f_accuracy = open('accuracy.txt', "w", 1)
-    f_runtime.write("{},{},{}\n".format('name', 'expands', 'runtime'))
+    f_runtime = open('runtime.txt', "w")
+    f_accuracy = open('accuracy.txt', "w")
+    f_runtime.write("{} {} {}\n".format('name', 'expands', 'runtime'))
 
     # required_objects = ['coke_can', 'pepsi_can']
-    required_objects = ['7up_can', 'sprite_can', 'pepsi_can', 'coke_can']
+    # required_objects = ['7up_can', 'sprite_can', 'pepsi_can', 'coke_can']
     # required_objects = ['coke_can', 'pepsi_can']
-    # required_objects = ['pepsi_can', 'coke_can']
-    # required_objects = ['coke_bottle', 'pepsi_can', 'coke_can', 'sprite_bottle']
-    f_accuracy.write("name,")
+    required_objects = ['sprite_bottle']
+    f_accuracy.write("name ")
     # for object_name in required_objects:
     #     f_accuracy.write("{} ".format(object_name))
     # f_accuracy.write("\n")
 
     for object_name in required_objects:
-        f_accuracy.write("{}-add,{}-adds,".format(object_name, object_name))
+        f_accuracy.write("{}-add {}-adds ".format(object_name, object_name))
     f_accuracy.write("\n")
 
     fat_image.init_dope_node()
 
     for img_i in range(0,50):
     # for img_i in [5]:
-        image_name = 'NewMap1_turbosquid_can_only/0000{}.left.png'.format(str(img_i).zfill(2))
-        # image_name = 'NewMap1_turbosquid/0000{}.left.png'.format(str(img_i).zfill(2))
-
+        # image_name = 'NewMap1_turbosquid_can_only/0000{}.left.png'.format(str(img_i).zfill(2))
+        image_name = 'NewMap1_turbosquid/0000{}.left.png'.format(str(img_i).zfill(2))
         image_data, annotations = fat_image.get_random_image(name=image_name, required_objects=required_objects)
 
-        yaw_only_objects, max_min_dict, transformed_annotations, _ = \
-            fat_image.visualize_pose_ros(image_data, annotations, frame='camera', camera_optical_frame=False, ros_publish=True, num_publish=1)
-        # print(transformed_annotations)
+        yaw_only_objects, max_min_dict, transformed_annotations = \
+            fat_image.visualize_pose_ros(image_data, annotations, frame='camera', camera_optical_frame=False)
+
         # dopenode = DopeNode()
         # color_img_path = os.path.join(self.coco_image_directory, image_data['file_name'])
         # dopenode.run_on_image(color_img_path)
-        dope_annotations, runtime = fat_image.visualize_dope_output(image_data)
-        # print(dope_annotations)
+        dope_annotations = fat_image.visualize_dope_output(image_data)
 
         f_accuracy.write("{},".format(image_data['file_name']))
-        # Dope assumes that model of object is according to camera frame (NDDS) and GT is also in that
-        # So no need to apply any fixed transform when comparing the clouds by converting the model
         add_dict, add_s_dict = fat_image.compare_clouds(
             transformed_annotations, dope_annotations, downsample=True, use_add_s=True, convert_annotation_2=True
         )
@@ -2400,10 +3088,10 @@ def run_dope_sameshape():
                 f_accuracy.write(" , ,")
         f_accuracy.write("\n")
 
-        f_runtime.write("{},{},{}\n".format(image_data['file_name'], 0, runtime))
+        # yaw_only_objects, max_min_dict, transformed_annotations = \
+        #     fat_image.visualize_pose_ros(image_data, dope_annotations, frame='camera', camera_optical_frame=False)
 
     f_accuracy.close()
-    f_runtime.close()
 
     return
 
@@ -2489,15 +3177,20 @@ def run_dope_6d():
 
     return
 
-def run_sameshape_gpu(dataset_cfg=None):
+def run_sameshape_gpu():
     ## Running on PERCH only with synthetic color dataset - shape
+    # Use normalize cost to get best results
+    # base_dir = "/media/aditya/A69AFABA9AFA85D9/Cruzr/code/Dataset_Synthesizer/Test/Zed"
+    base_dir = "/media/aditya/A69AFABA9AFA85D9/Cruzr/code/Dataset_Synthesizer/Test/Zed/Final"
+    # base_dir = "/media/sbpl/Data/Aditya/datasets/Zed"
+    image_directory = base_dir
+    # annotation_file = base_dir + '/instances_newmap1_reduced_2_2018.json'
+    annotation_file = base_dir + '/instances_newmap1_turbosquid_2018.json'
+    # annotation_file = base_dir + '/instances_newmap1_turbosquid_can_only_2018.json'
 
-    image_directory = dataset_cfg['image_dir']
-    annotation_file = image_directory + '/instances_newmap1_turbosquid_can_only_2018.json'
-    # annotation_file = image_directory + '/instances_newmap1_turbosquid_2018.json'
-    model_dir = dataset_cfg['model_dir']
-
-
+    model_dir = "/media/aditya/A69AFABA9AFA85D9/Datasets/SameShape/turbosquid/models"
+    # model_dir = "/media/sbpl/Data/Aditya/datasets/turbosquid/models"
+    # model_dir = "/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset/models"
     fat_image = FATImage(
         coco_annotation_file=annotation_file,
         coco_image_directory=image_directory,
@@ -2506,19 +3199,11 @@ def run_sameshape_gpu(dataset_cfg=None):
         model_mesh_in_mm=True,
         # model_mesh_scaling_factor=0.005,
         model_mesh_scaling_factor=1,
-        models_flipped=False,
-        img_width=960,
-        img_height=540,
-        distance_scale=100,
-        env_config="pr2_env_config.yaml",
-        planner_config="pr2_planner_config.yaml",
-        perch_debug_dir=dataset_cfg["perch_debug_dir"],
-        python_debug_dir=dataset_cfg["python_debug_dir"],
-        dataset_type=dataset_cfg["type"]
+        models_flipped=False
     )
 
-    f_runtime = open('runtime.txt', "w", 1)
-    f_accuracy = open('accuracy.txt', "w", 1)
+    f_runtime = open('runtime.txt', "w")
+    f_accuracy = open('accuracy.txt', "w")
     f_runtime.write("{} {} {}\n".format('name', 'expands', 'runtime'))
 
     # required_objects = ['coke_can', 'coke_bottle', 'pepsi_can']
@@ -2526,9 +3211,9 @@ def run_sameshape_gpu(dataset_cfg=None):
     # required_objects = ['010_potted_meat_can', '008_pudding_box']
     # required_objects = ['010_potted_meat_can']
     # required_objects = ['coke_bottle', 'sprite_bottle', 'pepsi_can', 'coke_can']
-    # required_objects = ['sprite_bottle']
-    required_objects = ['pepsi_can', 'coke_can', '7up_can', 'sprite_can']
-    # required_objects = ['sprite_can']
+    required_objects = ['pepsi_can']
+    # required_objects = ['pepsi_can', 'coke_can', '7up_can', 'sprite_can']
+    # required_objects = ['coke_bottle']
     # required_objects = ['pepsi_can', 'sprite_bottle', 'coke_bottle']
 
     f_accuracy.write("name ")
@@ -2538,14 +3223,14 @@ def run_sameshape_gpu(dataset_cfg=None):
     f_accuracy.write("\n")
 
     read_results_only = False
-    # fat_image.search_resolution_yaw = 1.57
     # 5 in can only
-    for img_i in range(0,50):
+    for img_i in range(0,1):
 
-        image_name = 'NewMap1_turbosquid_can_only/0000{}.left.png'.format(str(img_i).zfill(2))
-        # image_name = 'NewMap1_turbosquid/0000{}.left.png'.format(str(img_i).zfill(2))
+        # image_name = 'NewMap1_reduced_2/0000{}.left.png'.format(str(img_i).zfill(2))
+        # image_name = 'NewMap1_turbosquid_can_only/0000{}.left.png'.format(str(img_i).zfill(2))
+        image_name = 'NewMap1_turbosquid/0000{}.left.png'.format(str(img_i).zfill(2))
         image_data, annotations = fat_image.get_random_image(name=image_name, required_objects=required_objects)
-        yaw_only_objects, max_min_dict, transformed_annotations, camera_pose_table = \
+        yaw_only_objects, max_min_dict, transformed_annotations = \
                 fat_image.visualize_pose_ros(image_data, annotations, frame='table', camera_optical_frame=False)
 
         if read_results_only == False:
@@ -2562,7 +3247,7 @@ def run_sameshape_gpu(dataset_cfg=None):
                 # use_external_render=0, required_object=['coke', 'sprite', 'pepsi'],
                 # use_external_render=0, required_object=['sprite', 'coke', 'pepsi'],
                 camera_optical_frame=False, use_external_pose_list=0, gt_annotations=transformed_annotations,
-                num_cores=0, input_camera_pose=camera_pose_table
+                num_cores=0
             )
         else:
             output_dir_name = os.path.join("final_comp", "color_lazy_histogram", fat_image.get_clean_name(image_data['file_name']))
@@ -2673,13 +3358,19 @@ def run_ycb_gpu():
     f_runtime.close()
     f_accuracy.close()
 
+def euler_to_quaternion(roll, pitch, yaw):
+
+  qx = np.sin(roll/2) * np.cos(pitch/2) * np.cos(yaw/2) - np.cos(roll/2) * np.sin(pitch/2) * np.sin(yaw/2)
+  qy = np.cos(roll/2) * np.sin(pitch/2) * np.cos(yaw/2) + np.sin(roll/2) * np.cos(pitch/2) * np.sin(yaw/2)
+  qz = np.cos(roll/2) * np.cos(pitch/2) * np.sin(yaw/2) - np.sin(roll/2) * np.sin(pitch/2) * np.cos(yaw/2)
+  qw = np.cos(roll/2) * np.cos(pitch/2) * np.cos(yaw/2) + np.sin(roll/2) * np.sin(pitch/2) * np.sin(yaw/2)
+
+  return [qx, qy, qz, qw]
 
 def run_ycb_6d(dataset_cfg=None):
-    from bad_images import cracker_list
     
     image_directory = dataset_cfg['image_dir']
-    # annotation_file = image_directory + 'instances_keyframe_pose.json'
-    annotation_file = image_directory + 'instances_keyframe_bbox_pose.json'
+    annotation_file = image_directory + 'instances_keyframe_pose.json'
     model_dir = dataset_cfg['model_dir']
 
     fat_image = FATImage(
@@ -2699,51 +3390,39 @@ def run_ycb_6d(dataset_cfg=None):
         python_debug_dir=dataset_cfg["python_debug_dir"]
     )
 
-    # mask_type = 'posecnn'
-    mask_type = 'posecnn_gt_bbox'
+    mask_type = 'posecnn'
+    # mask_type = 'mask_rcnn'
     print_poses = False
     # Running on model and PERCH
     cfg_file = dataset_cfg['maskrcnn_config']
 
     ts = calendar.timegm(time.gmtime())
+    print('----------------------------------------------------------')
+    print('----------------------------------------------------------')
+    print('----------------------------------------------------------')
+    print(ts)
+    print('----------------------------------------------------------')
+    print('----------------------------------------------------------')
     f_accuracy = open('{}/accuracy_6d_{}.txt'.format(fat_image.python_debug_dir, ts), "w", 1)
     f_runtime = open('{}/runtime_6d_{}.txt'.format(fat_image.python_debug_dir, ts), "w", 1)
-    f_runtime.write("{} {} {} {} {}\n".format('name', 'expands', 'runtime', 'icp_runtime', 'peak_gpu_mem'))
+    f_runtime.write("{} {} {}\n".format('name', 'expands', 'runtime'))
 
-    # filter_objects = ['004_sugar_box']
-    required_objects = ['003_cracker_box']
+    #filter_objects = ['010_potted_meat_can'] - 49, 59, 53
+    filter_objects = None
     # required_objects = ['025_mug', '007_tuna_fish_can', '002_master_chef_can']
     # required_objects = fat_image.category_names
     # required_objects = ['002_master_chef_can', '025_mug', '007_tuna_fish_can']
     # required_objects = ['040_large_marker', '024_bowl', '007_tuna_fish_can', '002_master_chef_can', '005_tomato_soup_can']
-    # required_objects = ['004_sugar_box']
-    # required_objects = ['021_bleach_cleanser'] # 51, 54, 55, 57
-    # required_objects = ['037_scissors'] # 51
-    # required_objects = ['003_cracker_box'] # 50 54 59
-    # ['010_potted_meat_can'] - 49, 59, 53
+    # required_objects = ['002_master_chef_can']052_extra_large_clamp 035_power_drill
+    # required_objects = ['003_cracker_box'] #50, 54 ,59 use box, 适度下沉
+    required_objects = ['052_extra_large_clamp'] # 48, 57
+    # 051_large_clamp # 54
+    #48, 54 ,59 use box, 适度下沉
+    # required_objects = ['021_bleach_cleanser'] #51, 54, 55, 57
+    # required_objects = ['036_wood_block'] #52 56 58
     # required_objects = ['019_pitcher_base','005_tomato_soup_can','004_sugar_box' ,'007_tuna_fish_can', '010_potted_meat_can', '024_bowl', '002_master_chef_can', '025_mug', '003_cracker_box', '006_mustard_bottle']
     # required_objects = fat_image.category_names
-    # required_objects = [
-    #     "002_master_chef_can",
-    #     "003_cracker_box",
-    #     "004_sugar_box",
-    #     "005_tomato_soup_can",
-    #     "006_mustard_bottle",
-    #     "007_tuna_fish_can",
-    #     "009_gelatin_box",
-    #     "010_potted_meat_can",
-    #     "011_banana",
-    #     "019_pitcher_base",
-    #     "021_bleach_cleanser",
-    #     "024_bowl",
-    #     "025_mug",
-    #     "037_scissors",
-    #     "040_large_marker",
-    #     "061_foam_brick"
-    # ]
-    filter_objects = required_objects
-
-    if "posecnn" not in mask_type or print_poses:
+    if mask_type != "posecnn" or print_poses:
         fat_image.init_model(cfg_file, print_poses=print_poses, required_objects=required_objects, model_weights=dataset_cfg['maskrcnn_model_path'])
     f_accuracy.write("name,")
     for object_name in required_objects:
@@ -2759,31 +3438,36 @@ def run_ycb_6d(dataset_cfg=None):
     # for img_i in range(155,177):
     #for img_i in list(range(0,100)) + list(range(100,120)) + list(range(155,177)):
     # for img_i in [138,142,153,163, 166, 349]:    
-    # for img_i in [0]:
-    # Used 60 samples sphere for all
-    # Trying 80 for sugar
+    # for img_i in [0]:    
 
     IMG_LIST = np.loadtxt(os.path.join(image_directory, 'image_sets/keyframe.txt'), dtype=str).tolist()
-    for scene_i in range(48, 50):
-    # for scene_i in [54]:
-        # for img_i in (range(1, 2)):
+
+    # for scene_i in range(48, 60):
+    # mar1
+    for scene_i in [48, 57]:
+    # for scene_i in [48,, ]:
+        for img_i in range(1, 2500):
+
+
+        # for img_i in [1, 958,2217, 825, 1713]:
+        # for img_i in [42, 62, 89, 155, 204, 205, 219, 229, 240, 305, 346, 348, 354, 356, 363, 376, 381, 385, 389, 391, 398, 404, 407, 415, 434, 446, 461, 464, 471, 479, 495, 512, 530, 562, 598, 1229, ]:
         # for img_i in IMG_LIST:
         # for img_i in tuna_list:
         # for img_i in can_list:
-        # for img_i in s_list:
-        for img_i in cracker_list:
+        # for img_i in wood_list:
+        # for img_i in bowl_list:
             # if "0050" not in img_i:
             #     continue
             # Get Image
-            # image_name = 'data/00{}/00{}-color.png'.format(str(scene_i), str(img_i).zfill(4))
-            image_name = '{}'.format(img_i)
+            image_name = 'data/00{}/00{}-color.png'.format(str(scene_i), str(img_i).zfill(4))
+            # image_name = '{}'.format(img_i)
             # if image_name in skip_list:
             #     continue
             # image_data, annotations = fat_image.get_random_image(name='{}_16k/kitchen_4/000005.left.jpg'.format(category_name))
             image_data, annotations = fat_image.get_random_image(
-                name=image_name, required_objects=None
+                name=image_name, required_objects=required_objects
             )
-            # print(annotations)
+            # print(annotations[0])
             # Skip if required image or image name is not in dataset
             if image_data is None or annotations is None:
                 continue
@@ -2803,19 +3487,25 @@ def run_ycb_6d(dataset_cfg=None):
                     continue
 
             # Visualize ground truth in ros
-            # yaw_only_objects, max_min_dict_gt, transformed_annotations, _ = fat_image.visualize_pose_ros(
-            #     image_data, annotations, frame='camera', camera_optical_frame=False, num_publish=10, write_poses=False, ros_publish=False
+            # yaw_only_objects, max_min_dict_gt, transformed_annotations = fat_image.visualize_pose_ros(
+            #     image_data, annotations, frame='camera', camera_optical_frame=False, num_publish=1, write_poses=False, ros_publish=True
             # )
+            # yupeng Result or calculating the accuarayc
             if True:
                 model_poses_file = None
                 mask_image_index = None
-                if 'posecnn' in mask_type:
+                if mask_type == 'posecnn':
                     # keylist_name = '00{}/00{}'.format(str(scene_i), str(img_i).zfill(4))
                     keylist_name = image_name.replace('data/', '').replace('-color.png', '')
                     mask_image_index = IMG_LIST.index(keylist_name)
-                labels, model_annotations, predicted_mask_path, model_poses_file = \
-                    fat_image.visualize_sphere_sampling(
-                        image_data, annotations=annotations, print_poses=print_poses, required_objects=required_objects, num_samples=80,
+                # labels, model_annotations, predicted_mask_path = \
+                #     fat_image.visualize_sphere_sampling(
+                #         image_data, print_poses=print_poses, required_objects=required_objects, num_samples=60,
+                #         mask_type=mask_type, mask_image_id=mask_image_index
+                #     )
+                labels, model_annotations, predicted_mask_path = \
+                    fat_image.visualize_sphere_sampling_yupengFeb18(
+                        image_data, scene_i, img_i, print_poses=False, required_objects=required_objects,
                         mask_type=mask_type, mask_image_id=mask_image_index
                     )
                 # # Run model to get multiple poses for each object
@@ -2826,7 +3516,7 @@ def run_ycb_6d(dataset_cfg=None):
                 #     )
 
                 # Convert model output poses to table frame and save them to file so that they can be read by perch
-                _, max_min_dict, _, _ = fat_image.visualize_pose_ros(
+                _, max_min_dict, _ = fat_image.visualize_pose_ros(
                     # image_data, model_annotations, frame='table', camera_optical_frame=False, num_publish=1, write_poses=True, ros_publish=False
                     image_data, model_annotations, frame='camera', camera_optical_frame=False, num_publish=1, write_poses=True, ros_publish=False,
                 )
@@ -2847,7 +3537,7 @@ def run_ycb_6d(dataset_cfg=None):
                         use_external_render=0, required_object=labels,
                         camera_optical_frame=False, use_external_pose_list=1,
                         # model_poses_file=model_poses_file, use_centroid_shifting=0,
-                        model_poses_file=model_poses_file, use_centroid_shifting=0,
+                        model_poses_file=model_poses_file, use_centroid_shifting=1,
                         predicted_mask_path=predicted_mask_path, num_cores=0
                     )
                 else:
@@ -2855,10 +3545,12 @@ def run_ycb_6d(dataset_cfg=None):
                     stats = None                        
             else:
                 run_perch = True
-                output_dir_name = os.path.join("greedy_mug", fat_image.get_clean_name(image_data['file_name']))
+                # output_dir_name = os.path.join("greedy_mug", fat_image.get_clean_name(image_data['file_name']))
+                output_dir_name = fat_image.get_clean_name(image_data['file_name'])
                 perch_annotations, stats = fat_image.read_perch_output(output_dir_name)
             
-            f_accuracy.write("{},".format(image_data['file_name']))            
+            f_accuracy.write("{},".format(image_data['file_name']))
+            
             if perch_annotations is not None:
                 # # # Compare Poses by applying to model and computing distance
                 add_dict, add_s_dict = fat_image.compare_clouds(
@@ -2870,7 +3562,7 @@ def run_ycb_6d(dataset_cfg=None):
                         else:
                             f_accuracy.write(" , ,") 
             if stats is not None:
-                f_runtime.write("{} {} {} {} {}".format(image_data['file_name'], stats['expands'], stats['runtime'], stats['icp_runtime'], stats['peak_gpu_mem']))
+                f_runtime.write("{} {} {}".format(image_data['file_name'], stats['expands'], stats['runtime']))
             f_accuracy.write("\n")
             f_runtime.write("\n")
 
@@ -2891,12 +3583,7 @@ if __name__ == '__main__':
     ROS_PYTHON2_PKG_PATH = config['python2_paths']
     ROS_PYTHON3_PKG_PATH = config['python3_paths'][0]
 
-    print("Dataset name : {}".format(config['dataset']['name']))
-    if config['dataset']['name'] == "ycb":
-        run_ycb_6d(dataset_cfg=config['dataset'])
-    elif config['dataset']['name'] == "sameshape":
-        run_sameshape_gpu(dataset_cfg=config['dataset'])
-    # run_dope_sameshape()
+    run_ycb_6d(dataset_cfg=config['dataset'])
 
     # coco_predictions = torch.load('/media/aditya/A69AFABA9AFA85D9/Cruzr/code/fb_mask_rcnn/maskrcnn-benchmark/inference/fat_pose_2018_val_cocostyle/coco_results.pth')
     # all_predictions = torch.load('/media/aditya/A69AFABA9AFA85D9/Cruzr/code/fb_mask_rcnn/maskrcnn-benchmark/inference/fat_pose_2018_val_cocostyle/predictions.pth')
@@ -2986,4 +3673,7 @@ if __name__ == '__main__':
     # fat_image.get_database_stats()
 
     # fat_image.copy_database("/media/aditya/A69AFABA9AFA85D9/Datasets/fat/025_mug", "025_mug")
+
+
+
 

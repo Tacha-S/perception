@@ -23,6 +23,13 @@ class ObjectRecognizer {
   bool LocalizeObjectsGreedyICP(const RecognitionInput &input,
                       std::vector<Eigen::Affine3f> *object_transforms,
                       std::vector<Eigen::Affine3f> *preprocessing_object_transforms) const;
+  
+  bool LocalizeObjectsGreedyRender(const RecognitionInput &input,
+                      std::vector<Eigen::Affine3f> *object_transforms,
+                      std::vector<Eigen::Affine3f> *preprocessing_object_transforms,
+                      std::vector<ContPose> *detected_poses,
+                      std::vector<std::string> *detected_model_names) const;
+
   // Ditto as above, but return the (x,y,\theta) pose for every object in the
   // world frame, rather than the transforms.
   bool LocalizeObjects(const RecognitionInput &input,

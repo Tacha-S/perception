@@ -1,9 +1,9 @@
 import sys
 if '/opt/ros/kinetic/lib/python2.7/dist-packages' not in sys.path:
     sys.path.append('/opt/ros/kinetic/lib/python2.7/dist-packages')
-import rospy
+# import rospy
 import rospkg
-import rosparam
+# import rosparam
 import subprocess
 import roslaunch
 import os
@@ -44,7 +44,7 @@ class FATPerch():
     def __init__(
             self, params=None, input_image_files=None, camera_params=None, object_names_to_id=None, output_dir_name=None,
             models_root=None, model_params=None, symmetry_info=None, read_results_only=False, env_config="pr2_env_config.yaml",
-            planner_config="pr2_planner_config.yaml"
+            planner_config="pr2_planner_config.yaml", perch_debug_dir=None
         ):
         self.PERCH_EXEC = subprocess.check_output("catkin_find sbpl_perception perch_fat".split(" ")).decode("utf-8").rstrip().lstrip()
         rospack = rospkg.RosPack()
@@ -62,6 +62,8 @@ class FATPerch():
         # modes textured.ply models are color models with original YCB axis - use when using perch without network
         self.object_names_to_id = object_names_to_id
         self.output_dir_name = output_dir_name
+
+        self.perch_debug_dir = perch_debug_dir
 
         if read_results_only == False:
             self.load_ros_param_from_file(PERCH_ENV_CONFIG)
@@ -124,7 +126,7 @@ class FATPerch():
 
     def read_pose_results(self):
         annotations = []
-        f = open(os.path.join(self.PERCH_ROOT, 'visualization', self.output_dir_name, 'output_poses.txt'), "r")
+        f = open(os.path.join(self.perch_debug_dir, self.output_dir_name, 'output_poses.txt'), "r")
         lines = f.readlines()
         for i in np.arange(0, len(lines), 13):
             location = list(map(float, lines[i+1].rstrip().split()[1:]))
@@ -145,12 +147,17 @@ class FATPerch():
                         })
         f.close()
 
-        f = open(os.path.join(self.PERCH_ROOT, 'visualization', self.output_dir_name, 'output_stats.txt'), "r")
+        f = open(os.path.join(self.perch_debug_dir, self.output_dir_name, 'output_stats.txt'), "r")
         stats = {}
         lines = f.readlines()
-        stats_from_file = list(map(float, lines[2].rstrip().split()))
-        stats['expands'] = stats_from_file[2]
-        stats['runtime'] = stats_from_file[3]
+        if len(lines) > 0:
+            stats_from_file = list(map(float, lines[2].rstrip().split()))
+            stats['expands'] = stats_from_file[2]
+            stats['runtime'] = stats_from_file[3]
+        else:
+            stats['expands'] = -1
+            stats['runtime'] = -1
+
         f.close()
 
         return annotations, stats
@@ -167,14 +174,14 @@ class FATPerch():
         out, _ = p.communicate()
         out = out.decode("utf-8")
         # print(out)
-        f = open(os.path.join(self.PERCH_ROOT, 'visualization', self.output_dir_name, 'log.txt'), "w")
+        f = open(os.path.join(self.perch_debug_dir, self.output_dir_name, 'log.txt'), "w")
         f.write(out)
         f.close()
 
         # Get annotations from output of PERCH to get accuracy
         ## TODO use new function
         annotations = []
-        f = open(os.path.join(self.PERCH_ROOT, 'visualization', self.output_dir_name, 'output_poses.txt'), "r")
+        f = open(os.path.join(self.perch_debug_dir, self.output_dir_name, 'output_poses.txt'), "r")
         lines = f.readlines()
         if len(lines) == 0:
             print("Invalid PERCH run : {}".format(len(lines)))
@@ -198,14 +205,16 @@ class FATPerch():
                         })
         f.close()
 
-        f = open(os.path.join(self.PERCH_ROOT, 'visualization', self.output_dir_name, 'output_stats.txt'), "r")
+        f = open(os.path.join(self.perch_debug_dir, self.output_dir_name, 'output_stats.txt'), "r")
         stats = {}
         lines = f.readlines()
         stats_from_file = list(map(float, lines[2].rstrip().split()))
         stats['expands'] = stats_from_file[2]
         stats['runtime'] = stats_from_file[3]
+        stats['icp_runtime'] = stats_from_file[5]
+        stats['peak_gpu_mem'] = stats_from_file[6]
         f.close()
 
         if model_poses_file is not None:
-            copy(model_poses_file, os.path.join(self.PERCH_ROOT, 'visualization', self.output_dir_name))
+            copy(model_poses_file, os.path.join(self.perch_debug_dir, self.output_dir_name))
         return annotations, stats

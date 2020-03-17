@@ -32,12 +32,18 @@ extern double kMeshScalingFactor;
 
 class ObjectModel {
  public:
-  ObjectModel(const pcl::PolygonMesh &mesh, const std::string name, const bool symmetric, const bool flipped);
+  ObjectModel(const pcl::PolygonMesh &mesh, 
+              const std::string name, 
+              const bool symmetric, 
+              const bool flipped, 
+              const bool use_external_pose_list = false);
   void SetObjectPointCloud(const PointCloudPtr &cloud);
 
   double GetInscribedRadius() const;
 
   double GetCircumscribedRadius() const;
+
+  double GetCircumscribedRadius3D() const;
 
   pcl::PolygonMeshPtr GetTransformedMesh(const ContPose & p) const;
 
