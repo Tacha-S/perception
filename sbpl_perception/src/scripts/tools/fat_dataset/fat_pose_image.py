@@ -1040,7 +1040,8 @@ class FATImage:
                    cfg_file='/media/aditya/A69AFABA9AFA85D9/Cruzr/code/fb_mask_rcnn/maskrcnn-benchmark/configs/fat_pose/e2e_mask_rcnn_R_50_FPN_1x_test_cocostyle.yaml',
                    model_weights=None,
                    print_poses=False,
-                   required_objects=None):
+                   required_objects=None,
+                   min_image_size=750):
         
         from maskrcnn_benchmark.config import cfg
         from predictor import COCODemo
@@ -1048,7 +1049,7 @@ class FATImage:
         args = {
             'config_file' : cfg_file,
             'confidence_threshold' : 0.9,
-            'min_image_size' : 750,
+            'min_image_size' : min_image_size,
             'masks_per_dim' : 10,
             'show_mask_heatmaps' : False
         }
@@ -1299,13 +1300,14 @@ class FATImage:
 
         if mask_type == "mask_rcnn":
             predicted_mask_path = os.path.join(os.path.dirname(depth_img_path), os.path.splitext(os.path.basename(color_img_path))[0] + '.predicted_mask.png')
-            composite, mask_list_all, rotation_list, centroids_2d_all, boxes_all, overall_binary_mask \
+            composite, mask_list_all, labels_all, centroids_2d_all, boxes_all, overall_binary_mask \
                     = self.coco_demo.run_on_opencv_image(color_img, use_thresh=True)
             # if print_poses:
-            composite_image_path = '{}/mask_mask_rcnn.png'.format(rotation_output_dir)
+            # composite_image_path = '{}/mask_mask_rcnn.png'.format(rotation_output_dir)
+            composite_image_path = '{}/mask_mask_rcnn_{}.png'.format(self.python_debug_dir, self.get_clean_name(image_data['file_name']))
             # cv2.imwrite(composite_image_path, composite)
-            print(rotation_list['top_viewpoint_ids'])
-            labels_all = rotation_list['labels']
+            # print(rotation_list['top_viewpoint_ids'])
+            # labels_all = rotation_list['labels']
             
         elif mask_type == "posecnn":
             predicted_mask_path = os.path.join(os.path.dirname(depth_img_path), os.path.splitext(os.path.basename(color_img_path))[0] + '.predicted_mask_posecnn.png')
@@ -1336,6 +1338,7 @@ class FATImage:
             composite_image_path = '{}/mask_posecnn_gt_bbox.png'.format(rotation_output_dir)
 
         cv2.imwrite(composite_image_path, composite)
+        # return None, None, None, None
         
 
         labels = labels_all
@@ -2710,7 +2713,8 @@ def run_ycb_6d(dataset_cfg=None):
     )
 
     # mask_type = 'posecnn'
-    mask_type = 'posecnn_gt_bbox'
+    # mask_type = 'posecnn_gt_bbox'
+    mask_type = 'mask_rcnn'
     print_poses = False
     # Running on model and PERCH
     cfg_file = dataset_cfg['maskrcnn_config']
@@ -2729,32 +2733,38 @@ def run_ycb_6d(dataset_cfg=None):
     # required_objects = ['004_sugar_box'] # 55
     # required_objects = ['021_bleach_cleanser'] # 51, 54, 55, 57
     # required_objects = ['037_scissors'] # 51
-    required_objects = ['004_sugar_box'] # 50 54 59
+    # required_objects = ['004_sugar_box'] # 50 54 59
     # ['010_potted_meat_can'] - 49, 59, 53
     # required_objects = ['019_pitcher_base','005_tomato_soup_can','004_sugar_box' ,'007_tuna_fish_can', '010_potted_meat_can', '024_bowl', '002_master_chef_can', '025_mug', '003_cracker_box', '006_mustard_bottle']
     # required_objects = fat_image.category_names
-    # required_objects = [
-    #     "002_master_chef_can",
-    #     "003_cracker_box",
-    #     "004_sugar_box",
-    #     "005_tomato_soup_can",
-    #     "006_mustard_bottle",
-    #     "007_tuna_fish_can",
-    #     "009_gelatin_box",
-    #     "010_potted_meat_can",
-    #     "011_banana",
-    #     "019_pitcher_base",
-    #     "021_bleach_cleanser",
-    #     "024_bowl",
-    #     "025_mug",
-    #     "037_scissors",
-    #     "040_large_marker",
-    #     "061_foam_brick"
-    # ]
+    required_objects = [
+        "002_master_chef_can",
+        "003_cracker_box",
+        "004_sugar_box",
+        "005_tomato_soup_can",
+        "006_mustard_bottle",
+        "007_tuna_fish_can",
+        "009_gelatin_box",
+        "010_potted_meat_can",
+        "011_banana",
+        "019_pitcher_base",
+        "021_bleach_cleanser",
+        "024_bowl",
+        "025_mug",
+        "037_scissors",
+        "040_large_marker",
+        "061_foam_brick"
+    ]
     filter_objects = required_objects
 
     if "posecnn" not in mask_type or print_poses:
-        fat_image.init_model(cfg_file, print_poses=print_poses, required_objects=required_objects, model_weights=dataset_cfg['maskrcnn_model_path'])
+        fat_image.init_model(
+            cfg_file, 
+            print_poses=print_poses, 
+            required_objects=required_objects, 
+            model_weights=dataset_cfg['maskrcnn_model_path'],
+            min_image_size=fat_image.height
+        )
     f_accuracy.write("name,")
     for object_name in required_objects:
         f_accuracy.write("{}-add,{}-adds,".format(object_name, object_name))
@@ -2774,9 +2784,9 @@ def run_ycb_6d(dataset_cfg=None):
     # Trying 80 for sugar
 
     IMG_LIST = np.loadtxt(os.path.join(image_directory, 'image_sets/keyframe.txt'), dtype=str).tolist()
-    for scene_i in range(55, 60):
+    for scene_i in range(48, 60):
     # for scene_i in [54]:
-        for img_i in (range(1, 200)):
+        for img_i in (range(1, 2)):
         # for img_i in IMG_LIST:
         # for img_i in tuna_list:
         # for img_i in can_list:
@@ -2836,21 +2846,22 @@ def run_ycb_6d(dataset_cfg=None):
                 #     )
 
                 # Convert model output poses to table frame and save them to file so that they can be read by perch
-                _, max_min_dict, _, _ = fat_image.visualize_pose_ros(
-                    # image_data, model_annotations, frame='table', camera_optical_frame=False, num_publish=1, write_poses=True, ros_publish=False
-                    image_data, model_annotations, frame='camera', camera_optical_frame=False, num_publish=1, write_poses=True, ros_publish=False,
-                )
-
-                # for anno in model_annotations:
-                #     if fat_image.category_id_to_names[anno['category_id']] not in required_objects:
-                #         print("Removing : {}".format(fat_image.category_id_to_names[anno['category_id']]))
-                #         model_annotations.remove(anno)
-
-                # print(model_annotations)
-
-                # Run perch/ICP on written poses
                 run_perch = True
                 if run_perch:
+                    _, max_min_dict, _, _ = fat_image.visualize_pose_ros(
+                        # image_data, model_annotations, frame='table', camera_optical_frame=False, num_publish=1, write_poses=True, ros_publish=False
+                        image_data, model_annotations, frame='camera', camera_optical_frame=False, num_publish=1, write_poses=True, ros_publish=False,
+                    )
+
+                    # for anno in model_annotations:
+                    #     if fat_image.category_id_to_names[anno['category_id']] not in required_objects:
+                    #         print("Removing : {}".format(fat_image.category_id_to_names[anno['category_id']]))
+                    #         model_annotations.remove(anno)
+
+                    # print(model_annotations)
+
+                    # Run perch/ICP on written poses
+                
                     perch_annotations, stats = fat_image.visualize_perch_output(
                         image_data, model_annotations, max_min_dict, frame='camera', 
                         # use_external_render=0, required_object=[labels[1]],
@@ -2861,7 +2872,7 @@ def run_ycb_6d(dataset_cfg=None):
                         predicted_mask_path=predicted_mask_path, num_cores=0
                     )
                 else:
-                    perch_annotations = top_model_annotations
+                    perch_annotations = None
                     stats = None                        
             else:
                 run_perch = True

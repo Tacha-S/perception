@@ -111,6 +111,8 @@ class COCODemo(object):
         """
         predictions = self.compute_prediction(image)
         top_predictions = self.select_top_predictions(predictions)
+        labels = top_predictions.get_field("labels").tolist()
+        labels = [self.CATEGORIES[i] for i in labels]
         result = image.copy()
         if self.show_mask_heatmaps:
             return self.create_mask_montage(result, top_predictions)
@@ -129,7 +131,7 @@ class COCODemo(object):
         if self.cfg.MODEL.MASK_ON:
             if self.cfg.MODEL.POSE_ON:
                 return result, mask_list, rotation_list, centroids, boxes, overall_binary_mask
-            return result, mask_list, centroids, boxes, overall_binary_mask
+            return result, mask_list, labels, centroids, boxes, overall_binary_mask
         else:
             return result, centroids
 
@@ -312,7 +314,9 @@ class COCODemo(object):
                 image, tuple(top_left), tuple(bottom_right), tuple(color), 1
             )
             box_list.append([top_left, bottom_right])
-            centroids.append((np.array(bottom_right) + np.array(top_left))/2)
+            center = (np.array(bottom_right) + np.array(top_left))/2
+            centroids.append(center)
+            image = cv2.circle(image, tuple([int(center[0]), int(center[1])]), 8, (0, 0, 0), -1)
 
 
         return image, centroids, box_list
