@@ -2679,7 +2679,7 @@ def run_ycb_6d(dataset_cfg=None):
     
     image_directory = dataset_cfg['image_dir']
     # annotation_file = image_directory + 'instances_keyframe_pose.json'
-    annotation_file = image_directory + 'instances_keyframe_bbox_pose.json'
+    annotation_file = image_directory + 'instances_keyframe_bbox_pose_bkp.json'
     model_dir = dataset_cfg['model_dir']
 
     fat_image = FATImage(

@@ -1651,7 +1651,8 @@ void EnvObjectRecognition::ComputeGreedyCostsInParallelGPU(const std::vector<int
     std::vector<float> observed_cost_gpu_vec(num_poses, 0);
     float* observed_cost_gpu = observed_cost_gpu_vec.data();
     std::vector<int> total_cost(num_poses, 0);
-    float* points_diff_cost_gpu;
+    std::vector<float> points_diff_cost(num_poses, 0);
+    float* points_diff_cost_gpu = points_diff_cost.data();
 
     std::vector<int> poses_occluded(num_poses, 0);
     std::vector<int> poses_occluded_other(num_poses, 1);
@@ -2518,10 +2519,12 @@ GraphState EnvObjectRecognition::ComputeGreedyRenderPoses() {
   cout << "ComputeGreedyRenderPoses() took " << elapsed_seconds.count() << " seconds\n";
   env_stats_.time = elapsed_seconds.count();
   // env_stats_.icp_time /= num_batches;
-  string fname = debug_dir_ + "depth_greedy_state.png";
-  string cname = debug_dir_ + "color_greedy_state.png";
-  // PrintState(greedy_state, fname, cname);
-  PrintStateGPU(greedy_state);
+  if (perch_params_.print_expanded_states) {
+    string fname = debug_dir_ + "depth_greedy_state.png";
+    string cname = debug_dir_ + "color_greedy_state.png";
+    // PrintState(greedy_state, fname, cname);
+    PrintStateGPU(greedy_state);
+  }
   return greedy_state;
 }
 
@@ -5682,16 +5685,10 @@ cv::Mat equalizeIntensity(const cv::Mat& inputImage)
     return cv::Mat();
 }
 
-void EnvObjectRecognition::SetInput(const RecognitionInput &input) {
+void EnvObjectRecognition::SetStaticInput(const RecognitionInput &input)
+{
   ResetEnvironmentState();
 
-
-
-  LoadObjFiles(model_bank_, input.model_names);
-  SetBounds(input.x_min, input.x_max, input.y_min, input.y_max);
-  SetTableHeight(input.table_height);
-  SetCameraPose(input.camera_pose);
-  ResetEnvironmentState();
   *constraint_cloud_ = input.constraint_cloud;
   env_params_.use_external_render = input.use_external_render;
   env_params_.reference_frame_ = input.reference_frame_;
@@ -5700,10 +5697,12 @@ void EnvObjectRecognition::SetInput(const RecognitionInput &input) {
   env_params_.shift_pose_centroid = input.shift_pose_centroid;
   env_params_.rendered_root_dir = input.rendered_root_dir; 
 
+  LoadObjFiles(model_bank_, input.model_names);
+  SetBounds(input.x_min, input.x_max, input.y_min, input.y_max);
+  SetTableHeight(input.table_height);
 
   printf("External Render : %d\n", env_params_.use_external_render);
   printf("External Pose List : %d\n", env_params_.use_external_pose_list);
-  printf("Depth Factor : %f\n", input.depth_factor);
   printf("ICP : %d\n", env_params_.use_icp);
   printf("Shift Pose Centroid : %d\n", env_params_.shift_pose_centroid);
   printf("Rendered Root Dir : %s\n", env_params_.rendered_root_dir.c_str());
@@ -5712,8 +5711,19 @@ void EnvObjectRecognition::SetInput(const RecognitionInput &input) {
   // if (input.model_repetitions.empty()) {
   //   input.model_repetitions.resize(input.model_names.size(), 1);
   // }
+
+}
+
+void EnvObjectRecognition::SetInput(const RecognitionInput &input) {
+  
+  chrono::time_point<chrono::system_clock> start, end;
+  start = chrono::system_clock::now();
+
+  SetCameraPose(input.camera_pose);
+  printf("Depth Factor : %f\n", input.depth_factor);
   PointCloudPtr depth_img_cloud(new PointCloud);
   vector<unsigned short> depth_image;
+
   if (input.use_input_images)
   {
     printf("Using input images instead of cloud\n");
@@ -5905,6 +5915,11 @@ void EnvObjectRecognition::SetInput(const RecognitionInput &input) {
     rcnn_heuristic_factory_->LoadHeuristicsFromDisk(input.heuristics_dir);
     rcnn_heuristics_ = rcnn_heuristic_factory_->GetHeuristics();
   }
+
+  end = chrono::system_clock::now();
+  chrono::duration<double> elapsed_seconds = end-start;
+  
+  printf("SetInput() took %f seconds\n", elapsed_seconds.count());
 }
 
 void EnvObjectRecognition::Initialize(const EnvConfig &env_config) {

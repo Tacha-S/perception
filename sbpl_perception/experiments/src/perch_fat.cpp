@@ -179,6 +179,7 @@ int main(int argc, char **argv) {
   // object_recognizer.LocalizeObjects(input, &detected_poses);
 
   int type = 1;
+  object_recognizer.SetStaticInput(input_global);
   if (type == 0) {
     object_recognizer.LocalizeObjectsGreedyICP(
       input_global, &object_transforms, &preprocessing_object_transforms

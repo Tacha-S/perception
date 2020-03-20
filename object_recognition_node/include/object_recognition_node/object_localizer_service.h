@@ -20,6 +20,7 @@ class ObjectLocalizerService {
   ObjectLocalizerService(ros::NodeHandle nh, const std::shared_ptr<boost::mpi::communicator>& mpi_world);
   // A static helper function for the LocalizerCallback, necessary for the extremely
   // inelegant MPI parallelization.
+
   static bool LocalizerHelper(
     const std::shared_ptr<boost::mpi::communicator> &mpi_world, 
     const ObjectRecognizer& object_recognizer, 
@@ -29,6 +30,12 @@ class ObjectLocalizerService {
   );
 
  private:
+
+  bool SetStaticInputCallback(
+    object_recognition_node::LocalizeObjects::Request &req,
+    object_recognition_node::LocalizeObjects::Response &res
+  );
+
   bool LocalizerCallback(object_recognition_node::LocalizeObjects::Request &req,
                          object_recognition_node::LocalizeObjects::Response &res);
   ros::NodeHandle nh_;
@@ -40,5 +47,7 @@ class ObjectLocalizerService {
   std::unique_ptr<ObjectRecognizer> object_recognizer_;
   // ROS service.
   ros::ServiceServer localizer_service_;
+  ros::ServiceServer set_static_input_service_;
+  
 };
 }

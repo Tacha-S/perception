@@ -74,6 +74,7 @@ PerceptionInterface::PerceptionInterface(ros::NodeHandle nh) : nh_(nh),
                    std::string("/head_mount_kinect_rgb_link"));
   private_nh.param("camera_optical_frame", camera_optical_frame_,
                    std::string("/head_mount_kinect_rgb_link"));
+  private_nh.param("use_continuous_detection", use_continuous_detection, false);
   std::string param_key;
   XmlRpc::XmlRpcValue model_bank_list;
   printf("use_external_render : %d\n", use_external_render);
@@ -83,6 +84,8 @@ PerceptionInterface::PerceptionInterface(ros::NodeHandle nh) : nh_(nh),
   }
 
   model_bank_ = ModelBankFromList(model_bank_list);
+  continuous_detection_frame_count = 0;
+  camera_pose_set = false;
 
   image_transport::ImageTransport it(nh);
   pose_rgb_pub_ = it.advertise("perch_pose_rgb_image", 1);
@@ -112,6 +115,8 @@ PerceptionInterface::PerceptionInterface(ros::NodeHandle nh) : nh_(nh),
   object_localization_client_ =
     nh.serviceClient<object_recognition_node::LocalizeObjects>("object_localizer_service");
 
+  set_static_input_client_ =
+    nh.serviceClient<object_recognition_node::LocalizeObjects>("set_static_input_service");
 
   if (pcl_visualization_) {
     viewer_ = new pcl::visualization::PCLVisualizer("PERCH Viewer");
@@ -129,9 +134,12 @@ void PerceptionInterface::ImageCB(const sensor_msgs::ImageConstPtr& input_rgb_im
 void PerceptionInterface::CloudCB(const sensor_msgs::PointCloud2ConstPtr
                                   &sensor_cloud) {
 
-  // For tracking based testing, republish input until processing starts
+  // NA - For tracking based testing, republish input until processing starts
   // filtered_point_cloud_pub_.publish(sensor_cloud);
+
+  
   input_image_repub_.publish(recent_color_image_);
+  
   if (capture_kinect_ == false) {
     ROS_ERROR("%s", "Capture kinect false");
     return;
@@ -161,9 +169,9 @@ void PerceptionInterface::CloudCB(const sensor_msgs::PointCloud2ConstPtr
   // Fix up the "count" field of the PointCloud2 message because
   // transformLaserScanToPointCloud() does not set it to one which
   // is required by PCL since revision 5283.
-  for (unsigned int i = 0; i < ref_sensor_cloud.fields.size(); i++) {
-    ref_sensor_cloud.fields[i].count = 1;
-  }
+  // for (unsigned int i = 0; i < ref_sensor_cloud.fields.size(); i++) {
+  //   ref_sensor_cloud.fields[i].count = 1;
+  // }
 
   pcl::PCLPointCloud2 pcl_pc;
   pcl_conversions::toPCL(ref_sensor_cloud, pcl_pc);
@@ -178,22 +186,27 @@ void PerceptionInterface::CloudCB(const sensor_msgs::PointCloud2ConstPtr
   // printf("Sensor position: %f %f %f\n", pcl_cloud->sensor_origin_[0],
   //        pcl_cloud->sensor_origin_[1], pcl_cloud->sensor_origin_[2]);
 
-  recent_observations_.push_back(*pcl_cloud);
-  cout << "Collected point cloud " << recent_observations_.size() << endl;
+  // recent_observations_.push_back(*pcl_cloud);
+  // cout << "Collected point cloud " << recent_observations_.size() << endl;
 
-  if (static_cast<int>(recent_observations_.size()) <
-      num_observations_to_integrate_) {
-    return;
-  }
+  // if (static_cast<int>(recent_observations_.size()) <
+  //     num_observations_to_integrate_) {
+  //   return;
+  // }
 
-  PointCloudPtr integrated_cloud = IntegrateOrganizedClouds(
-                                     recent_observations_);
+  // PointCloudPtr integrated_cloud = IntegrateOrganizedClouds(
+  //                                    recent_observations_);
 
   ROS_DEBUG("[SBPL Perception]: Converted sensor cloud to pcl cloud");
   // CloudCBInternal(integrated_cloud);
   CloudCBInternal(pcl_cloud);
 
-  capture_kinect_ = false;
+  if (!use_continuous_detection)
+    capture_kinect_ = false;
+  else
+    continuous_detection_frame_count++;
+  
+
   return;
 }
 
@@ -208,8 +221,41 @@ void PerceptionInterface::CloudCBInternal(const string &pcd_file) {
   CloudCBInternal(cloud);
 }
 
+Eigen::Isometry3d PerceptionInterface::GetCameraPose()
+{
+  tf::StampedTransform transform;
+  if (use_external_render == 0)
+  {
+      tf_listener_.lookupTransform(reference_frame_.c_str(),
+                                   camera_frame_.c_str(), ros::Time(0.0), transform);
+  }
+  else if (use_external_render == 1)
+  {
+    tf_listener_.lookupTransform(reference_frame_.c_str(),
+                                 camera_optical_frame_.c_str(), ros::Time(0.0), transform);
+  }
+  Eigen::Isometry3d camera_pose;
+  tf::transformTFToEigen(transform, camera_pose);
+  std::cout << "Camera Pose" << endl;
+  std::cout << camera_pose.matrix() << endl;
+
+  // tf_listener_.lookupTransform(reference_frame_.c_str(),
+  //                               camera_optical_frame_.c_str(), ros::Time(0.0), transform);
+  // printf("Camera to World Transform : %f, %f, %f\n", transform.getOrigin().x(),
+  //     transform.getOrigin().y(), transform.getOrigin().z());
+  // Eigen::Isometry3d camera_to_world_pose;
+  // tf::transformTFToEigen(transform, camera_to_world_pose);
+  // std::cout << "Camera To World Pose" << endl;
+  // std::cout << camera_to_world_pose.matrix() << endl;
+
+  return camera_pose;
+}
+
 void PerceptionInterface::CloudCBInternal(const PointCloudPtr
                                           &original_cloud) {
+  
+
+
   recent_cloud_.reset(new PointCloud(*original_cloud));
 
   if (pcl_visualization_) {
@@ -260,7 +306,6 @@ void PerceptionInterface::CloudCBInternal(const PointCloudPtr
   pt_filter.setFilterLimits(table_height_ + 0.005, table_height_ + 0.35);
   pt_filter.filter(*table_removed_cloud);
 
-  printf("table_removed_cloud size : %d\n", table_removed_cloud->size());
 
   sensor_msgs::PointCloud2 output;
   pcl::PCLPointCloud2 outputPCL;
@@ -269,8 +314,14 @@ void PerceptionInterface::CloudCBInternal(const PointCloudPtr
   // Convert to ROS data type
   pcl_conversions::fromPCL(outputPCL, output);
 
-  for (int i = 0; i < 10; i++)
-    filtered_point_cloud_pub_.publish(output);
+  // for (int i = 0; i < 1; i++)
+  printf("table_removed_cloud size : %d\n", table_removed_cloud->points.size());
+  if (table_removed_cloud->points.size() < 10)
+  {
+    ROS_ERROR("Too few points in cloud after filtering, unable to run estimation");
+    return;
+  }
+  filtered_point_cloud_pub_.publish(output);
 
   // pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
   // table_removed_cloud = perception_utils::RemoveGroundPlane(table_removed_cloud,
@@ -295,40 +346,45 @@ void PerceptionInterface::CloudCBInternal(const PointCloudPtr
   }
 
   // Set RGB of filtered points to black.
-  for (auto &point : table_removed_cloud->points) {
-    if (std::isnan(point.z) || !std::isfinite(point.z)) {
-      point.r = 0;
-      point.g = 0;
-      point.b = 0;
-    }
-  }
+  // for (auto &point : table_removed_cloud->points) {
+  //   if (std::isnan(point.z) || !std::isfinite(point.z)) {
+  //     point.r = 0;
+  //     point.g = 0;
+  //     point.b = 0;
+  //   }
+  // }
 
-  tf::StampedTransform transform;
+  // tf::StampedTransform transform;
 
-  if (use_external_render == 0)
+  // if (use_external_render == 0)
+  // {
+  //     tf_listener_.lookupTransform(reference_frame_.c_str(),
+  //                                  camera_frame_.c_str(), ros::Time(0.0), transform);
+  // }
+  // else if (use_external_render == 1)
+  // {
+  //   tf_listener_.lookupTransform(reference_frame_.c_str(),
+  //                                camera_optical_frame_.c_str(), ros::Time(0.0), transform);
+  // }
+  if (!camera_pose_set)
   {
-      tf_listener_.lookupTransform(reference_frame_.c_str(),
-                                   camera_frame_.c_str(), ros::Time(0.0), transform);
+    camera_pose = GetCameraPose();
+    camera_pose_set = true;
   }
-  else if (use_external_render == 1)
-  {
-    tf_listener_.lookupTransform(reference_frame_.c_str(),
-                                 camera_optical_frame_.c_str(), ros::Time(0.0), transform);
-  }
-  Eigen::Isometry3d camera_pose;
-  tf::transformTFToEigen(transform, camera_pose);
-  std::cout << "Camera Pose" << endl;
-  std::cout << camera_pose.matrix() << endl;
+  // tf::transformTFToEigen(transform, camera_pose);
+  // std::cout << "Camera Pose" << endl;
+  // std::cout << camera_pose.matrix() << endl;
 
 
-  tf_listener_.lookupTransform(reference_frame_.c_str(),
-                                camera_optical_frame_.c_str(), ros::Time(0.0), transform);
-  printf("Camera to World Transform : %f, %f, %f\n", transform.getOrigin().x(),
-      transform.getOrigin().y(), transform.getOrigin().z());
-  Eigen::Isometry3d camera_to_world_pose;
-  tf::transformTFToEigen(transform, camera_to_world_pose);
-  std::cout << "Camera To World Pose" << endl;
-  std::cout << camera_to_world_pose.matrix() << endl;
+  // tf_listener_.lookupTransform(reference_frame_.c_str(),
+  //                               camera_optical_frame_.c_str(), ros::Time(0.0), transform);
+  // printf("Camera to World Transform : %f, %f, %f\n", transform.getOrigin().x(),
+  //     transform.getOrigin().y(), transform.getOrigin().z());
+  // Eigen::Isometry3d camera_to_world_pose;
+  // tf::transformTFToEigen(transform, camera_to_world_pose);
+  // std::cout << "Camera To World Pose" << endl;
+  // std::cout << camera_to_world_pose.matrix() << endl;
+
   // string output_dir = ros::package::getPath("object_recognition_node");
   // static int image_count = 0;
   // string output_image_name = string("frame_") + std::to_string(image_count);
@@ -343,7 +399,7 @@ void PerceptionInterface::CloudCBInternal(const PointCloudPtr
   // output_pcd_path.replace_extension(".pcd");
   // output_orig_pcd_path.replace_extension(".pcd");
   //
-  // cout << output_image_path.c_str() << endl;
+  // cout << output_image_path.c_str() << endl;   
   // cout << output_pcd_path.c_str() << endl;
   //
   // pcl::io::savePNGFile(output_image_path.c_str(), *table_removed_cloud);
@@ -353,26 +409,33 @@ void PerceptionInterface::CloudCBInternal(const PointCloudPtr
   // image_count++;
 
   // Run object recognition.
+
   object_recognition_node::LocalizeObjects srv;
   auto &req = srv.request;
-  req.x_min = xmin_;
-  req.x_max = xmax_;
-  req.y_min = ymin_;
-  req.y_max = ymax_;
-  req.support_surface_height = table_height_;
+  // req.x_min = xmin_;
+  // req.x_max = xmax_;
+  // req.y_min = ymin_;
+  // req.y_max = ymax_;
+  // req.support_surface_height = table_height_;
   req.object_ids = latest_requested_objects_;
-  req.reference_frame_ = reference_frame_;
-  req.use_external_render = use_external_render;
-  req.use_external_pose_list = use_external_pose_list;
-  req.use_icp = use_icp;
+  // req.reference_frame_ = reference_frame_;
+  // req.use_external_render = use_external_render;
+  // req.use_external_pose_list = use_external_pose_list;
+  // req.use_icp = use_icp;
   req.use_input_images = use_input_images;
   req.use_render_greedy = use_render_greedy;
   tf::matrixEigenToMsg(camera_pose.matrix(), req.camera_pose);
   pcl::toROSMsg(*table_removed_cloud, req.input_organized_cloud);
 
   latest_object_poses_.clear();
+  chrono::time_point<chrono::system_clock> start, end;
+  start = chrono::system_clock::now();
   bool service_call_success = object_localization_client_.call(srv);
   latest_call_success_ = service_call_success;
+
+
+  end = chrono::system_clock::now();
+  chrono::duration<double> elapsed_seconds = end-start;
 
   if (service_call_success) {
     ROS_INFO("Episode Statistics\n");
@@ -406,13 +469,14 @@ void PerceptionInterface::CloudCBInternal(const PointCloudPtr
           const string &model_name = req.object_ids[ii];
           const string &model_file = model_bank_[model_name].file;
           cout << model_file << endl;
-          pcl::PolygonMesh mesh;
-          pcl::io::loadPolygonFile(model_file, mesh);
-          pcl::PolygonMesh::Ptr mesh_ptr(new pcl::PolygonMesh(mesh));
-          ObjectModel::TransformPolyMesh(mesh_ptr, mesh_ptr,
-                                        object_transform.matrix().cast<float>());
+
 
           if (pcl_visualization_) {
+              pcl::PolygonMesh mesh;
+              pcl::io::loadPolygonFile(model_file, mesh);
+              pcl::PolygonMesh::Ptr mesh_ptr(new pcl::PolygonMesh(mesh));
+              ObjectModel::TransformPolyMesh(mesh_ptr, mesh_ptr,
+                                        object_transform.matrix().cast<float>());
               viewer_->addPolygonMesh(*mesh_ptr, model_name);
               viewer_->setPointCloudRenderingProperties(
                 pcl::visualization::PCL_VISUALIZER_OPACITY, 0.2, model_name);
@@ -438,7 +502,7 @@ void PerceptionInterface::CloudCBInternal(const PointCloudPtr
           visualization_msgs::Marker marker;
           marker.header.frame_id = reference_frame_;
           marker.header.stamp = ros::Time();
-          marker.ns = "perch";
+          marker.ns = "perch_frame _" + std::to_string(continuous_detection_frame_count);
           marker.id = ii;
           marker.type = visualization_msgs::Marker::MESH_RESOURCE;
           marker.action = visualization_msgs::Marker::ADD;
@@ -489,6 +553,9 @@ void PerceptionInterface::CloudCBInternal(const PointCloudPtr
         perch_server_->setAborted(perch_result_);
       }
   }
+
+  
+  ROS_INFO("Pose Estimation total of %f seconds\n", elapsed_seconds.count());
 }
 
 // void PerceptionInterface::KeyboardCB(const keyboard::Key &pressed_key) {
@@ -511,7 +578,7 @@ void PerceptionInterface::RequestedObjectsCB(const std_msgs::String
       ss >> word;
       if (word.size() > 0)
       {
-        cout << "Parsed requested object : " << word << endl;
+        cout << "[Perception Interface]:  Parsed requested object : " << word << endl;
         latest_requested_objects_.push_back(word);
       }
   } while (ss);
@@ -521,6 +588,28 @@ void PerceptionInterface::RequestedObjectsCB(const std_msgs::String
   // latest_requested_objects_ = {"crate"};
   capture_kinect_ = true;
   recent_observations_.clear();
+
+  if (!static_input_set)
+  {
+    ROS_INFO("[Perception Interface]:  Need to static input like loading modelsas");
+    object_recognition_node::LocalizeObjects srv;
+    auto &req = srv.request;
+    req.x_min = xmin_;
+    req.x_max = xmax_;
+    req.y_min = ymin_;
+    req.y_max = ymax_;
+    req.support_surface_height = table_height_;
+    req.object_ids = latest_requested_objects_;
+    req.reference_frame_ = reference_frame_;
+    req.use_external_render = use_external_render;
+    req.use_external_pose_list = use_external_pose_list;
+    req.use_icp = use_icp;
+    req.use_input_images = use_input_images;
+
+    bool service_call_success = set_static_input_client_.call(srv);
+    static_input_set = true;
+  }
+
   return;
 }
 

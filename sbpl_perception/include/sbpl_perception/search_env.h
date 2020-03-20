@@ -235,6 +235,7 @@ class EnvObjectRecognition : public EnvironmentMHA {
 
   void Initialize(const EnvConfig &env_config);
   void SetInput(const RecognitionInput &input);
+  void SetStaticInput(const RecognitionInput &input);
 
   /** Methods to set the observed depth image**/
   void SetObservation(std::vector<int> object_ids,

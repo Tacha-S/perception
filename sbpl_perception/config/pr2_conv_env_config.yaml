@@ -15,7 +15,7 @@ perch_params:
   use_model_specific_search_resolution: false
 
   ## RGB
-  use_color_cost: true
+  use_color_cost: false
   color_distance_threshold: 15
 
   ## With Downsampling
@@ -40,7 +40,7 @@ perch_params:
   gpu_batch_size: 700
 
   ## Visualization and Debugging
-  visualize_expanded_states: true
+  visualize_expanded_states: false
   visualize_successors: false
   print_expanded_states: false
   debug_verbose: false # unused

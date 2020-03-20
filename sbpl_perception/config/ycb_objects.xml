@@ -82,6 +82,15 @@
         0.06,
         1
       ],
+      [
+        035_power_drill,
+        $(find sbpl_perception)/data/ycb_models/035_power_drill/textured_upright.ply,
+        false,
+        false,
+        0,
+        0.06,
+        1
+      ]
     ]
   </rosparam>
 </launch>
