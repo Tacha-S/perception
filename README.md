@@ -54,7 +54,7 @@ Setup (For running with a robot camera or bagfile recorded from robot)
    source /ros_python3_ws/devel/setup.bash 
    roslaunch object_recognition_node pr2_conveyor_object_recognition.launch
    ```
-10. Request for objects and run the bag file :
+10. Request for objects and run the bag file (recorded from a Kinect camera on a PR2 robot) :
    ```
    rosbag play 3dof_1_2020-03-04-14-17-00.bag
 
