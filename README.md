@@ -39,7 +39,7 @@ Setup (For running with a robot camera or bagfile recorded from robot)
    mkdir -p data/ycb_models
    ```
 6. Download the YCB models from this [link](https://drive.google.com/file/d/1gmcDD-5bkJfcMKLZb3zGgH_HUFbulQWu/view?usp=sharing) and extract them in the ```ycb_models``` folder created above
-7. Download the example bag file from this [link]() 
+7. Download the example bag file from this [link](https://drive.google.com/file/d/1EVYREHvi0hW8DoMpVaNeMC9ruxYtm0aV/view?usp=sharing) 
 
 8. Run the Docker while mounting the cloned repo to the workspace inside the Docker and build the workspace :
    ```
