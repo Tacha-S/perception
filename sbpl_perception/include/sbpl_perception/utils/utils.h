@@ -73,6 +73,8 @@ struct RecognitionInput {
 
   std::string predicted_mask_image;
 
+  std::string rendered_root_dir;
+
   int use_input_images;
 
   int use_external_pose_list;
@@ -112,6 +114,9 @@ struct ModelMetaData {
 struct EnvStats {
   int scenes_rendered;
   int scenes_valid;
+  double time;
+  double icp_time;
+  double peak_gpu_mem;
 };
 
 typedef std::function<int(const GraphState &state)> Heuristic;
@@ -202,6 +207,7 @@ void serialize(Archive &ar, sbpl_perception::RecognitionInput &input,
   ar &input.input_color_image;
   ar &input.input_depth_image;
   ar &input.predicted_mask_image;
+  ar &input.rendered_root_dir;
   ar &input.use_input_images;
   ar &input.use_external_pose_list;
   ar &input.depth_factor;

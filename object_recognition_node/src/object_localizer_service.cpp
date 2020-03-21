@@ -11,9 +11,49 @@ namespace sbpl_perception {
 ObjectLocalizerService::ObjectLocalizerService(ros::NodeHandle nh,
                                                const std::shared_ptr<boost::mpi::communicator> &mpi_world) : nh_(nh),
   mpi_world_(mpi_world), object_recognizer_(new ObjectRecognizer(mpi_world_)) {
+  set_static_input_service_ = nh_.advertiseService("set_static_input_service",
+                                            &ObjectLocalizerService::SetStaticInputCallback, this);
+  ROS_INFO("Set input service is up and running");
   localizer_service_ = nh_.advertiseService("object_localizer_service",
                                             &ObjectLocalizerService::LocalizerCallback, this);
   ROS_INFO("Object localizer service is up and running");
+}
+
+bool ObjectLocalizerService::SetStaticInputCallback(object_recognition_node::LocalizeObjects::Request &req,
+                                                    object_recognition_node::LocalizeObjects::Response &res
+  ) {
+
+  ROS_INFO("Set Static Input Service Callback");
+  RecognitionInput recognition_input;
+  recognition_input.model_names = req.object_ids;
+  recognition_input.x_min = req.x_min;
+  recognition_input.x_max = req.x_max;
+  recognition_input.y_min = req.y_min;
+  recognition_input.y_max = req.y_max;
+  recognition_input.table_height = req.support_surface_height;
+  recognition_input.heuristics_dir = req.heuristics_dir;
+  recognition_input.use_external_render = req.use_external_render;
+  recognition_input.use_external_pose_list = req.use_external_pose_list;
+  recognition_input.use_icp = req.use_icp;
+  recognition_input.use_input_images = req.use_input_images;
+  ROS_DEBUG("External Render : %d\n", recognition_input.use_external_render);
+  recognition_input.reference_frame_ = req.reference_frame_;
+
+  ROS_DEBUG_STREAM("Bounds:\n" << recognition_input.x_min <<
+                   recognition_input.x_max << recognition_input.y_min << recognition_input.y_max);
+  ROS_DEBUG_STREAM("Support surface height:\n" <<
+                   recognition_input.table_height);
+  ROS_DEBUG_STREAM("Number of target objects:\n" << static_cast<int>
+                   (recognition_input.model_names.size()));
+
+  std::vector<Eigen::Affine3f>* object_transforms;
+  std::vector<Eigen::Affine3f> preprocessing_object_transforms;
+  std::vector<ContPose> detected_poses;
+  std::vector<std::string> detected_model_names;
+
+  bool found_solution = object_recognizer_->SetStaticInput(recognition_input);
+  return true;
+
 }
 
 bool ObjectLocalizerService::LocalizerCallback(LocalizeObjects::Request &req,
@@ -35,6 +75,7 @@ bool ObjectLocalizerService::LocalizerCallback(LocalizeObjects::Request &req,
   recognition_input.use_input_images = req.use_input_images;
   ROS_DEBUG("External Render : %d\n", recognition_input.use_external_render);
   recognition_input.reference_frame_ = req.reference_frame_;
+  bool use_render_greedy = req.use_render_greedy;
 
   Eigen::Matrix4d pose(req.camera_pose.data.data());
   // Transpose to convert column-major raw data initialization to row-major.
@@ -48,10 +89,15 @@ bool ObjectLocalizerService::LocalizerCallback(LocalizeObjects::Request &req,
                    recognition_input.table_height);
   ROS_DEBUG_STREAM("Number of target objects:\n" << static_cast<int>
                    (recognition_input.model_names.size()));
+  ROS_DEBUG_STREAM("Use Render Greedy:" << use_render_greedy << endl);
 
   vector<Eigen::Affine3f> object_transforms;
-  const bool success = LocalizerHelper(mpi_world_, *object_recognizer_,
-                                       recognition_input, &object_transforms);
+  const bool success = LocalizerHelper(mpi_world_, 
+                                        *object_recognizer_,
+                                        recognition_input, 
+                                        &object_transforms,
+                                        use_render_greedy
+                                       );
 
   if (success) {
 
@@ -67,19 +113,19 @@ bool ObjectLocalizerService::LocalizerCallback(LocalizeObjects::Request &req,
     res.object_transforms = rosmsg_object_transforms;
 
     // Fill in object point clouds.
-    auto object_point_clouds = object_recognizer_->GetObjectPointClouds();
-    vector<sensor_msgs::PointCloud2> rosmsg_object_point_clouds(
-      object_point_clouds.size());
+    // auto object_point_clouds = object_recognizer_->GetObjectPointClouds();
+    // vector<sensor_msgs::PointCloud2> rosmsg_object_point_clouds(
+    //   object_point_clouds.size());
 
-    for (size_t ii = 0; ii < object_point_clouds.size(); ++ii) {
-      pcl::toROSMsg(*object_point_clouds[ii], rosmsg_object_point_clouds[ii]);
-      rosmsg_object_point_clouds[ii].header.stamp = ros::Time::now();
-      rosmsg_object_point_clouds[ii].header.frame_id = "world";
-      rosmsg_object_point_clouds[ii].height = object_point_clouds[ii]->height;
-      rosmsg_object_point_clouds[ii].width = object_point_clouds[ii]->width;
-    }
+    // for (size_t ii = 0; ii < object_point_clouds.size(); ++ii) {
+    //   pcl::toROSMsg(*object_point_clouds[ii], rosmsg_object_point_clouds[ii]);
+    //   rosmsg_object_point_clouds[ii].header.stamp = ros::Time::now();
+    //   rosmsg_object_point_clouds[ii].header.frame_id = "world";
+    //   rosmsg_object_point_clouds[ii].height = object_point_clouds[ii]->height;
+    //   rosmsg_object_point_clouds[ii].width = object_point_clouds[ii]->width;
+    // }
 
-    res.object_point_clouds = rosmsg_object_point_clouds;
+    // res.object_point_clouds = rosmsg_object_point_clouds;
   }
 
   // Fill in statistics.
@@ -94,10 +140,11 @@ bool ObjectLocalizerService::LocalizerCallback(LocalizeObjects::Request &req,
 return success;
 }
 
-bool ObjectLocalizerService::LocalizerHelper(const
-                                             std::shared_ptr<boost::mpi::communicator> &mpi_world,
-                                             const ObjectRecognizer &object_recognizer, const RecognitionInput &input,
-                                             vector<Eigen::Affine3f> *object_transforms) {
+bool ObjectLocalizerService::LocalizerHelper(const std::shared_ptr<boost::mpi::communicator> &mpi_world,
+                                             const ObjectRecognizer &object_recognizer, 
+                                             const RecognitionInput &input,
+                                             vector<Eigen::Affine3f> *object_transforms,
+                                             bool use_render_greedy) {
   object_transforms->clear();
 
   // Set input from master input
@@ -111,8 +158,22 @@ bool ObjectLocalizerService::LocalizerHelper(const
   broadcast(*mpi_world, recognition_input, kMasterRank);
 
   std::vector<Eigen::Affine3f> preprocessing_object_transforms;
-  const bool found_solution = object_recognizer.LocalizeObjects(
+  std::vector<ContPose> detected_poses;
+  std::vector<std::string> detected_model_names;
+  bool found_solution;
+  if (use_render_greedy)
+  {
+    found_solution = object_recognizer.LocalizeObjectsGreedyRender(recognition_input, 
+                                                                    object_transforms, 
+                                                                    &preprocessing_object_transforms,
+                                                                    &detected_poses, 
+                                                                    &detected_model_names);
+  }
+  else
+  {
+    found_solution = object_recognizer.LocalizeObjects(
                                 recognition_input, object_transforms, &preprocessing_object_transforms);
+  }
 
   return found_solution;
 }

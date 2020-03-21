@@ -7,6 +7,11 @@
  * Carnegie Mellon University, 2015
  */
 
+#include <cuda_renderer/renderer.h>
+// #include <cuda_icp/icp.h>
+// #include <cuda_icp/helper.h>
+#include <cuda_renderer/knncuda.h>
+
 #include <kinect_sim/model.h>
 #include <kinect_sim/scene.h>
 #include <kinect_sim/simulation_io.hpp>
@@ -35,11 +40,14 @@
 #include <pcl/PolygonMesh.h>
 #include <pcl/search/kdtree.h>
 #include <pcl/search/organized.h>
+#include <pcl/io/ply_io.h>
+#include <pcl/io/pcd_io.h>
 #include <pcl/visualization/pcl_visualizer.h>
 #include <pcl/visualization/range_image_visualizer.h>
 #include <pcl/visualization/image_viewer.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/filters/statistical_outlier_removal.h>
+#include <pcl/registration/gicp.h>
 
 #include <memory>
 #include <string>
@@ -51,7 +59,15 @@
 #include <sbpl_perception/ColorSpace/Conversion.h>
 #include <sbpl_perception/ColorSpace/Comparison.h>
 #include <chrono>
+#include <thread>
+#include <fstream>
+#include <algorithm> 
+// #include <cuda_icp_custom/kernel.h>
+// #include <cuda_icp_custom/kdtree.hpp>
+// #include <cuda_icp_custom/pointcloud.h>
+#include <numeric>
 
+int *difffilter(const cv::Mat& input,const cv::Mat& input1, cv::Mat& output);
 namespace sbpl_perception {
 
 struct EnvConfig {
@@ -64,6 +80,10 @@ struct EnvConfig {
 struct EnvParams {
   double table_height;
   Eigen::Isometry3d camera_pose;
+  cv::Mat cam_intrinsic;
+  cuda_renderer::Model::mat4x4 proj_mat;
+  int width;
+  int height;
   double x_min, x_max, y_min, y_max;
   double res, theta_res; // Resolution for x,y and theta
   int goal_state_id, start_state_id;
@@ -74,6 +94,7 @@ struct EnvParams {
   int use_external_pose_list;
   int use_icp;
   int shift_pose_centroid;
+  std::string rendered_root_dir;
 };
 
 struct PERCHParams {
@@ -117,6 +138,9 @@ struct PERCHParams {
   bool vis_successors;
 
   bool use_color_cost;
+  int gpu_batch_size;
+  bool use_gpu;
+  double color_distance_threshold;
 
   PERCHParams() : initialized(false) {}
 
@@ -140,6 +164,9 @@ struct PERCHParams {
     ar &use_downsampling;
     ar &downsampling_leaf_size;
     ar &use_color_cost;
+    ar &gpu_batch_size;
+    ar &use_gpu;
+    ar &color_distance_threshold;
   }
 };
 // BOOST_IS_MPI_DATATYPE(PERCHParams);
@@ -208,6 +235,7 @@ class EnvObjectRecognition : public EnvironmentMHA {
 
   void Initialize(const EnvConfig &env_config);
   void SetInput(const RecognitionInput &input);
+  void SetStaticInput(const RecognitionInput &input);
 
   /** Methods to set the observed depth image**/
   void SetObservation(std::vector<int> object_ids,
@@ -219,13 +247,11 @@ class EnvObjectRecognition : public EnvironmentMHA {
   double GetTableHeight();
   void SetBounds(double x_min, double x_max, double y_min, double y_max);
 
-  double GetICPAdjustedPoseCUDA(const PointCloudPtr cloud_in,
-                            const ContPose &pose_in, PointCloudPtr &cloud_out, ContPose *pose_out,
-                            const std::vector<int> counted_indices = std::vector<int>(0));
-
   double GetICPAdjustedPose(const PointCloudPtr cloud_in,
                             const ContPose &pose_in, PointCloudPtr &cloud_out, ContPose *pose_out,
-                            const std::vector<int> counted_indices = std::vector<int>(0));
+                            const std::vector<int> counted_indices = std::vector<int>(0),
+                            const PointCloudPtr target_cloud = NULL,
+                            const std::string object_name = "");
 
   std::vector<unsigned short> GetInputDepthImage() {
     return observed_depth_image_;
@@ -294,7 +320,6 @@ class EnvObjectRecognition : public EnvironmentMHA {
   void ComputeCostsInParallel(std::vector<CostComputationInput> &input,
                               std::vector<CostComputationOutput> *output, bool lazy);
 
-
   void PrintValidStates();
 
   void SetDebugOptions(bool image_debug);
@@ -314,8 +339,11 @@ class EnvObjectRecognition : public EnvironmentMHA {
   std::unique_ptr<RCNNHeuristicFactory> rcnn_heuristic_factory_;
   Heuristics rcnn_heuristics_;
 
-  PointCloudPtr GetGravityAlignedPointCloudCV(cv::Mat depth_image, cv::Mat color_image, cv::Mat predicted_mask_image, double depth_factor);
+  void getGlobalPointCV (int u, int v, float range,
+                          const Eigen::Isometry3d &pose, Eigen::Vector3f &world_point);
 
+  PointCloudPtr GetGravityAlignedPointCloudCV(cv::Mat depth_image, cv::Mat color_image, cv::Mat predicted_mask_image, double depth_factor);
+  PointCloudPtr GetGravityAlignedPointCloudCV(cv::Mat depth_image, cv::Mat color_image, double depth_factor);
   PointCloudPtr GetGravityAlignedPointCloud(
     const vector<unsigned short> &depth_image, uint8_t rgb[3]);
 
@@ -331,6 +359,117 @@ class EnvObjectRecognition : public EnvironmentMHA {
   void PrintPointCloud(PointCloudPtr gravity_aligned_point_cloud, int state_id, ros::Publisher point_cloud_topic);
   // void PrintPointCloud(PointCloudPtr gravity_aligned_point_cloud, int state_id, ros::Publisher point_cloud_topic);
 
+  //6D stuff
+  std::vector<PointCloudPtr> segmented_object_clouds;
+  std::vector<std::string> segmented_object_names;
+  void GetShiftedCentroidPosesGPU(const vector<ObjectState>& objects,
+                                  vector<ObjectState>& modified_objects,
+                                  int start_index);
+  vector<float> segmented_observed_point_count;
+  std::vector<pcl::search::KdTree<PointT>::Ptr> segmented_object_knn;
+  std::vector<uint8_t> predicted_mask_image;
+
+  // CUDA GPU stuff
+  std::unordered_map<int, std::vector<int32_t>> gpu_depth_image_cache_;
+  std::unordered_map<int, std::vector<std::vector<uint8_t>>> gpu_color_image_cache_;
+  void ComputeCostsInParallelGPU(std::vector<CostComputationInput> &input,
+                              std::vector<CostComputationOutput> *output, bool lazy);
+  void ComputeGreedyCostsInParallelGPU(const std::vector<int32_t> &source_result_depth,
+                                      const std::vector<ObjectState> &last_object_states,
+                                      std::vector<CostComputationOutput> &output,
+                                      int batch_index);
+  vector<int> tris_model_count;
+  vector<cuda_renderer::Model::Triangle> tris;
+  float gpu_depth_factor = 100.0;
+  int gpu_point_dim = 3;
+  // Stride should divide width exactly
+  int gpu_stride = 5;
+  float* result_observed_cloud;
+  uint8_t* result_observed_cloud_color;
+  int observed_point_num;
+  int* observed_dc_index;
+  int32_t* observed_depth_data;
+  int *unfiltered_depth_data;
+  int* result_observed_cloud_label;
+
+  cv::Mat cv_input_filtered_depth_image, cv_input_filtered_color_image, cv_input_unfiltered_depth_image;
+  vector<vector<uint8_t>> cv_input_filtered_color_image_vec;
+  void PrintGPUImages(vector<int32_t>& result_depth, 
+                      vector<vector<uint8_t>>& result_color, 
+                      int num_poses, string suffix, 
+                      vector<int> pose_occluded,
+                      const vector<int> cost = vector<int>());
+
+  void GetICPAdjustedPosesCPU(const vector<ObjectState>& objects,
+                              int num_poses,
+                              float* result_cloud,
+                              uint8_t* result_cloud_color,
+                              int rendered_point_num,
+                              int* cloud_pose_map,
+                              int* pose_occluded,
+                              vector<ObjectState>& modified_objects,
+                              bool do_icp,
+                              ros::Publisher render_point_cloud_topic,
+                              bool print_cloud);
+
+  void PrintGPUClouds(const vector<ObjectState>& objects,
+                      float* cloud, 
+                      uint8_t* cloud_color,
+                      int* result_depth, 
+                      int* dc_index, 
+                      int num_poses, 
+                      int cloud_point_num, 
+                      int stride,
+                      int* pose_occluded,
+                      string suffix,
+                      vector<ObjectState>& modified_objects,
+                      bool do_icp,
+                      ros::Publisher render_point_cloud_topic,
+                      bool print_cloud);
+
+  void GetStateImagesGPU(const vector<ObjectState>& objects,
+                        const vector<vector<uint8_t>>& source_result_color,
+                        const vector<int32_t>& source_result_depth,
+                        vector<vector<uint8_t>>& result_color,
+                        vector<int32_t>& result_depth,
+                        vector<int>& pose_occluded,
+                        int single_result_image,
+                        vector<int>& pose_occluded_other,
+                        vector<float>& pose_clutter_cost,
+                        const vector<int>& pose_segmentation_label = vector<int>());
+
+  void GetStateImagesUnifiedGPU(const string stage,
+                      const vector<ObjectState>& objects,
+                      const vector<vector<uint8_t>>& source_result_color,
+                      const vector<int32_t>& source_result_depth,
+                      vector<vector<uint8_t>>& result_color,
+                      vector<int32_t>& result_depth,
+                      int single_result_image,
+                      vector<float>& pose_clutter_cost,
+                      float* &result_cloud,
+                      uint8_t* &result_cloud_color,
+                      int& result_cloud_point_num,
+                      int* &dc_index,
+                      int* &cloud_pose_map,
+                      // Costs
+                      float* &rendered_cost,
+                      float* &observed_cost,
+                      float* &points_diff_cost,
+                      int cost_type = 0,
+                      bool calculate_observed_cost = false);
+
+  void GetICPAdjustedPosesGPU(float* result_rendered_clouds,
+                              int* dc_index,
+                              int32_t* depth_data,
+                              int num_poses,
+                              float* result_observed_cloud,
+                              int* observed_dc_index,
+                              int total_rendered_points,
+                              int* poses_occluded);
+
+  GraphState ComputeGreedyRenderPoses();
+  void PrintStateGPU(GraphState state);
+
   // We should get rid of this eventually.
   friend class ObjectRecognizer;
 
@@ -340,9 +479,13 @@ class EnvObjectRecognition : public EnvironmentMHA {
   ros::Publisher downsampled_input_point_cloud_topic;
   ros::Publisher downsampled_mesh_cloud_topic;
   ros::Publisher input_point_cloud_topic;
+  ros::Publisher gpu_input_point_cloud_topic;
   cv::Mat cv_input_color_image;
+  std::string input_depth_image_path;
 
+  
   std::vector<ObjectModel> obj_models_;
+  std::vector<cuda_renderer::Model> render_models_;
   pcl::simulation::Scene::Ptr scene_;
 
   EnvParams env_params_;
@@ -456,8 +599,21 @@ class EnvObjectRecognition : public EnvironmentMHA {
               std::vector<std::vector<unsigned char>> *unadjusted_child_color_image,
               double &histogram_score);
 
+  int GetColorOnlyCost(const GraphState &source_state, const GraphState &child_state,
+              const std::vector<unsigned short> &source_depth_image,
+              const std::vector<std::vector<unsigned char>> &source_color_image,
+              const std::vector<int> &parent_counted_pixels,
+              std::vector<int> *child_counted_pixels,
+              GraphState *adjusted_child_state,
+              GraphStateProperties *state_properties,
+              std::vector<unsigned short> *adjusted_child_depth_image,
+              std::vector<std::vector<unsigned char>> *adjusted_child_color_image,
+              std::vector<unsigned short> *unadjusted_child_depth_image,
+              std::vector<std::vector<unsigned char>> *unadjusted_child_color_image);
+
   double getColorDistanceCMC(uint32_t rgb_1, uint32_t rgb_2) const;
   double getColorDistance(uint32_t rgb_1, uint32_t rgb_2) const;
+  double getColorDistance(uint8_t r1,uint8_t g1,uint8_t b1,uint8_t r2,uint8_t g2,uint8_t b2) const;
   int getNumColorNeighboursCMC(PointT point, const PointCloudPtr point_cloud) const;
   int getNumColorNeighbours(PointT point, vector<int> indices, const PointCloudPtr point_cloud) const;
 
@@ -475,6 +631,7 @@ class EnvObjectRecognition : public EnvironmentMHA {
                        const ObjectState &last_object,
                        const std::vector<int> &counted_pixels,
                        std::vector<int> *updated_counted_pixels);
+  int GetColorCost(cv::Mat *cv_depth_image,cv::Mat *cv_color_image);
 
   // Computes the cost for the lazy parent-child edge. This is an admissible estimate of the true parent-child edge cost, computed without any
   // additional renderings. This requires the true source depth image and
@@ -499,7 +656,7 @@ class EnvObjectRecognition : public EnvironmentMHA {
                          unsigned short *max_succ_depth);
 
   bool IsValidPose(GraphState s, int model_id, ContPose p,
-                   bool after_refinement) const;
+                   bool after_refinement, int required_object_id) const;
 
   int rejected_histogram_count = 0;
   bool IsValidHistogram(int object_model_id, cv::Mat last_cv_obj_color_image, double threshold, double &base_distance);

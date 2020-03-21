@@ -50,7 +50,9 @@ dist/
 *.swp
 *~
 
+sbpl_perception/visualization
 heuristics/
 *_results/
 rcnn/
 icra16*
+log*

@@ -47,7 +47,11 @@ const string kDebugDir = ros::package::getPath("sbpl_perception") +
                          "/visualization/";
 
 Eigen::Affine3f PreprocessModel(const pcl::PolygonMesh::Ptr &mesh_in,
-                                pcl::PolygonMesh::Ptr &mesh_out, bool mesh_in_mm, double kMeshScalingFactor, bool flipped) {
+                                pcl::PolygonMesh::Ptr &mesh_out, 
+                                bool mesh_in_mm, 
+                                double kMeshScalingFactor, 
+                                bool flipped,
+                                bool use_external_pose_list) {
   pcl::PointCloud<PointT>::Ptr cloud_in (new
                                          pcl::PointCloud<PointT>);
   pcl::PointCloud<PointT>::Ptr cloud_out (new
@@ -70,7 +74,17 @@ Eigen::Affine3f PreprocessModel(const pcl::PolygonMesh::Ptr &mesh_in,
 
   PointT min_pt, max_pt;
   pcl::getMinMax3D(*cloud_in, min_pt, max_pt);
-  double z_translation = min_pt.z;
+  double z_translation;
+  if (use_external_pose_list)
+  {
+    z_translation = centroid[2];
+    // z_translation = min_pt.z;
+  }
+  else
+  {
+    z_translation = min_pt.z;
+  }
+  // 6dof
   // double z_translation = 0.01;
   std::cout << "Preprocessing Model, z : " << z_translation << endl;
   // std::cout <<  "Bounds: " << max_pt.x - min_pt.x << endl
@@ -214,12 +228,15 @@ cv::Point WorldPointToRasterPoint(double x, double y, double half_side) {
 } // namespace
 
 ObjectModel::ObjectModel(const pcl::PolygonMesh &mesh, const string name,
-                         const bool symmetric, const bool flipped) {
+                         const bool symmetric, const bool flipped, const bool use_external_pose_list) {
   pcl::PolygonMesh::Ptr mesh_in(new pcl::PolygonMesh(mesh));
   // pcl::PolygonMesh::Ptr mesh_out(new pcl::PolygonMesh(mesh));
   pcl::PolygonMesh::Ptr mesh_out(new pcl::PolygonMesh);
   preprocessing_transform_ = PreprocessModel(mesh_in, mesh_out,
-                                             kMeshInMillimeters, kMeshScalingFactor, flipped);
+                                             kMeshInMillimeters, 
+                                             kMeshScalingFactor, 
+                                             flipped,
+                                             use_external_pose_list);
 
   std::cout << "Preprocessing transform : " << preprocessing_transform_.matrix() << endl;
   mesh_ = *mesh_out;
@@ -372,7 +389,7 @@ void ObjectModel::SetObjectProperties() {
   // printf("\n");
   // printf("Polygon size: %d\n", static_cast<int>(polygons[0].vertices.size()));
   //
-  // printf("Inflation factor for model %s: %f\n", name_.c_str(), inflation_factor_);
+  printf("Inflation factor for model %s: %f\n", name_.c_str(), inflation_factor_);
 
   // Rasterize the footprint for fast point-within-footprint checking
   // Aditya
@@ -441,6 +458,10 @@ double ObjectModel::GetInscribedRadius() const {
 
 double ObjectModel::GetCircumscribedRadius() const {
   return std::max(fabs(max_x_ - min_x_), fabs(max_y_ - min_y_)) / 2.0;
+}
+
+double ObjectModel::GetCircumscribedRadius3D() const {
+  return std::max(fabs(max_x_ - min_x_), std::max(fabs(max_y_ - min_y_), fabs(max_z_ - min_z_))) / 2.0;
 }
 
 
