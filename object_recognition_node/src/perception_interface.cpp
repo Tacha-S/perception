@@ -412,16 +412,16 @@ void PerceptionInterface::CloudCBInternal(const PointCloudPtr
 
   object_recognition_node::LocalizeObjects srv;
   auto &req = srv.request;
-  // req.x_min = xmin_;
-  // req.x_max = xmax_;
-  // req.y_min = ymin_;
-  // req.y_max = ymax_;
-  // req.support_surface_height = table_height_;
+  req.x_min = xmin_;
+  req.x_max = xmax_;
+  req.y_min = ymin_;
+  req.y_max = ymax_;
+  req.support_surface_height = table_height_;
   req.object_ids = latest_requested_objects_;
-  // req.reference_frame_ = reference_frame_;
-  // req.use_external_render = use_external_render;
-  // req.use_external_pose_list = use_external_pose_list;
-  // req.use_icp = use_icp;
+  req.reference_frame_ = reference_frame_;
+  req.use_external_render = use_external_render;
+  req.use_external_pose_list = use_external_pose_list;
+  req.use_icp = use_icp;
   req.use_input_images = use_input_images;
   req.use_render_greedy = use_render_greedy;
   tf::matrixEigenToMsg(camera_pose.matrix(), req.camera_pose);
@@ -591,7 +591,7 @@ void PerceptionInterface::RequestedObjectsCB(const std_msgs::String
 
   if (!static_input_set)
   {
-    ROS_INFO("[Perception Interface]:  Need to static input like loading modelsas");
+    ROS_INFO("[Perception Interface]:  Need to static input like loading models");
     object_recognition_node::LocalizeObjects srv;
     auto &req = srv.request;
     req.x_min = xmin_;

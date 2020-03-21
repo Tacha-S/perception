@@ -355,6 +355,7 @@ bool ObjectRecognizer::LocalizeObjects(const RecognitionInput &input,
   RecognitionInput tweaked_input = input;
 
   bool plan_success = false;
+  env_obj_->SetStaticInput(tweaked_input);
   env_obj_->SetInput(tweaked_input);
   // Wait until all processes are ready for the planning phase.
   mpi_world_->barrier();
