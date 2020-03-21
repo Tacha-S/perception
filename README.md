@@ -2,7 +2,7 @@
 
 Overview
 --------
-This library provides implementations for single and multi-object pose estimation from RGB-D sensor (MS Kinect, ASUS Xtion etc.) data. 
+This library provides implementations for single and multi-object pose estimation from RGB-D sensor (MS Kinect, ASUS Xtion etc.) data. It renders 100s of poses in parallel on a GPU in order to find the pose that best explains the observed scene.
 
 Features
 ------------
