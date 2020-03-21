@@ -145,6 +145,7 @@ RUN git clone https://github.com/SBPL-Cruz/ros_python3_ws \
 #     && catkin build
 
 # Install PyTorch Detection
+ARG CACHEBUST=1
 ARG FORCE_CUDA="1"
 ENV FORCE_CUDA=${FORCE_CUDA}
 RUN git clone https://github.com/sbpl-cruz/maskrcnn-benchmark.git -b fat_pose_dataset_new \
@@ -158,7 +159,6 @@ RUN git clone https://github.com/NVIDIA/apex.git \
  && pip install -v --no-cache-dir ./
 #  && python setup.py install --cuda_ext --cpp_ext
 
-ARG CACHEBUST=1
 # Install PERCH
 RUN pip install catkin_pkg
 # For PERCH
