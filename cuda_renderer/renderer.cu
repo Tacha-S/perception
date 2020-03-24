@@ -886,7 +886,10 @@ namespace cuda_renderer {
                                                         real_width, 
                                                         real_height, 
                                                         stride, 
-                                                        device_pose_occluded_vec);
+                                                        device_pose_occluded_vec,
+                                                        NULL,
+                                                        kCameraCX, kCameraCY, kCameraFX, kCameraFY, depth_factor,
+                                                        NULL, NULL);
         if (cudaGetLastError() != cudaSuccess) 
         {
             printf("ERROR: Unable to execute kernel depth_to_mask\n");
@@ -1227,7 +1230,9 @@ namespace cuda_renderer {
                             int stride,
                             int point_dim,
                             int* &result_observed_cloud_label,
-                            uint8_t* label_mask_data)
+                            uint8_t* label_mask_data,
+                            double* observed_cloud_bounds,
+                            Eigen::Matrix4f* camera_transform)
     {
         printf("depth2cloud_global()\n");
         /**
@@ -1250,16 +1255,35 @@ namespace cuda_renderer {
         int32_t* depth_data_cuda;
         int* pose_occluded_cuda;
         uint8_t* label_mask_data_cuda = NULL;
+        double* observed_cloud_bounds_cuda = NULL;
+        Eigen::Matrix4f* camera_transform_cuda = NULL;
         // int stride = 5;
         cudaMalloc(&depth_data_cuda, num_poses * width * height * sizeof(int32_t));
         cudaMemcpy(depth_data_cuda, depth_data, num_poses * width * height * sizeof(int32_t), cudaMemcpyHostToDevice);
         
         if (label_mask_data != NULL)
         {
+            printf("Using segementation labels to create point cloud\n");
             cudaMalloc(&label_mask_data_cuda, num_poses * width * height * sizeof(uint8_t));
             cudaMemcpy(label_mask_data_cuda, label_mask_data, num_poses * width * height * sizeof(uint8_t), cudaMemcpyHostToDevice);
         }
-        
+        if (observed_cloud_bounds != NULL)
+        {
+            // std::cout << observed_cloud_bounds[0] << " " << observed_cloud_bounds[1] << std::endl;
+            printf("Using filter bounds to create point cloud\n");
+            printf("x_min : %f, x_max : %f\n", observed_cloud_bounds[0], observed_cloud_bounds[1]);
+            printf("y_min : %f, y_max : %f\n", observed_cloud_bounds[2], observed_cloud_bounds[3]);
+            printf("z_min : %f, z_max : %f\n", observed_cloud_bounds[4], observed_cloud_bounds[5]);
+            cudaMalloc(&observed_cloud_bounds_cuda, 6 * sizeof(double));
+            cudaMemcpy(observed_cloud_bounds_cuda, observed_cloud_bounds, 6 * sizeof(double), cudaMemcpyHostToDevice);
+        }
+        if (camera_transform != NULL)
+        {
+            printf("Using camera transform to transform point cloud to world frame\n");
+            std::cout << *camera_transform << std::endl; 
+            cudaMalloc(&camera_transform_cuda, sizeof(Eigen::Matrix4f));
+            cudaMemcpy(camera_transform_cuda, camera_transform, sizeof(Eigen::Matrix4f), cudaMemcpyHostToDevice);
+        }
         cudaMalloc(&pose_occluded_cuda, num_poses * sizeof(int));
         cudaMemcpy(pose_occluded_cuda, pose_occluded, num_poses * sizeof(int), cudaMemcpyHostToDevice);
 
@@ -1270,7 +1294,15 @@ namespace cuda_renderer {
         thrust::device_vector<int> mask(width*height*num_poses, 0);
         int* mask_ptr = thrust::raw_pointer_cast(mask.data());
 
-        depth_to_mask<<<numBlocks, threadsPerBlock>>>(depth_data_cuda, mask_ptr, width, height, stride, pose_occluded_cuda);
+        depth_to_mask<<<numBlocks, threadsPerBlock>>>(depth_data_cuda, 
+                                                      mask_ptr, width, 
+                                                      height, 
+                                                      stride, 
+                                                      pose_occluded_cuda,
+                                                      label_mask_data_cuda,
+                                                      kCameraCX, kCameraCY, kCameraFX, kCameraFY, depth_factor,
+                                                      observed_cloud_bounds_cuda, camera_transform_cuda);
+            
         if (cudaGetLastError() != cudaSuccess) 
         {
             printf("ERROR: Unable to execute kernel depth_to_mask\n");
@@ -1323,7 +1355,11 @@ namespace cuda_renderer {
         //                     cuda_cloud, cuda_cloud_color, rendered_cloud_point_num, mask_ptr, width, height, 
         //                     kCameraCX, kCameraCY, kCameraFX, kCameraFY, depth_factor, stride, cuda_cloud_pose_map,
         //                     label_mask_data_cuda, cuda_cloud_mask_label);
-            
+        if (cudaGetLastError() != cudaSuccess) 
+        {
+            printf("ERROR: Unable to execute kernel depth_to_2d_cloud\n");
+            return false;
+        }
         // cudaDeviceSynchronize();
         cudaMemcpy2D(
                 result_cloud,  rendered_cloud_point_num * sizeof(float), cuda_cloud,  query_pitch_in_bytes,  rendered_cloud_point_num * sizeof(float), point_dim, cudaMemcpyDeviceToHost);
@@ -1357,20 +1393,20 @@ namespace cuda_renderer {
         //         }
         //     }
         // }
-        if (cudaGetLastError() != cudaSuccess) 
-        {
-            printf("ERROR: Unable to execute kernel depth_to_cloud\n");
-            cudaFree(depth_data_cuda);
-            cudaFree(pose_occluded_cuda);
-            cudaFree(cuda_cloud);
-            cudaFree(cuda_cloud_color);
-            cudaFree(cuda_cloud_pose_map);
-            if (label_mask_data != NULL)
-            {
-                cudaFree(cuda_cloud_mask_label);
-            }
-            return false;
-        }
+        // if (cudaGetLastError() != cudaSuccess) 
+        // {
+        //     printf("ERROR: Unable to execute kernel depth_to_cloud\n");
+        //     cudaFree(depth_data_cuda);
+        //     cudaFree(pose_occluded_cuda);
+        //     cudaFree(cuda_cloud);
+        //     cudaFree(cuda_cloud_color);
+        //     cudaFree(cuda_cloud_pose_map);
+        //     if (label_mask_data != NULL)
+        //     {
+        //         cudaFree(cuda_cloud_mask_label);
+        //     }
+        //     return false;
+        // }
         printf("depth2cloud_global() Done\n");
         cudaFree(depth_data_cuda);
         cudaFree(pose_occluded_cuda);
@@ -1380,6 +1416,14 @@ namespace cuda_renderer {
         if (label_mask_data != NULL)
         {
             cudaFree(cuda_cloud_mask_label);
+        }
+        if (observed_cloud_bounds != NULL)
+        {
+            cudaFree(observed_cloud_bounds_cuda);
+        }
+        if (camera_transform != NULL)
+        {
+            cudaFree(camera_transform_cuda);
         }
         return true;
     }

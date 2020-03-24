@@ -376,6 +376,7 @@ class EnvObjectRecognition : public EnvironmentMHA {
   vector<float> segmented_observed_point_count;
   std::vector<pcl::search::KdTree<PointT>::Ptr> segmented_object_knn;
   std::vector<uint8_t> predicted_mask_image;
+  // std::vector<int32_t> input_depth_image_vec;
 
   // CUDA GPU stuff
   std::unordered_map<int, std::vector<int32_t>> gpu_depth_image_cache_;
@@ -397,8 +398,9 @@ class EnvObjectRecognition : public EnvironmentMHA {
   int observed_point_num;
   int* observed_dc_index;
   int32_t* observed_depth_data;
-  int *unfiltered_depth_data;
+  int* unfiltered_depth_data;
   int* result_observed_cloud_label;
+  vector<int32_t> input_depth_image_vec;
 
   cv::Mat cv_input_filtered_depth_image, cv_input_filtered_color_image, cv_input_unfiltered_depth_image;
   vector<vector<uint8_t>> cv_input_filtered_color_image_vec;

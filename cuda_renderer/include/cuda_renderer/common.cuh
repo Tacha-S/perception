@@ -4,7 +4,8 @@
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
 #include <thrust/copy.h>
-
+#include <Eigen/Core>
+#include <Eigen/Geometry>
 
 #ifndef COMMONCUDA_H
 #define COMMONCUDA_H
@@ -91,11 +92,35 @@ namespace cuda_renderer {
             dist[ (begin_A + ty) * query_pitch + begin_B + tx ] = ssd;
         }
     }
+    __device__ void transform_point(int x, int y, int32_t depth,
+        float kCameraCX, float kCameraCY, float kCameraFX, float kCameraFY, float depth_factor,
+        Eigen::Matrix4f* camera_transform,
+        float &x_pcd, float &y_pcd, float &z_pcd)
+    {
+        z_pcd = static_cast<float>(depth)/depth_factor;
+        x_pcd = (static_cast<float>(x) - kCameraCX)/kCameraFX * z_pcd;
+        y_pcd = (static_cast<float>(y) - kCameraCY)/kCameraFY * z_pcd;
+        // printf("kCameraCX:%f,kCameraFX:%f, kCameraCY:%f, kCameraCY:%f\n", kCameraCX,kCameraFX,kCameraCY, y_pcd, z_pcd);
+
+        // printf("x:%d,y:%d, x_pcd:%f, y_pcd:%f, z_pcd:%f\n", x,y,x_pcd, y_pcd, z_pcd);
+        if (camera_transform != NULL)
+        {
+            Eigen::Matrix<float, 3, 1> pt (x_pcd, y_pcd, z_pcd);
+            Eigen::Vector3f world_point = camera_transform->block<3,3>(0,0) * pt;
+            world_point += camera_transform->block<3,1>(0,3);
+            z_pcd = world_point[2];
+            y_pcd = world_point[1];
+            x_pcd = world_point[0];
+        }
+    }
     __global__ void depth_to_mask(
-        int32_t* depth, int* mask, int width, int height, int stride, int* pose_occluded)
+        int32_t* depth, int* mask, int width, int height, int stride, int* pose_occluded, uint8_t* label_mask_data,
+        float kCameraCX, float kCameraCY, float kCameraFX, float kCameraFY, float depth_factor,
+        double* observed_cloud_bounds, Eigen::Matrix4f* camera_transform)
     {
         /**
          * Creates a mask corresponding to valid depth points by using the depth data
+         * Optionally also filters the point clouds based on bounds given in world frame for 3-Dof
          *
         */
         int n = (int)floorf((blockIdx.x * blockDim.x + threadIdx.x)/(width/stride));
@@ -111,7 +136,32 @@ namespace cuda_renderer {
         // if(depth[idx_depth] > 0 && !pose_occluded[n]) 
         if(depth[idx_depth] > 0) 
         {
-            mask[idx_mask] = 1;
+            if (label_mask_data == NULL && camera_transform == NULL && observed_cloud_bounds == NULL)
+            {
+                // No label mask provided, so just create mask based on valid depth values
+                mask[idx_mask] = 1;
+            }
+            else if (label_mask_data != NULL)
+            {
+                // Use the label mask provided to create point cloud of only objects of interest
+                if (label_mask_data[idx_depth] > 0)
+                {
+                    mask[idx_mask] = 1;
+                }
+            }
+            else if (camera_transform != NULL && observed_cloud_bounds != NULL)
+            {
+                // Filter point cloud for 3Dof based on bounds given 
+                float x_pcd, y_pcd, z_pcd;
+                transform_point(x, y, depth[idx_depth], kCameraCX, kCameraCY, kCameraFX, kCameraFY,
+                                depth_factor, camera_transform, x_pcd, y_pcd, z_pcd);
+
+                if (x_pcd > (float) observed_cloud_bounds[0] || x_pcd < (float) observed_cloud_bounds[1]) return;
+                if (y_pcd > (float) observed_cloud_bounds[2] || y_pcd < (float) observed_cloud_bounds[3]) return;
+                if (z_pcd > (float) observed_cloud_bounds[4] || z_pcd < (float) observed_cloud_bounds[5]) return;
+                
+                mask[idx_mask] = 1;
+            }
         }
     }
     
@@ -140,12 +190,15 @@ namespace cuda_renderer {
     
         // printf("depth:%d\n", depth[idx_depth]);
         // uchar depth_val = depth[idx_depth];
-        float z_pcd = static_cast<float>(depth[idx_depth])/depth_factor;
-        float x_pcd = (static_cast<float>(x) - kCameraCX)/kCameraFX * z_pcd;
-        float y_pcd = (static_cast<float>(y) - kCameraCY)/kCameraFY * z_pcd;
+        // float z_pcd = static_cast<float>(depth[idx_depth])/depth_factor;
+        // float x_pcd = (static_cast<float>(x) - kCameraCX)/kCameraFX * z_pcd;
+        // float y_pcd = (static_cast<float>(y) - kCameraCY)/kCameraFY * z_pcd;
+        float x_pcd, y_pcd, z_pcd;
+        transform_point(x, y, depth[idx_depth], kCameraCX, kCameraCY, kCameraFX, kCameraFY,
+                depth_factor, NULL, x_pcd, y_pcd, z_pcd);
+
         // printf("kCameraCX:%f,kCameraFX:%f, kCameraCY:%f, kCameraCY:%f\n", kCameraCX,kCameraFX,kCameraCY, y_pcd, z_pcd);
-    
-        // printf("x:%d,y:%d, x_pcd:%f, y_pcd:%f, z_pcd:%f\n", x,y,x_pcd, y_pcd, z_pcd);
+        
         uint32_t idx_mask = n * width * height + x + y*width;
         int cloud_idx = mask[idx_mask];
         float* row_0 = (float *)((char*)cloud + 0 * cloud_pitch);

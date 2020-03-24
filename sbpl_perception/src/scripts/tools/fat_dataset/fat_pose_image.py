@@ -817,6 +817,13 @@ class FATImage:
         elif type == 'euler':
             return total_transform[:3,3], RT_transform.mat2euler(total_transform[:3,:3])
 
+    def get_bbox(self, img):
+        mask_args = np.argwhere(img > 0)
+        rmin, rmax, cmin, cmax = \
+            np.min(mask_args[:,0]), np.max(mask_args[:,0]), np.min(mask_args[:,1]), np.max(mask_args[:,1])
+
+        return [cmin, rmin, cmax, rmax]
+
     def render_pose(self, class_name, render_machine, rotation_angles, location):
         # Takes rotation and location in camera frame for object and renders and image for it
         # Expects location in cm
@@ -1048,7 +1055,7 @@ class FATImage:
 
         args = {
             'config_file' : cfg_file,
-            'confidence_threshold' : 0.9,
+            'confidence_threshold' : 0.80,
             'min_image_size' : min_image_size,
             'masks_per_dim' : 10,
             'show_mask_heatmaps' : False
@@ -1074,6 +1081,29 @@ class FATImage:
             topk_viewpoints=4,
             topk_inplane_rotations=4
         )
+    def get_2d_iou(self, boxA, boxB):
+        # determine the (x, y)-coordinates of the intersection rectangle
+        xA = max(boxA[0], boxB[0])
+        yA = max(boxA[1], boxB[1])
+        xB = min(boxA[2], boxB[2])
+        yB = min(boxA[3], boxB[3])
+
+        # compute the area of intersection rectangle
+        interArea = abs(max((xB - xA, 0)) * max((yB - yA), 0))
+        if interArea == 0:
+            return 0
+        # compute the area of both the prediction and ground-truth
+        # rectangles
+        boxAArea = abs((boxA[2] - boxA[0]) * (boxA[3] - boxA[1]))
+        boxBArea = abs((boxB[2] - boxB[0]) * (boxB[3] - boxB[1]))
+
+        # compute the intersection over union by taking the intersection
+        # area and dividing it by the sum of prediction + ground-truth
+        # areas - the interesection area
+        iou = interArea / float(boxAArea + boxBArea - interArea)
+
+        # return the intersection over union value
+        return iou
 
     def get_rotation_samples(self, label, num_samples):
         from sphere_fibonacci_grid_points import sphere_fibonacci_grid_points_with_sym_metric
@@ -1099,13 +1129,13 @@ class FATImage:
             # "021_bleach_cleanser": [0,2], #whole_0-2pi, 55 and 
             "024_bowl": [1,0], #whole_0
             "025_mug": [0,1], #whole_0-2pi
-            # "035_power_drill" : [1,0], #whole_0-2pi
-            "036_wood_block": [0,1], #half_0-pi
+            "035_power_drill" : [0,7], #whole_0-2pi
+            "036_wood_block": [0,0], #half_0-pi
             "037_scissors": [0,5], #whole_0-2pi
             "040_large_marker" : [1,0], #whole_0
             # "051_large_clamp": [1,1], #whole_0-pi
             # "052_extra_large_clamp": [1,2], #whole_0-pi
-            "061_foam_brick": [0,1] #half_0-pi
+            "061_foam_brick": [0,0] #half_0-pi
         }
         
         viewpoints_xyz = sphere_fibonacci_grid_points_with_sym_metric(num_samples,name_sym_dict[label][0])
@@ -1144,13 +1174,28 @@ class FATImage:
                 xyz_rotation_angles = [phi, theta, math.pi]
                 all_rots.append(xyz_rotation_angles)
             elif name_sym_dict[label][1] == 6:
+                # This causes sampling of inplane along z
                 xyz_rotation_angles = [-phi, 0, theta]
                 all_rots.append(xyz_rotation_angles)
                 xyz_rotation_angles = [-phi, math.pi/3, theta]
                 all_rots.append(xyz_rotation_angles)
                 xyz_rotation_angles = [-phi, 2*math.pi/3, theta]
                 all_rots.append(xyz_rotation_angles)
-
+            elif name_sym_dict[label][1] == 7:
+                # This causes sampling of inplane along z
+                # xyz_rotation_angles = [-phi, 0, theta]
+                # all_rots.append(xyz_rotation_angles)
+                # xyz_rotation_angles = [-phi, math.pi/3, theta]
+                # all_rots.append(xyz_rotation_angles)
+                # xyz_rotation_angles = [-phi, 2*math.pi/3, theta]
+                # all_rots.append(xyz_rotation_angles)
+                # xyz_rotation_angles = [-phi, math.pi, theta]
+                # all_rots.append(xyz_rotation_angles)
+                step_size = math.pi/2
+                for yaw_temp in np.arange(0, 2*math.pi, step_size):
+                    xyz_rotation_angles = [-phi, yaw_temp, theta]
+                    # xyz_rotation_angles = [yaw_temp, -phi, theta]
+                    all_rots.append(xyz_rotation_angles)
         return all_rots
 
     def get_posecnn_bbox(self, idx, posecnn_rois):
@@ -1384,6 +1429,8 @@ class FATImage:
         
         for box_id in range(len(labels)):
             label = labels[box_id]
+            bbox = boxes[box_id]
+            centroid = centroids_2d[box_id]
             object_depth_mask = np.copy(depth_image)
             object_depth_mask[mask_list[box_id] == 0] = 0
             object_depth = np.mean(object_depth_mask)
@@ -1413,7 +1460,30 @@ class FATImage:
                     rgb_gl, depth_gl = self.render_pose(
                                         label, render_machine, xyz_rotation_angles, [0, 0, 1*self.distance_scale]
                                     )
+                    render_bbox = self.get_bbox(rgb_gl)
+                    render_centroid = [(render_bbox[0] + render_bbox[2])/2, (render_bbox[1] + render_bbox[3])/2]
+                    translation = centroid - render_centroid
+                    render_bbox[0] += translation[0]
+                    render_bbox[2] += translation[0]
+                    render_bbox[1] += translation[1]
+                    render_bbox[3] += translation[1]
+
+                    print("Render BBOX : {}".format(render_bbox))
+                    print("Observed BBOX : {}".format(bbox))
+                    iou_2d = self.get_2d_iou(bbox, render_bbox)
+                    print("2D IOU : {}".format(iou_2d))
+                    top_left, bottom_right = bbox[:2], bbox[2:]
+                    color = (0, 255, 0) 
+                    rgb_gl = cv2.rectangle(
+                        rgb_gl, tuple(top_left), tuple(bottom_right), tuple(color), 1
+                    )
+                    render_bbox = [int(x) for x in render_bbox]
+                    top_left, bottom_right = render_bbox[:2], render_bbox[2:]
+                    rgb_gl = cv2.rectangle(
+                        rgb_gl, tuple(top_left), tuple(bottom_right), tuple(color), 1
+                    )
                     cv2.imwrite("{}/label_{}_{}.png".format(rotation_output_dir, label, cnt), rgb_gl)
+
                     cnt += 1
                 
             if label == "037_scissors":
@@ -2550,10 +2620,10 @@ def run_sameshape_gpu(dataset_cfg=None):
     # required_objects = ['sprite_can']
     # required_objects = ['pepsi_can', 'sprite_bottle', 'coke_bottle']
 
-    f_accuracy.write("name ")
+    f_accuracy.write("name,")
 
     for object_name in required_objects:
-        f_accuracy.write("{}-add {}-adds ".format(object_name, object_name))
+        f_accuracy.write("{}-add,{}-adds,".format(object_name, object_name))
     f_accuracy.write("\n")
 
     read_results_only = False
@@ -2597,6 +2667,9 @@ def run_sameshape_gpu(dataset_cfg=None):
             for object_name in required_objects:
                 if (object_name in add_dict) and (object_name in add_s_dict):
                     f_accuracy.write("{},{},".format(add_dict[object_name], add_s_dict[object_name]))
+                    if add_s_dict[object_name] > 0.01:
+                        print("*****HIGH ADD-S VALUE******")
+                        return
                 else:
                     f_accuracy.write(" , ,")
             f_accuracy.write("\n")
@@ -2694,7 +2767,7 @@ def run_ycb_gpu():
 
 
 def run_ycb_6d(dataset_cfg=None):
-    from bad_images import cracker_list
+    from bad_images import cracker_list, wood_list, drill_list
     
     image_directory = dataset_cfg['image_dir']
     # annotation_file = image_directory + 'instances_keyframe_pose.json'
@@ -2736,9 +2809,11 @@ def run_ycb_6d(dataset_cfg=None):
     # required_objects = fat_image.category_names
     # required_objects = ['002_master_chef_can', '025_mug', '007_tuna_fish_can']
     # required_objects = ['040_large_marker', '024_bowl', '007_tuna_fish_can', '002_master_chef_can', '005_tomato_soup_can']
-    # required_objects = ['004_sugar_box'] # 55
-    required_objects = ['021_bleach_cleanser'] # 51, 54, 55, 57
+    # required_objects = ['036_wood_block'] # 55
+    required_objects = ['035_power_drill'] # 50, 52, 59
+    # required_objects = ['021_bleach_cleanser'] # 51, 54, 55, 57
     # required_objects = ['037_scissors'] # 51
+    # required_objects = ['011_banana']
     # required_objects = ['004_sugar_box'] # 50 54 59
     # ['010_potted_meat_can'] - 49, 59, 53
     # required_objects = ['019_pitcher_base','005_tomato_soup_can','004_sugar_box' ,'007_tuna_fish_can', '010_potted_meat_can', '024_bowl', '002_master_chef_can', '025_mug', '003_cracker_box', '006_mustard_bottle']
@@ -2752,7 +2827,7 @@ def run_ycb_6d(dataset_cfg=None):
     #     "007_tuna_fish_can",
     #     "009_gelatin_box",
     #     "010_potted_meat_can",
-    #     "011_banana",
+        # "011_banana",
     #     "019_pitcher_base",
     #     "021_bleach_cleanser",
     #     "024_bowl",
@@ -2790,13 +2865,13 @@ def run_ycb_6d(dataset_cfg=None):
     # Trying 80 for sugar
 
     IMG_LIST = np.loadtxt(os.path.join(image_directory, 'image_sets/keyframe.txt'), dtype=str).tolist()
-    # for scene_i in range(48, 60):
-    for scene_i in [55, 54, 51, 57]:
-        for img_i in (range(1, 2500)):
+    for scene_i in range(50, 60):
+    # for scene_i in [55, 54, 51, 57]:
+        for img_i in (range(1, 2)):
         # for img_i in IMG_LIST:
         # for img_i in tuna_list:
-        # for img_i in can_list:
-        # for img_i in s_list:
+        # for img_i in drill_list:
+        # for img_i in wood_list:
         # for img_i in cracker_list:
             # if "0050" not in img_i:
             #     continue
@@ -2853,6 +2928,8 @@ def run_ycb_6d(dataset_cfg=None):
 
                 # Convert model output poses to table frame and save them to file so that they can be read by perch
                 run_perch = True
+                if len(labels) == 0:
+                    run_perch = False
                 if run_perch:
                     _, max_min_dict, _, _ = fat_image.visualize_pose_ros(
                         # image_data, model_annotations, frame='table', camera_optical_frame=False, num_publish=1, write_poses=True, ros_publish=False

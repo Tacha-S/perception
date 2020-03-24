@@ -15,14 +15,14 @@ perch_params:
 
   ## RGB
   use_color_cost: true
-  color_distance_threshold: 12.5
+  color_distance_threshold: 11.5
 
   ## With Downsampling
   use_downsampling: true
   sensor_resolution_radius: 0.0075
   # sensor_resolution_radius: 0.005 #m
-  min_neighbor_points_for_valid_pose: 30 #50
-  downsampling_leaf_size: 0.015
+  min_neighbor_points_for_valid_pose: 15 #50
+  downsampling_leaf_size: 0.01
   # downsampling_leaf_size: 0.01
 
   ## Without Downsampling

@@ -313,7 +313,7 @@ class COCODemo(object):
             image = cv2.rectangle(
                 image, tuple(top_left), tuple(bottom_right), tuple(color), 1
             )
-            box_list.append([top_left, bottom_right])
+            box_list.append(top_left + bottom_right)
             center = (np.array(bottom_right) + np.array(top_left))/2
             centroids.append(center)
             image = cv2.circle(image, tuple([int(center[0]), int(center[1])]), 8, (0, 0, 0), -1)
