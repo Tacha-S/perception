@@ -1055,7 +1055,7 @@ class FATImage:
 
         args = {
             'config_file' : cfg_file,
-            'confidence_threshold' : 0.80,
+            'confidence_threshold' : 0.70,
             'min_image_size' : min_image_size,
             'masks_per_dim' : 10,
             'show_mask_heatmaps' : False
@@ -1120,7 +1120,7 @@ class FATImage:
             "005_tomato_soup_can": [0,0], #half_0
             "006_mustard_bottle": [0,0], #whole_0-pi
             "007_tuna_fish_can": [0,0], #half_0
-            "008_pudding_box": [0,0], #half_0-pi
+            "008_pudding_box": [0,1], #half_0-pi
             "009_gelatin_box": [0,0], #half_0-pi
             "010_potted_meat_can": [0,0], #half_0-pi
             "011_banana": [1,0], #whole_0-2pi #from psc
@@ -1131,10 +1131,11 @@ class FATImage:
             "025_mug": [0,1], #whole_0-2pi
             "035_power_drill" : [0,7], #whole_0-2pi
             "036_wood_block": [0,0], #half_0-pi
-            "037_scissors": [0,5], #whole_0-2pi
+            "037_scissors": [0,2], #whole_0-2pi
             "040_large_marker" : [1,0], #whole_0
             # "051_large_clamp": [1,1], #whole_0-pi
-            # "052_extra_large_clamp": [1,2], #whole_0-pi
+            "052_extra_large_clamp": [0, 7],  #whole_0-pi
+            "051_large_clamp": [0,7],
             "061_foam_brick": [0,0] #half_0-pi
         }
         
@@ -1153,12 +1154,11 @@ class FATImage:
                     # xyz_rotation_angles = [yaw_temp, -phi, theta]
                     all_rots.append(xyz_rotation_angles)
             elif name_sym_dict[label][1] == 2:
-                # step_size = math.pi/2
-                # for yaw_temp in np.arange(0,math.pi, step_size):
-                xyz_rotation_angles = [-phi, 0, theta]
-                all_rots.append(xyz_rotation_angles)
-                xyz_rotation_angles = [-phi, math.pi, theta]
-                all_rots.append(xyz_rotation_angles)
+                step_size = math.pi/4
+                for yaw_temp in np.arange(0,math.pi, step_size):
+                    xyz_rotation_angles = [-phi, yaw_temp, theta]
+                    # xyz_rotation_angles = [yaw_temp, -phi, theta]
+                    all_rots.append(xyz_rotation_angles)
             elif name_sym_dict[label][1] == 3:
                 xyz_rotation_angles = [-phi, 0, theta]
                 all_rots.append(xyz_rotation_angles)
@@ -2810,11 +2810,14 @@ def run_ycb_6d(dataset_cfg=None):
     # required_objects = ['002_master_chef_can', '025_mug', '007_tuna_fish_can']
     # required_objects = ['040_large_marker', '024_bowl', '007_tuna_fish_can', '002_master_chef_can', '005_tomato_soup_can']
     # required_objects = ['036_wood_block'] # 55
-    required_objects = ['035_power_drill'] # 50, 52, 59
+    # required_objects = ['035_power_drill'] # 50, 52, 59
     # required_objects = ['021_bleach_cleanser'] # 51, 54, 55, 57
-    # required_objects = ['037_scissors'] # 51
+    # required_objects = ['scissors'] # 51
+    # required_objects = ['052_extra_large_clamp'] # 48, 57
+    required_objects = ['051_large_clamp'] # 48, 54
     # required_objects = ['011_banana']
     # required_objects = ['004_sugar_box'] # 50 54 59
+    # required_objects = ['008_pudding_box'] # 57
     # ['010_potted_meat_can'] - 49, 59, 53
     # required_objects = ['019_pitcher_base','005_tomato_soup_can','004_sugar_box' ,'007_tuna_fish_can', '010_potted_meat_can', '024_bowl', '002_master_chef_can', '025_mug', '003_cracker_box', '006_mustard_bottle']
     # required_objects = fat_image.category_names
@@ -2825,15 +2828,20 @@ def run_ycb_6d(dataset_cfg=None):
     #     "005_tomato_soup_can",
     #     "006_mustard_bottle",
     #     "007_tuna_fish_can",
+    #     "008_pudding_box",
     #     "009_gelatin_box",
     #     "010_potted_meat_can",
-        # "011_banana",
+    #     "011_banana",
     #     "019_pitcher_base",
     #     "021_bleach_cleanser",
     #     "024_bowl",
     #     "025_mug",
+    #     "035_power_drill",
+    #     "036_wood_block",
     #     "037_scissors",
     #     "040_large_marker",
+    #     "051_large_clamp",
+    #     "052_extra_large_clamp",
     #     "061_foam_brick"
     # ]
     filter_objects = required_objects
@@ -2863,11 +2871,11 @@ def run_ycb_6d(dataset_cfg=None):
     # for img_i in [0]:
     # Used 60 samples sphere for all
     # Trying 80 for sugar
-
+    # do small clamp all upto 200 from 48 to 60
     IMG_LIST = np.loadtxt(os.path.join(image_directory, 'image_sets/keyframe.txt'), dtype=str).tolist()
-    for scene_i in range(50, 60):
+    for scene_i in range(48, 60):
     # for scene_i in [55, 54, 51, 57]:
-        for img_i in (range(1, 2)):
+        for img_i in (range(1, 200)):
         # for img_i in IMG_LIST:
         # for img_i in tuna_list:
         # for img_i in drill_list:
