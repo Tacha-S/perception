@@ -124,8 +124,13 @@ namespace cuda_renderer {
          *
         */
         int n = (int)floorf((blockIdx.x * blockDim.x + threadIdx.x)/(width/stride));
+        
+        // threadid in x corresponds to width of image
         int x = (blockIdx.x * blockDim.x + threadIdx.x)%(width/stride);
+
+        //thread id in block in y direction corresponds to height of image
         int y = blockIdx.y*blockDim.y + threadIdx.y;
+        // int y = (blockIdx.y*blockDim.y + threadIdx.y)%(height/stride);
         x = x*stride;
         y = y*stride;
         if(x >= width) return;
@@ -188,12 +193,12 @@ namespace cuda_renderer {
     
         if(depth[idx_depth] <= 0) return;
     
-        // printf("depth:%d\n", depth[idx_depth]);
         // uchar depth_val = depth[idx_depth];
         // float z_pcd = static_cast<float>(depth[idx_depth])/depth_factor;
         // float x_pcd = (static_cast<float>(x) - kCameraCX)/kCameraFX * z_pcd;
         // float y_pcd = (static_cast<float>(y) - kCameraCY)/kCameraFY * z_pcd;
         float x_pcd, y_pcd, z_pcd;
+        // printf("depth:%d\n", depth[idx_depth]);
         transform_point(x, y, depth[idx_depth], kCameraCX, kCameraCY, kCameraFX, kCameraFY,
                 depth_factor, NULL, x_pcd, y_pcd, z_pcd);
 
@@ -555,6 +560,10 @@ namespace cuda_renderer {
         uint8_t* cuda_observed_explained,
         float* observed_total_explained)
     {
+        /*
+         * @observed_cloud_point_num - number of points in each pose in observed scene
+         * @cuda_observed_explained - binary value indicating whether given point is explained or not based on distance
+         */
         size_t point_index = blockIdx.x*blockDim.x + threadIdx.x;
         if(point_index >= num_poses * observed_cloud_point_num) return;
 

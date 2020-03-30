@@ -144,6 +144,10 @@ struct PERCHParams {
   int gpu_batch_size;
   bool use_gpu;
   double color_distance_threshold;
+  double gpu_stride;
+  bool use_cylinder_observed;
+  double gpu_occlusion_threshold;
+  double footprint_tolerance;
 
   PERCHParams() : initialized(false) {}
 
@@ -170,6 +174,10 @@ struct PERCHParams {
     ar &gpu_batch_size;
     ar &use_gpu;
     ar &color_distance_threshold;
+    ar &gpu_stride;
+    ar &use_cylinder_observed;
+    ar &gpu_occlusion_threshold;
+    ar &footprint_tolerance;
   }
 };
 // BOOST_IS_MPI_DATATYPE(PERCHParams);

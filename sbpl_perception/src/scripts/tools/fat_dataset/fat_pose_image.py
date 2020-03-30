@@ -141,7 +141,7 @@ class FATImage:
             "coke_bottle" : 2,
             "sprite_bottle" : 2,
             "fanta_bottle" : 2,
-            "crate_test" : 0
+            "crate_test" : 1
         }
 
         self.env_config = env_config
@@ -2256,6 +2256,100 @@ def run_roman_crate():
 
     f_runtime.close()
 
+def run_roman_crate_gpu(dataset_cfg=None):
+    image_directory = dataset_cfg['image_dir']
+    annotation_file = dataset_cfg['image_dir'] + '/instances_newmap1_roman_2018.json'
+    fat_image = FATImage(
+        coco_annotation_file=annotation_file,
+        coco_image_directory=image_directory,
+        depth_factor=100,
+        model_dir=dataset_cfg['model_dir'],
+        model_mesh_in_mm=True,
+        # model_mesh_scaling_factor=0.005,
+        model_mesh_scaling_factor=1,
+        models_flipped=False,
+        img_width=960,
+        img_height=540,
+        distance_scale=100,
+        env_config="roman_gpu_env_config.yaml",
+        planner_config="roman_planner_config.yaml",
+        perch_debug_dir=dataset_cfg["perch_debug_dir"],
+        python_debug_dir=dataset_cfg["python_debug_dir"],
+        dataset_type=dataset_cfg["type"]
+    )
+
+    f_runtime = open('runtime.txt', "w", 1)
+    f_accuracy = open('accuracy.txt', "w", 1)
+    f_runtime.write("{} {} {} {} {}\n".format('name', 'expands', 'runtime', 'icp_runtime', 'peak_gpu_mem'))
+
+    required_objects = ['crate_test']
+    f_accuracy.write("name,")
+    for object_name in required_objects:
+        f_accuracy.write("{},".format(object_name))
+    f_accuracy.write("\n")
+
+
+    for img_i in range(0, 25):
+    # for img_i in [16, 17, 19, 22]:
+
+        # required_objects = ['coke']
+        image_name = 'NewMap1_roman/0000{}.left.png'.format(str(img_i).zfill(2))
+        image_data, annotations = fat_image.get_random_image(name=image_name, required_objects=required_objects)
+
+        # In case of crate its hard to get camera pose sometimes as ground is not visible (RANSAC plane estimation will fail)
+        # So get camera pose from an image where ground is visible and use that
+        # camera_pose_m = np.array([[0.757996, -0.00567911,    0.652234,   -0.779052],
+        #                        [0.00430481,    0.999984,  0.00370417,   -0.115213],
+        #                        [-0.652245, 1.32609e-16,    0.758009,     0.66139],
+        #                        [0,           0,           0,           1]])
+        camera_pose =  {
+            'location_worldframe': np.array([-77.90518933, -11.52125029,  66.13899833]), 
+            'quaternion_xyzw_worldframe': [-0.6445207366760153, 0.6408707673682607, -0.29401548348464, 0.2956899981377745]
+        }
+
+        # Camera pose goes here to get GT in world frame for accuracy computation
+        yaw_only_objects, max_min_dict, transformed_annotations, _ = \
+            fat_image.visualize_pose_ros(
+                image_data, annotations, frame='table', camera_optical_frame=False,
+                input_camera_pose=camera_pose
+            )
+
+        max_min_dict['ymax'] = 0.85
+        max_min_dict['ymin'] = -0.85
+        max_min_dict['xmax'] = 0.5
+        max_min_dict['xmin'] = -0.5
+        # max_min_dict['ymax'] += 0.6
+        # max_min_dict['ymin'] -= 0.6
+        # max_min_dict['xmax'] += 0.6
+        # max_min_dict['xmin'] -= 0.6
+        fat_image.search_resolution_translation = 0.08
+
+
+
+        perch_annotations, stats = fat_image.visualize_perch_output(
+            image_data, annotations, max_min_dict, frame='table',
+            use_external_render=0, required_object=required_objects,
+            camera_optical_frame=False, use_external_pose_list=0, gt_annotations=transformed_annotations,
+            input_camera_pose=camera_pose, table_height=0.006, num_cores=0
+        )
+        # print(perch_annotations)
+        # print(transformed_annotations)
+
+        f_accuracy.write("{},".format(image_data['file_name']))
+        add_dict, add_s_dict = fat_image.compare_clouds(transformed_annotations, perch_annotations, downsample=True, use_add_s=True)
+        for object_name in required_objects:
+            if (object_name in add_dict) and (object_name in add_s_dict):
+                f_accuracy.write("{},{},".format(add_dict[object_name], add_s_dict[object_name]))
+            else:
+                f_accuracy.write(" , ,")
+        f_accuracy.write("\n")
+
+        if stats is not None:
+            f_runtime.write("{} {} {} {} {}".format(image_data['file_name'], stats['expands'], stats['runtime'], stats['icp_runtime'], stats['peak_gpu_mem']))
+            f_runtime.write("\n")
+                
+    f_runtime.close()
+
 def run_sameshape():
     ## Running on PERCH only with synthetic color dataset - shape
     # Use normalize cost to get best results
@@ -2599,7 +2693,7 @@ def run_sameshape_gpu(dataset_cfg=None):
         img_width=960,
         img_height=540,
         distance_scale=100,
-        env_config="pr2_env_config.yaml",
+        env_config="pr2_gpu_env_config.yaml",
         planner_config="pr2_planner_config.yaml",
         perch_debug_dir=dataset_cfg["perch_debug_dir"],
         python_debug_dir=dataset_cfg["python_debug_dir"],
@@ -2629,7 +2723,7 @@ def run_sameshape_gpu(dataset_cfg=None):
     read_results_only = False
     # fat_image.search_resolution_yaw = 1.57
     # 5 in can only
-    for img_i in range(0,50):
+    for img_i in range(10,50):
 
         image_name = 'NewMap1_turbosquid_can_only/0000{}.left.png'.format(str(img_i).zfill(2))
         # image_name = 'NewMap1_turbosquid/0000{}.left.png'.format(str(img_i).zfill(2))
@@ -2804,7 +2898,7 @@ def run_ycb_6d(dataset_cfg=None):
     f_runtime.write("{} {} {} {} {}\n".format('name', 'expands', 'runtime', 'icp_runtime', 'peak_gpu_mem'))
 
     # filter_objects = ['004_sugar_box']
-    # required_objects = ['003_cracker_box']
+    required_objects = ['003_cracker_box']
     # required_objects = ['025_mug', '007_tuna_fish_can', '002_master_chef_can']
     # required_objects = fat_image.category_names
     # required_objects = ['002_master_chef_can', '025_mug', '007_tuna_fish_can']
@@ -2814,7 +2908,7 @@ def run_ycb_6d(dataset_cfg=None):
     # required_objects = ['021_bleach_cleanser'] # 51, 54, 55, 57
     # required_objects = ['scissors'] # 51
     # required_objects = ['052_extra_large_clamp'] # 48, 57
-    required_objects = ['051_large_clamp'] # 48, 54
+    # required_objects = ['051_large_clamp'] # 48, 54
     # required_objects = ['011_banana']
     # required_objects = ['004_sugar_box'] # 50 54 59
     # required_objects = ['008_pudding_box'] # 57
@@ -2873,19 +2967,19 @@ def run_ycb_6d(dataset_cfg=None):
     # Trying 80 for sugar
     # do small clamp all upto 200 from 48 to 60
     IMG_LIST = np.loadtxt(os.path.join(image_directory, 'image_sets/keyframe.txt'), dtype=str).tolist()
-    for scene_i in range(48, 60):
+    for scene_i in range(48, 49):
     # for scene_i in [55, 54, 51, 57]:
-        for img_i in (range(1, 200)):
+        # for img_i in (range(1, 200)):
         # for img_i in IMG_LIST:
         # for img_i in tuna_list:
         # for img_i in drill_list:
         # for img_i in wood_list:
-        # for img_i in cracker_list:
+        for img_i in cracker_list:
             # if "0050" not in img_i:
             #     continue
             # Get Image
-            image_name = 'data/00{}/00{}-color.png'.format(str(scene_i), str(img_i).zfill(4))
-            # image_name = '{}'.format(img_i)
+            # image_name = 'data/00{}/00{}-color.png'.format(str(scene_i), str(img_i).zfill(4))
+            image_name = '{}'.format(img_i)
             # if image_name in skip_list:
             #     continue
             # image_data, annotations = fat_image.get_random_image(name='{}_16k/kitchen_4/000005.left.jpg'.format(category_name))
@@ -3008,7 +3102,8 @@ if __name__ == '__main__':
         run_ycb_6d(dataset_cfg=config['dataset'])
     elif config['dataset']['name'] == "sameshape":
         run_sameshape_gpu(dataset_cfg=config['dataset'])
-    # run_dope_sameshape()
+    elif config['dataset']['name'] == "crate":
+        run_roman_crate_gpu(dataset_cfg=config['dataset'])
 
     # coco_predictions = torch.load('/media/aditya/A69AFABA9AFA85D9/Cruzr/code/fb_mask_rcnn/maskrcnn-benchmark/inference/fat_pose_2018_val_cocostyle/coco_results.pth')
     # all_predictions = torch.load('/media/aditya/A69AFABA9AFA85D9/Cruzr/code/fb_mask_rcnn/maskrcnn-benchmark/inference/fat_pose_2018_val_cocostyle/predictions.pth')

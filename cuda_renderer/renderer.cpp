@@ -84,14 +84,23 @@ void cuda_renderer::Model::recursive_render(const aiScene *sc, const aiNode *nd,
             tri_temp.v0 = mat_mul_vec(m, mesh->mVertices[face->mIndices[0]]);
             tri_temp.v1 = mat_mul_vec(m, mesh->mVertices[face->mIndices[1]]);
             tri_temp.v2 = mat_mul_vec(m, mesh->mVertices[face->mIndices[2]]);
-            aiColor4D color = mesh->mColors[0][face->mIndices[0]];
-            int r = round(color.r*255);
-            int g = round(color.g*255);
-            int b = round(color.b*255);
+            int r,g,b;
+            if ( mesh->mColors[0] != NULL)
+            {
+                aiColor4D color = mesh->mColors[0][face->mIndices[0]];
+                r = round(color.r*255);
+                g = round(color.g*255);
+                b = round(color.b*255);
+            }
+            else 
+            {
+                r = 128;
+                g = 128;
+                b = 128;
+            }
             tri_temp.color.v0 = r;
             tri_temp.color.v1 = g;
             tri_temp.color.v2 = b;
-
             // aiColor4D color1 = mesh->mColors[0][face->mIndices[1]];
             // aiColor4D color2 = mesh->mColors[0][face->mIndices[2]];
             // float r = color.r;

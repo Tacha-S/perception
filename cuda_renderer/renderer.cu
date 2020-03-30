@@ -100,7 +100,43 @@ namespace cuda_renderer {
         __host__ __device__
         int32_t operator()(const int32_t& x) const
         {
-        return (x==INT_MAX)? 0: x;
+            return (x==INT_MAX)? 0: x;
+        }
+    };
+
+    struct cost_percentage_functor{
+
+        cost_percentage_functor(){}
+
+        __host__ __device__
+        float operator()(const float& x, const float& y) const
+        {
+            if (y == 0)
+            {
+                return -1;
+            }
+            else
+            {
+                return x/y;
+            }
+        }
+    };
+
+    struct cost_multiplier_functor{
+
+        cost_multiplier_functor(){}
+
+        __host__ __device__
+        float operator()(const float& x, const float& y) const
+        {
+            if (x == -1)
+            {
+                return -1;
+            }
+            else
+            {
+                return x*y;
+            }
         }
     };
 
@@ -118,7 +154,8 @@ namespace cuda_renderer {
                                             float* pose_total_points_entry,
                                             uint8_t* source_label_entry,
                                             int* pose_segmentation_label_entry,
-                                            bool use_segmentation_label) {
+                                            bool use_segmentation_label,
+                                            float occlusion_threshold) {
                                             // float* l_entry,float* a_entry,float* b_entry){
         // refer to tiny renderer
         // https://github.com/ssloy/tinyrenderer/blob/master/our_gl.cpp
@@ -203,8 +240,9 @@ namespace cuda_renderer {
                 }
                 // 1.0 is 1cm occlusion threshold
                 int32_t& new_depth = depth_entry[x_to_write+y_to_write*real_width];
-                if ((use_segmentation_label == false && abs(new_depth - source_depth) > 1.0) ||
-                    (use_segmentation_label == true && *pose_segmentation_label_entry != source_label && abs(new_depth - source_depth) > 0.5))
+                if ((use_segmentation_label == false && abs(new_depth - source_depth) > occlusion_threshold) ||
+                    (use_segmentation_label == true && 
+                     *pose_segmentation_label_entry != source_label && abs(new_depth - source_depth) > 0.5))
                 {
                     // printf("%d, %d\n", *pose_segmentation_label_entry, source_label);
                     // printf("%d, %d\n", source_depth, curr_depth);
@@ -270,7 +308,8 @@ namespace cuda_renderer {
                                     float* pose_total_points_vec,
                                     uint8_t* device_source_mask_label_vec,
                                     int* pose_segmentation_label_vec,
-                                    bool use_segmentation_label) {
+                                    bool use_segmentation_label,
+                                    float occlusion_threshold) {
         size_t pose_i = blockIdx.y;
         int model_id = device_pose_model_map_ptr[pose_i];
         size_t tri_i = blockIdx.x*blockDim.x + threadIdx.x;
@@ -355,7 +394,8 @@ namespace cuda_renderer {
             pose_total_points_entry,
             device_source_mask_label_vec,
             pose_segmentation_label_entry,
-            use_segmentation_label);
+            use_segmentation_label,
+            occlusion_threshold);
     }
 
 
@@ -525,7 +565,8 @@ namespace cuda_renderer {
                                                         device_pose_total_points_vec,
                                                         device_source_mask_label_vec,
                                                         device_pose_segmentation_label_vec,
-                                                        use_segmentation_label);
+                                                        use_segmentation_label,
+                                                        1.0);
         // cudaDeviceSynchronize();
         // Objects occluding other objects already in the scene
         if (USE_TREE)
@@ -605,6 +646,56 @@ namespace cuda_renderer {
                         device_depth_int.begin_thr(), max2zero_functor());
         return device_depth_int;
     }
+
+    // __global__ void compute_observed_cost_cylinder(
+    //     int num_poses,
+    //     int observed_cloud_point_num,
+    //     uint8_t* cuda_observed_explained,
+    //     float* cuda_observed_cloud,
+    //     size_t cloud_pitch,
+    //     Model::mat4x4* device_poses_ptr,
+    //     float* pose_cylinder_radius,
+    //     float* observed_total_unexplained)
+    // {
+    //     /*
+    //      * @observed_cloud_point_num - number of points in observed scene
+    //      * @cuda_observed_explained (num_poses x observed_point_num) 
+    //      *      - binary value indicating whether given point is explained or not based on distance
+    //      */
+    //     size_t point_index = blockIdx.x*blockDim.x + threadIdx.x;
+    //     if(point_index >= num_poses * observed_cloud_point_num) return;
+
+    //     size_t pose_index = point_index/observed_cloud_point_num;
+    //     size_t cloud_point_index = point_index % observed_cloud_point_num;
+
+    //     float cylinder_radius = pose_cylinder_radius[pose_index];
+    //     Model::mat4x4 pose_entry = device_poses_ptr[pose_index];
+
+    //     float pose_x = pose_entry.a3;
+    //     float pose_y = pose_entry.b3;
+    //     float pose_z = pose_entry.c3;
+
+    //     float* row_0 = (float *)((char*)cuda_observed_cloud + 0 * cloud_pitch);
+    //     float* row_1 = (float *)((char*)cuda_observed_cloud + 1 * cloud_pitch);
+    //     float* row_2 = (float *)((char*)cuda_observed_cloud + 2 * cloud_pitch);
+    //     float point_x = row_0[cloud_point_index];
+    //     float point_y = row_1[cloud_point_index];
+    //     float point_z = row_2[cloud_point_index];
+
+    //     // printf("pose_x:%f, pose_y:%f, point_x:%f, point_y:%f, distance:\n", pose_x, pose_y, point_x, point_y);
+
+    //     if (sqrt((point_x - pose_x)*(point_x - pose_x) + (point_y - pose_y)*(point_y - pose_y)) <  cylinder_radius)
+    //     {
+    //         // lies within the inscribed volume of pose
+    //         if (cuda_observed_explained[point_index] == 0)
+    //         {
+    //             atomicAdd(&observed_total_unexplained[pose_index], 1);
+    //         }
+    //     }
+
+
+    // }
+
     void render_cuda_multi_unified(
         const std::string stage,
         const std::vector<Model::Triangle>& tris,
@@ -634,6 +725,7 @@ namespace cuda_renderer {
         bool calculate_observed_cost,
         float sensor_resolution,
         float color_distance_threshold,
+        float occlusion_threshold,
         std::vector<int32_t>& result_depth, 
         std::vector<std::vector<uint8_t>>& result_color,
         float* &result_cloud,
@@ -662,6 +754,7 @@ namespace cuda_renderer {
         printf("stride : %d\n", stride);
         printf("depth_factor : %d\n", depth_factor);
         printf("observed_point_num : %d\n", observed_point_num);
+        printf("occlusion_threshold : %f\n", occlusion_threshold);
         // Create device inputs
         int* device_single_result_image;
         cudaMalloc((void**)&device_single_result_image, sizeof(int));
@@ -804,7 +897,8 @@ namespace cuda_renderer {
                                                         device_pose_total_points_vec,
                                                         device_source_mask_label_vec,
                                                         device_pose_segmentation_label_vec,
-                                                        use_segmentation_label);
+                                                        use_segmentation_label,
+                                                        occlusion_threshold);
 
         if (USE_CLUTTER)
         {
@@ -1005,6 +1099,7 @@ namespace cuda_renderer {
             printf("ERROR: Unable to execute kernel compute_distances_render\n");
             return;
         }
+        printf("compute_distances_render() done\n");
         dim3 block1(256, 1, 1);
         dim3 grid1(result_cloud_point_num / 256, 1, 1);
         if (result_cloud_point_num % 256 != 0) grid1.x += 1;
@@ -1013,6 +1108,7 @@ namespace cuda_renderer {
             printf("ERROR: Unable to execute kernel modified_insertion_sort_render\n");
             return;
         }
+        printf("modified_insertion_sort_render() done\n");
         dim3 block2(16, 16, 1);
         dim3 grid2(result_cloud_point_num / 16, k / 16, 1);
         if (result_cloud_point_num % 16 != 0) grid2.x += 1;
@@ -1022,6 +1118,7 @@ namespace cuda_renderer {
             printf("ERROR: Unable to execute kernel compute_sqrt_render\n");
             return;
         }
+        printf("compute_sqrt_render() done\n");
         // float* knn_dist;
         // int* knn_index;
         // cudaMalloc(&knn_dist, result_cloud_point_num * k * size_of_float);
@@ -1045,7 +1142,7 @@ namespace cuda_renderer {
         }
         //// Free depth point cloud and reference cloud since not needed for cost computation 
         cudaFree(cuda_cloud);
-        cudaFree(ref_dev);
+        cudaFree(ref_dev); //TODO
         printf("*************KNN distances computed**********\n");
 
         ///////////////////////////////////////////////////////////////////
@@ -1083,7 +1180,7 @@ namespace cuda_renderer {
             sensor_resolution,
             result_cloud_point_num,
             observed_point_num,
-            cuda_pose_point_num,
+            cuda_pose_point_num, // Can be 0 if that pose had no points in it
             cuda_cloud_color,
             cuda_observed_cloud_color,
             cuda_cloud,
@@ -1093,6 +1190,8 @@ namespace cuda_renderer {
             cost_type,
             color_distance_threshold);
         
+        
+
         thrust::device_vector<float> percentage_multiplier_val(num_images, 100);
         if (stage.compare("DEBUG") == 0 || stage.compare("COST") == 0)
         {
@@ -1106,19 +1205,30 @@ namespace cuda_renderer {
             thrust::transform(
                 cuda_rendered_cost_vec.begin(), cuda_rendered_cost_vec.end(), 
                 cuda_pose_point_num_vec.begin(), cuda_rendered_cost_vec.begin(), 
-                thrust::divides<float>()
+                cost_percentage_functor()
+                // thrust::divides<float>()
             );
             thrust::transform(
                 cuda_rendered_cost_vec.begin(), cuda_rendered_cost_vec.end(), 
                 percentage_multiplier_val.begin(), cuda_rendered_cost_vec.begin(), 
-                thrust::multiplies<float>()
+                cost_multiplier_functor()
+                // thrust::multiplies<float>()
             );
+            // printf("cuda_rendered_cost_vec\n");
+            // std::cout << cuda_pose_point_num_vec[49] << std::endl;
+            // thrust::copy(
+            //     cuda_pose_point_num_vec.begin(),
+            //     cuda_pose_point_num_vec.end(), 
+            //     std::ostream_iterator<int>(std::cout, " ")
+            // );
+            // printf("\n");
             rendered_cost = (float*) malloc(num_images * size_of_float);
             cudaMemcpy(rendered_cost, cuda_rendered_cost, num_images * size_of_float, cudaMemcpyDeviceToHost);
 
             /// Not returning so need to free anything
         }
         printf("*************Render Costs computed**********\n");
+        // if (calculate_observed_cost && cost_type == 2)
         if (calculate_observed_cost)
         {
             thrust::device_vector<float> cuda_pose_observed_explained_vec(num_images, 0);
@@ -1199,6 +1309,46 @@ namespace cuda_renderer {
                 /// Not returning so need to free anything
             }
         }
+        // else if (calculate_observed_cost && cost_type != 2)
+        // {
+        //     thrust::device_vector<float> cuda_pose_observed_unexplained_vec(num_images, 0);
+        //     float* cuda_pose_observed_unexplained = thrust::raw_pointer_cast(cuda_pose_observed_unexplained_vec.data());
+        //     peak_memory_usage = std::max(print_cuda_memory_usage(), peak_memory_usage);
+        
+        //     thrust::device_vector<float> device_poses_cylinder_radius_vec(num_images, 0.5);
+        //     float* device_poses_cylinder_radius_ptr = thrust::raw_pointer_cast(device_poses_cylinder_radius_vec.data());
+            
+        //     dim3 numBlocksO((num_images * observed_point_num + threadsPerBlock - 1) / threadsPerBlock, 1);
+        //     //// Calculate the number of explained points in every pose, by adding
+        //     compute_observed_cost_cylinder<<<numBlocksO, threadsPerBlock>>>(
+        //         num_images,
+        //         observed_point_num,
+        //         cuda_observed_explained,
+        //         ref_dev,
+        //         ref_pitch_in_bytes,
+        //         device_poses_ptr,
+        //         device_poses_cylinder_radius_ptr,
+        //         cuda_pose_observed_unexplained
+        //     );
+        //     thrust::copy(
+        //         cuda_pose_observed_unexplained_vec.begin(),
+        //         cuda_pose_observed_unexplained_vec.end(), 
+        //         std::ostream_iterator<float>(std::cout, " ")
+        //     );
+        //     printf("\n");
+        //     // if (stage.compare("DEBUG") == 0 || stage.compare("COST") == 0)
+        //     // {
+        //     //     printf("Copying observed cost to CPU\n");
+        //     //     observed_cost = (float*) malloc(num_images * size_of_float);
+
+        //     //     float* cuda_observed_cost = thrust::raw_pointer_cast(cuda_observed_cost_vec.data());
+               
+        //     //     cudaMemcpy(observed_cost, cuda_observed_cost, num_images * size_of_float, cudaMemcpyDeviceToHost);
+
+        //     //     /// Not returning so need to free anything
+        //     // }
+
+        // }
 
         
         cudaFree(cuda_cloud_color);

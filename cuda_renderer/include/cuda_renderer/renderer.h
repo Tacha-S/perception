@@ -30,6 +30,7 @@
 #include <iostream>
 #include <Eigen/Dense>
 #include <algorithm>
+#include "math.h"
 
 namespace cuda_renderer {
 
@@ -344,6 +345,7 @@ void render_cuda_multi_unified(
         bool calculate_observed_cost,
         float sensor_resolution,
         float color_distance_threshold,
+        float occlusion_threshold,
         //// Outputs
         std::vector<int32_t>& result_depth, 
         std::vector<std::vector<uint8_t>>& result_color,
