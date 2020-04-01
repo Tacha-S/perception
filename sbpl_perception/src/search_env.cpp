@@ -5476,16 +5476,19 @@ void EnvObjectRecognition::SetObservation(int num_objects,
   printf("Use Dowsampling: %d\n", perch_params_.use_downsampling);
   if (perch_params_.use_downsampling) {
     observed_cloud_ = DownsamplePointCloud(observed_cloud_, perch_params_.downsampling_leaf_size);
-    for (int i = 0; i < segmented_object_clouds.size(); i++)
-    {
-      // segmented_object_clouds[i] = DownsamplePointCloud(segmented_object_clouds[i], perch_params_.downsampling_leaf_size);
-      // PrintPointCloud(segmented_object_clouds[i], 1, render_point_cloud_topic);
-      // std::this_thread::sleep_for(std::chrono::milliseconds(500));
-      pcl::search::KdTree<PointT>::Ptr object_knn;
-      object_knn.reset(new pcl::search::KdTree<PointT>(true));
-      object_knn->setInputCloud(segmented_object_clouds[i]);
-      segmented_object_knn.push_back(object_knn);
+  }
+
+  for (int i = 0; i < segmented_object_clouds.size(); i++)
+  {
+    if (perch_params_.use_downsampling) {
+      segmented_object_clouds[i] = DownsamplePointCloud(segmented_object_clouds[i], perch_params_.downsampling_leaf_size);
     }
+    // PrintPointCloud(segmented_object_clouds[i], 1, render_point_cloud_topic);
+    // std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    pcl::search::KdTree<PointT>::Ptr object_knn;
+    object_knn.reset(new pcl::search::KdTree<PointT>(true));
+    object_knn->setInputCloud(segmented_object_clouds[i]);
+    segmented_object_knn.push_back(object_knn);
   }
 
   // Remove outlier points - possible in 6D due to bad segmentation
