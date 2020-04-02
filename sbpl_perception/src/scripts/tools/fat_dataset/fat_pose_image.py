@@ -2359,7 +2359,7 @@ def run_roman_crate_gpu(dataset_cfg=None):
         yaw_only_objects, max_min_dict, transformed_annotations, _ = \
             fat_image.visualize_pose_ros(
                 image_data, annotations, frame='table', camera_optical_frame=False,
-                input_camera_pose=camera_pose
+                input_camera_pose=camera_pose, ros_publish=False
             )
 
         max_min_dict['ymax'] = 0.85

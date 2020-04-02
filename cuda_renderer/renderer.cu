@@ -987,6 +987,7 @@ namespace cuda_renderer {
                                                         real_width, 
                                                         real_height, 
                                                         stride, 
+                                                        num_images,
                                                         device_pose_occluded_vec,
                                                         NULL,
                                                         kCameraCX, kCameraCY, kCameraFX, kCameraFY, depth_factor,
@@ -1024,7 +1025,7 @@ namespace cuda_renderer {
         depth_to_2d_cloud<<<numBlocks2D, threadsPerBlock2D>>>(
                             depth_image_vec, red_image_vec, green_image_vec, blue_image_vec,
                             cuda_cloud, query_pitch_in_bytes, cuda_cloud_color, result_cloud_point_num, mask_ptr, width, height, 
-                            kCameraCX, kCameraCY, kCameraFX, kCameraFY, depth_factor, stride, cuda_cloud_pose_map,
+                            kCameraCX, kCameraCY, kCameraFX, kCameraFY, depth_factor, stride, num_images, cuda_cloud_pose_map,
                             NULL, NULL);
         if (cudaGetLastError() != cudaSuccess) 
         {
@@ -1479,6 +1480,7 @@ namespace cuda_renderer {
                                                       mask_ptr, width, 
                                                       height, 
                                                       stride, 
+                                                      num_poses,
                                                       pose_occluded_cuda,
                                                       label_mask_data_cuda,
                                                       kCameraCX, kCameraCY, kCameraFX, kCameraFY, depth_factor,
@@ -1529,7 +1531,7 @@ namespace cuda_renderer {
         depth_to_2d_cloud<<<numBlocks, threadsPerBlock>>>(
                             depth_data_cuda, red_in, green_in, blue_in,
                             cuda_cloud, query_pitch_in_bytes, cuda_cloud_color, rendered_cloud_point_num, mask_ptr, width, height, 
-                            kCameraCX, kCameraCY, kCameraFX, kCameraFY, depth_factor, stride, cuda_cloud_pose_map,
+                            kCameraCX, kCameraCY, kCameraFX, kCameraFY, depth_factor, stride, num_poses, cuda_cloud_pose_map,
                             label_mask_data_cuda, cuda_cloud_mask_label);
         // depth_to_cloud<<<numBlocks, threadsPerBlock>>>(
         //                     depth_data_cuda, red_in, green_in, blue_in,
