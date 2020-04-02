@@ -755,6 +755,9 @@ namespace cuda_renderer {
         printf("depth_factor : %d\n", depth_factor);
         printf("observed_point_num : %d\n", observed_point_num);
         printf("occlusion_threshold : %f\n", occlusion_threshold);
+
+        std::chrono::time_point<std::chrono::system_clock> start, end_1, end_2, end_3, end_3a, end_3b, end_3c, end_4;
+        start = std::chrono::system_clock::now();
         // Create device inputs
         int* device_single_result_image;
         cudaMalloc((void**)&device_single_result_image, sizeof(int));
@@ -944,6 +947,10 @@ namespace cuda_renderer {
         device_source_color_green.clear(); device_source_color_green.shrink_to_fit();
         device_source_color_red.clear(); device_source_color_red.shrink_to_fit();
 
+        end_1 = std::chrono::system_clock::now();
+        std::chrono::duration<double> elapsed_seconds = end_1-start;
+        printf("*************Rendering Images Done**********\n");
+        printf("*************Render time : %f*************\n", elapsed_seconds.count());
         if (stage.compare("DEBUG") == 0 || stage.compare("RENDER") == 0)
         {
             printf("Copying images to CPU\n");
@@ -1058,6 +1065,10 @@ namespace cuda_renderer {
         // Free any vectors not needed later
         mask.clear(); mask.shrink_to_fit();
         printf("************Point clouds created*************\n");
+        end_2 = std::chrono::system_clock::now();
+        elapsed_seconds = end_2-end_1;
+        printf("************Cloud contruction time : %f************\n", elapsed_seconds.count());
+
 
         /////////////////////////////////////////////////////////////////////////////
 
@@ -1100,6 +1111,10 @@ namespace cuda_renderer {
             return;
         }
         printf("compute_distances_render() done\n");
+        end_3a = std::chrono::system_clock::now();
+        elapsed_seconds = end_3a-end_2;
+        printf("*************compute_distances_render time : %f************\n", elapsed_seconds.count());
+
         dim3 block1(256, 1, 1);
         dim3 grid1(result_cloud_point_num / 256, 1, 1);
         if (result_cloud_point_num % 256 != 0) grid1.x += 1;
@@ -1109,6 +1124,10 @@ namespace cuda_renderer {
             return;
         }
         printf("modified_insertion_sort_render() done\n");
+        end_3b = std::chrono::system_clock::now();
+        elapsed_seconds = end_3b-end_3a;
+        printf("*************modified_insertion_sort_render time : %f************\n", elapsed_seconds.count());
+
         dim3 block2(16, 16, 1);
         dim3 grid2(result_cloud_point_num / 16, k / 16, 1);
         if (result_cloud_point_num % 16 != 0) grid2.x += 1;
@@ -1119,6 +1138,10 @@ namespace cuda_renderer {
             return;
         }
         printf("compute_sqrt_render() done\n");
+        end_3c = std::chrono::system_clock::now();
+        elapsed_seconds = end_3c-end_3b;
+        printf("*************compute_sqrt_render time : %f************\n", elapsed_seconds.count());
+
         // float* knn_dist;
         // int* knn_index;
         // cudaMalloc(&knn_dist, result_cloud_point_num * k * size_of_float);
@@ -1144,6 +1167,9 @@ namespace cuda_renderer {
         cudaFree(cuda_cloud);
         cudaFree(ref_dev); //TODO
         printf("*************KNN distances computed**********\n");
+        end_3 = std::chrono::system_clock::now();
+        elapsed_seconds = end_3-end_2;
+        printf("*************KNN time : %f************\n", elapsed_seconds.count());
 
         ///////////////////////////////////////////////////////////////////
 
@@ -1357,6 +1383,11 @@ namespace cuda_renderer {
         cudaFree(dist_dev);
         cudaFree(cuda_observed_cloud_label);
         cudaFree(cuda_observed_cloud_color);
+
+        end_4 = std::chrono::system_clock::now();
+        elapsed_seconds = end_4-end_3;
+        printf("************Cost Computation time : %f************\n", elapsed_seconds.count());
+
         printf("---------------------------------------\n");
 
     }

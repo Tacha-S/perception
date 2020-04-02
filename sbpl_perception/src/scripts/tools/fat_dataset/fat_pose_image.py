@@ -141,7 +141,7 @@ class FATImage:
             "coke_bottle" : 2,
             "sprite_bottle" : 2,
             "fanta_bottle" : 2,
-            "crate_test" : 1
+            "crate_test" : 0
         }
 
         self.env_config = env_config
@@ -929,8 +929,12 @@ class FATImage:
     def visualize_perch_output(self, image_data, annotations, max_min_dict, frame='fat_world',
             use_external_render=0, required_object='004_sugar_box', camera_optical_frame=True,
             use_external_pose_list=0, model_poses_file=None, use_centroid_shifting=0, predicted_mask_path=None,
-            gt_annotations=None, input_camera_pose=None, num_cores=6, table_height=0.004
+            gt_annotations=None, input_camera_pose=None, num_cores=6, table_height=0.004,
+            compute_type=1
         ):
+        '''
+            @compute_type : specified in perch_fat.cpp, 0 - greedyicp, 1 - greedy perch 2.0, 2 - perch cpu
+        '''
         from perch import FATPerch
         print("camera instrinsics : {}".format(self.camera_intrinsic_matrix))
         print("max_min_ranges : {}".format(max_min_dict))
@@ -1006,7 +1010,8 @@ class FATImage:
             'shift_pose_centroid': use_centroid_shifting,
             'use_icp': 1,
             'rendered_root_dir' : self.rendered_root_dir,
-            'perch_debug_dir' : self.perch_debug_dir
+            'perch_debug_dir' : self.perch_debug_dir,
+            'compute_type' : compute_type
         }
         camera_params = {
             'camera_width' : self.width,
@@ -2021,6 +2026,42 @@ class FATImage:
             #     continue
             # print(mean_dist)
             #/cloud.shape[0]
+    
+    def analyze_maskrcnn_results(self, coco_results_file):
+        if '/opt/ros/kinetic/lib/python2.7/dist-packages' in sys.path:
+            sys.path.remove('/opt/ros/kinetic/lib/python2.7/dist-packages')
+        import torch
+
+        coco_predictions = torch.load(coco_results_file).results
+        print(coco_predictions['bbox'])
+        for key, value in coco_predictions['bbox'].items(): 
+            try:
+                print("{},{},{},{},{},{},{}".format(
+                    self.category_id_to_names[int(key)]['name'],
+                    value['AP'],
+                    value['AP50'],
+                    value['AP75'],
+                    value['APs'],
+                    value['APm'],
+                    value['APl'],
+                ))
+            except ValueError:
+                print(key, value) 
+                continue
+        for key, value in coco_predictions['segm'].items(): 
+            try:
+                print("{},{},{},{},{},{},{}".format(
+                    self.category_id_to_names[int(key)]['name'],
+                    value['AP'],
+                    value['AP50'],
+                    value['AP75'],
+                    value['APs'],
+                    value['APm'],
+                    value['APl'],
+                ))
+            except ValueError:
+                print(key, value) 
+                continue
 
 
 
@@ -2170,24 +2211,30 @@ def run_6d():
     f_accuracy.close()
 
 
-def run_roman_crate():
-    image_directory = '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/Dataset_Synthesizer/Test/Zed'
-    annotation_file = '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/Dataset_Synthesizer/Test/Zed/instances_newmap1_roman_2018.json'
+def run_roman_crate(dataset_cfg=None):
+    image_directory = dataset_cfg['image_dir']
+    annotation_file = dataset_cfg['image_dir'] + '/instances_newmap1_roman_2018.json'
     fat_image = FATImage(
         coco_annotation_file=annotation_file,
         coco_image_directory=image_directory,
         depth_factor=100,
-        model_dir='/media/aditya/A69AFABA9AFA85D9/Datasets/roman/models',
+        model_dir=dataset_cfg['model_dir'],
         model_mesh_in_mm=True,
         # model_mesh_scaling_factor=0.005,
         model_mesh_scaling_factor=1,
         models_flipped=False,
+        img_width=960,
+        img_height=540,
+        distance_scale=100,
         env_config="roman_env_config.yaml",
-        planner_config="roman_planner_config.yaml"
+        planner_config="roman_planner_config.yaml",
+        perch_debug_dir=dataset_cfg["perch_debug_dir"],
+        python_debug_dir=dataset_cfg["python_debug_dir"],
+        dataset_type=dataset_cfg["type"]
     )
 
-    f_runtime = open('runtime.txt', "w")
-    f_accuracy = open('accuracy.txt', "w")
+    f_runtime = open('runtime.txt', "w", 1)
+    f_accuracy = open('accuracy.txt', "w", 1)
     f_runtime.write("{} {} {}\n".format('name', 'expands', 'runtime'))
 
     required_objects = ['crate_test']
@@ -2197,7 +2244,7 @@ def run_roman_crate():
     f_accuracy.write("\n")
 
 
-    for img_i in range(0,25):
+    for img_i in range(16,25):
     # for img_i in [16, 17, 19, 22]:
 
         # required_objects = ['coke']
@@ -2216,20 +2263,20 @@ def run_roman_crate():
         }
 
         # Camera pose goes here to get GT in world frame for accuracy computation
-        yaw_only_objects, max_min_dict, transformed_annotations = \
+        yaw_only_objects, max_min_dict, transformed_annotations, _ = \
             fat_image.visualize_pose_ros(
                 image_data, annotations, frame='table', camera_optical_frame=False,
                 input_camera_pose=camera_pose
             )
 
-        max_min_dict['ymax'] = 1
-        max_min_dict['ymin'] = -1
+        # max_min_dict['ymax'] = 1
+        # max_min_dict['ymin'] = -1
+        # max_min_dict['xmax'] = 0.5
+        # max_min_dict['xmin'] = -1
+        max_min_dict['ymax'] = 0.85
+        max_min_dict['ymin'] = -0.85
         max_min_dict['xmax'] = 0.5
-        max_min_dict['xmin'] = -1
-        # max_min_dict['ymax'] += 0.6
-        # max_min_dict['ymin'] -= 0.6
-        # max_min_dict['xmax'] += 0.6
-        # max_min_dict['xmin'] -= 0.6
+        max_min_dict['xmin'] = -0.5
         fat_image.search_resolution_translation = 0.08
 
 
@@ -2238,7 +2285,8 @@ def run_roman_crate():
             image_data, annotations, max_min_dict, frame='table',
             use_external_render=0, required_object=required_objects,
             camera_optical_frame=False, use_external_pose_list=0, gt_annotations=transformed_annotations,
-            input_camera_pose=camera_pose, table_height=0.006, num_cores=6
+            input_camera_pose=camera_pose, table_height=0.006, num_cores=8,
+            compute_type=2
         )
         # print(perch_annotations)
         # print(transformed_annotations)
@@ -2252,7 +2300,7 @@ def run_roman_crate():
                 f_accuracy.write(" , ,")
         f_accuracy.write("\n")
 
-        f_runtime.write("{} {} {}\n".format(image_name, stats['expands'], stats['runtime']))
+        f_runtime.write("{} {} {}\n".format(image_name, stats['rendered'], stats['runtime']))
 
     f_runtime.close()
 
@@ -2330,7 +2378,8 @@ def run_roman_crate_gpu(dataset_cfg=None):
             image_data, annotations, max_min_dict, frame='table',
             use_external_render=0, required_object=required_objects,
             camera_optical_frame=False, use_external_pose_list=0, gt_annotations=transformed_annotations,
-            input_camera_pose=camera_pose, table_height=0.006, num_cores=0
+            input_camera_pose=camera_pose, table_height=0.006, num_cores=0,
+            compute_type=1
         )
         # print(perch_annotations)
         # print(transformed_annotations)
@@ -2723,7 +2772,7 @@ def run_sameshape_gpu(dataset_cfg=None):
     read_results_only = False
     # fat_image.search_resolution_yaw = 1.57
     # 5 in can only
-    for img_i in range(10,50):
+    for img_i in range(18,50):
 
         image_name = 'NewMap1_turbosquid_can_only/0000{}.left.png'.format(str(img_i).zfill(2))
         # image_name = 'NewMap1_turbosquid/0000{}.left.png'.format(str(img_i).zfill(2))
@@ -2884,6 +2933,8 @@ def run_ycb_6d(dataset_cfg=None):
         perch_debug_dir=dataset_cfg["perch_debug_dir"],
         python_debug_dir=dataset_cfg["python_debug_dir"]
     )
+    # fat_image.analyze_maskrcnn_results('/media/aditya/A69AFABA9AFA85D9/Cruzr/code/fb_mask_rcnn/maskrcnn-benchmark/inference/ycb_test_bbox_cocostyle/coco_results.pth')
+    # return 
 
     # mask_type = 'posecnn'
     # mask_type = 'posecnn_gt_bbox'
@@ -2898,7 +2949,7 @@ def run_ycb_6d(dataset_cfg=None):
     f_runtime.write("{} {} {} {} {}\n".format('name', 'expands', 'runtime', 'icp_runtime', 'peak_gpu_mem'))
 
     # filter_objects = ['004_sugar_box']
-    required_objects = ['003_cracker_box']
+    # required_objects = ['003_cracker_box']
     # required_objects = ['025_mug', '007_tuna_fish_can', '002_master_chef_can']
     # required_objects = fat_image.category_names
     # required_objects = ['002_master_chef_can', '025_mug', '007_tuna_fish_can']
@@ -2915,29 +2966,29 @@ def run_ycb_6d(dataset_cfg=None):
     # ['010_potted_meat_can'] - 49, 59, 53
     # required_objects = ['019_pitcher_base','005_tomato_soup_can','004_sugar_box' ,'007_tuna_fish_can', '010_potted_meat_can', '024_bowl', '002_master_chef_can', '025_mug', '003_cracker_box', '006_mustard_bottle']
     # required_objects = fat_image.category_names
-    # required_objects = [
-    #     "002_master_chef_can",
-    #     "003_cracker_box",
-    #     "004_sugar_box",
-    #     "005_tomato_soup_can",
-    #     "006_mustard_bottle",
-    #     "007_tuna_fish_can",
-    #     "008_pudding_box",
-    #     "009_gelatin_box",
-    #     "010_potted_meat_can",
-    #     "011_banana",
-    #     "019_pitcher_base",
-    #     "021_bleach_cleanser",
-    #     "024_bowl",
-    #     "025_mug",
-    #     "035_power_drill",
-    #     "036_wood_block",
-    #     "037_scissors",
-    #     "040_large_marker",
-    #     "051_large_clamp",
-    #     "052_extra_large_clamp",
-    #     "061_foam_brick"
-    # ]
+    required_objects = [
+        "002_master_chef_can",
+        "003_cracker_box",
+        "004_sugar_box",
+        "005_tomato_soup_can",
+        "006_mustard_bottle",
+        "007_tuna_fish_can",
+        "008_pudding_box",
+        "009_gelatin_box",
+        "010_potted_meat_can",
+        "011_banana",
+        "019_pitcher_base",
+        "021_bleach_cleanser",
+        "024_bowl",
+        "025_mug",
+        "035_power_drill",
+        "036_wood_block",
+        "037_scissors",
+        "040_large_marker",
+        "051_large_clamp",
+        "052_extra_large_clamp",
+        "061_foam_brick"
+    ]
     filter_objects = required_objects
 
     if "posecnn" not in mask_type or print_poses:
@@ -2967,19 +3018,19 @@ def run_ycb_6d(dataset_cfg=None):
     # Trying 80 for sugar
     # do small clamp all upto 200 from 48 to 60
     IMG_LIST = np.loadtxt(os.path.join(image_directory, 'image_sets/keyframe.txt'), dtype=str).tolist()
-    for scene_i in range(48, 49):
+    for scene_i in range(52, 53):
     # for scene_i in [55, 54, 51, 57]:
-        # for img_i in (range(1, 200)):
+        for img_i in (range(272, 273)):
         # for img_i in IMG_LIST:
         # for img_i in tuna_list:
         # for img_i in drill_list:
         # for img_i in wood_list:
-        for img_i in cracker_list:
+        # for img_i in cracker_list:
             # if "0050" not in img_i:
             #     continue
             # Get Image
-            # image_name = 'data/00{}/00{}-color.png'.format(str(scene_i), str(img_i).zfill(4))
-            image_name = '{}'.format(img_i)
+            image_name = 'data/00{}/00{}-color.png'.format(str(scene_i), str(img_i).zfill(4))
+            # image_name = '{}'.format(img_i)
             # if image_name in skip_list:
             #     continue
             # image_data, annotations = fat_image.get_random_image(name='{}_16k/kitchen_4/000005.left.jpg'.format(category_name))
@@ -3104,6 +3155,7 @@ if __name__ == '__main__':
         run_sameshape_gpu(dataset_cfg=config['dataset'])
     elif config['dataset']['name'] == "crate":
         run_roman_crate_gpu(dataset_cfg=config['dataset'])
+        # run_roman_crate(dataset_cfg=config['dataset'])
 
     # coco_predictions = torch.load('/media/aditya/A69AFABA9AFA85D9/Cruzr/code/fb_mask_rcnn/maskrcnn-benchmark/inference/fat_pose_2018_val_cocostyle/coco_results.pth')
     # all_predictions = torch.load('/media/aditya/A69AFABA9AFA85D9/Cruzr/code/fb_mask_rcnn/maskrcnn-benchmark/inference/fat_pose_2018_val_cocostyle/predictions.pth')

@@ -31,6 +31,7 @@
 #include <Eigen/Dense>
 #include <algorithm>
 #include "math.h"
+#include <chrono>
 
 namespace cuda_renderer {
 

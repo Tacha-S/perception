@@ -123,6 +123,7 @@ int main(int argc, char **argv) {
   std::vector<Eigen::Affine3f> object_transforms, preprocessing_object_transforms;
   std::vector<ContPose> object_poses;
   std::vector<std::string> detected_model_names;
+  int compute_type = 1;
 
   if (IsMaster(world)) {
       RecognitionInput input;
@@ -170,26 +171,30 @@ int main(int argc, char **argv) {
       // input.model_names = vector<string>();
       // input.model_names.push_back(required_object);
       // input.model_names = vector<string>({"004_sugar_box"});
+      nh.getParam("/compute_type", compute_type);
+
       input_global = input;
   }
   world->barrier();
   broadcast(*world, input_global, kMasterRank);
-
+  broadcast(*world, compute_type, kMasterRank);
+  printf("Using Compute Type : %d\n", compute_type);
   // vector<ContPose> detected_poses;
   // object_recognizer.LocalizeObjects(input, &detected_poses);
 
-  int type = 1;
-  if (type == 0) {
+  if (compute_type == 0) {
     object_recognizer.LocalizeObjectsGreedyICP(
       input_global, &object_transforms, &preprocessing_object_transforms
     );
   }
-  else if (type == 2) {
+  else if (compute_type == 2) {
+    detected_model_names = input_global.model_names;
     object_recognizer.LocalizeObjects(
       input_global, &object_transforms, &preprocessing_object_transforms
     );
   }
-  else if (type == 1) {
+  else if (compute_type == 1) {
+    // Detected model names are taken from inside, for cases where some object required may not be detected
     object_recognizer.LocalizeObjectsGreedyRender(
       input_global, &object_transforms, &preprocessing_object_transforms, 
       &object_poses, &detected_model_names

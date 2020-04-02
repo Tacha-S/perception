@@ -210,6 +210,7 @@ class FATPerch():
         lines = f.readlines()
         stats_from_file = list(map(float, lines[2].rstrip().split()))
         stats['expands'] = stats_from_file[2]
+        stats['rendered'] = stats_from_file[0]
         stats['runtime'] = stats_from_file[3]
         stats['icp_runtime'] = stats_from_file[5]
         stats['peak_gpu_mem'] = stats_from_file[6]
