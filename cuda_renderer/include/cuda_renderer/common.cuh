@@ -114,7 +114,7 @@ namespace cuda_renderer {
         }
     }
     __global__ void depth_to_mask(
-        int32_t* depth, int* mask, int width, int height, int stride, int* pose_occluded, uint8_t* label_mask_data,
+        int32_t* depth, int* mask, int width, int height, int stride, int num_poses, int* pose_occluded, uint8_t* label_mask_data,
         float kCameraCX, float kCameraCY, float kCameraFX, float kCameraFY, float depth_factor,
         double* observed_cloud_bounds, Eigen::Matrix4f* camera_transform)
     {
@@ -135,6 +135,7 @@ namespace cuda_renderer {
         y = y*stride;
         if(x >= width) return;
         if(y >= height) return;
+        if (n >= num_poses) return;
         uint32_t idx_depth = n * width * height + x + y*width;
         uint32_t idx_mask = n * width * height + x + y*width;
     
@@ -173,7 +174,7 @@ namespace cuda_renderer {
     __global__ void depth_to_2d_cloud(
         int32_t* depth, uint8_t* r_in, uint8_t* g_in, uint8_t* b_in, float* cloud, size_t cloud_pitch, uint8_t* cloud_color, int cloud_rendered_cloud_point_num, int* mask, int width, int height, 
         float kCameraCX, float kCameraCY, float kCameraFX, float kCameraFY, float depth_factor,
-        int stride, int* cloud_pose_map, uint8_t* label_mask_data,  int* cloud_mask_label)
+        int stride, int num_poses, int* cloud_pose_map, uint8_t* label_mask_data,  int* cloud_mask_label)
     {
         /**
          * Creates a point cloud by combining a mask corresponding to valid depth pixels and depth data using the camera params
@@ -189,6 +190,7 @@ namespace cuda_renderer {
         y = y*stride;
         if(x >= width) return;
         if(y >= height) return;
+        if(n >= num_poses) return;
         uint32_t idx_depth = n * width * height + x + y*width;
     
         if(depth[idx_depth] <= 0) return;

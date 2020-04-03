@@ -32,7 +32,7 @@ perch_params:
   # min_neighbor_points_for_valid_pose: 350 #for stride 12
   # min_neighbor_points_for_valid_pose: 200 #for stride 16
   # min_neighbor_points_for_valid_pose: 100 #for stride 20
-  min_neighbor_points_for_valid_pose: 50 #50
+  min_neighbor_points_for_valid_pose: 65 #50
 
   ## Clutter mode
   use_clutter_mode: false
@@ -42,6 +42,7 @@ perch_params:
   ## GPU stuff
   use_gpu: true
   gpu_batch_size: 600
+  # gpu_batch_size: 2500
   gpu_stride: 24
   use_cylinder_observed: false
   gpu_occlusion_threshold: 100.0 #cm, used when no segmentation
