@@ -2244,7 +2244,7 @@ def run_roman_crate(dataset_cfg=None):
     f_accuracy.write("\n")
 
 
-    for img_i in range(16,25):
+    for img_i in range(0,16):
     # for img_i in [16, 17, 19, 22]:
 
         # required_objects = ['coke']
