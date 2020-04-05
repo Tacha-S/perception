@@ -5801,7 +5801,7 @@ void EnvObjectRecognition::SetInput(const RecognitionInput &input) {
     cv::Mat cv_depth_image, cv_predicted_mask_image;
     input_depth_image_path = input.input_depth_image;
     if (env_params_.use_external_pose_list == 1) {
-      gpu_stride = 8;
+      gpu_stride = perch_params_.gpu_stride;
       // gpu_stride = 5; // For fast_vgicp
       // For FAT dataset, we have 16bit images
       cv_depth_image = cv::imread(input.input_depth_image, CV_LOAD_IMAGE_ANYDEPTH);
@@ -5827,6 +5827,7 @@ void EnvObjectRecognition::SetInput(const RecognitionInput &input) {
     else {
       // gpu_stride = 4; //soda
       gpu_stride = perch_params_.gpu_stride; //crate
+      // cv_depth_image = cv::imread(input.input_depth_image, CV_LOAD_IMAGE_ANYDEPTH);
       cv_depth_image = cv::imread(input.input_depth_image, CV_LOAD_IMAGE_UNCHANGED);
       if (perch_params_.use_gpu)
       {
@@ -5834,6 +5835,10 @@ void EnvObjectRecognition::SetInput(const RecognitionInput &input) {
           cv_depth_image.ptr<uchar>(0), 
           cv_depth_image.ptr<uchar>(0) + env_params_.width * env_params_.height
         );
+        // input_depth_image_vec.assign(
+        //   cv_depth_image.ptr<unsigned short>(0), 
+        //   cv_depth_image.ptr<unsigned short>(0) + env_params_.width * env_params_.height
+        // );
         bounds.push_back(env_params_.x_max);
         bounds.push_back(env_params_.x_min);
         bounds.push_back(env_params_.y_max);
@@ -5844,9 +5849,10 @@ void EnvObjectRecognition::SetInput(const RecognitionInput &input) {
         // cout << bounds[0] << " " << bounds[1] << endl;
         Eigen::Isometry3d cam_to_body;
         cam_to_body.matrix() << 0, 0, 1, 0,
-                          -1, 0, 0, 0,
-                          0, -1, 0, 0,
-                          0, 0, 0, 1;
+                                -1, 0, 0, 0,
+                                0, -1, 0, 0,
+                                0, 0, 0, 1;
+        // Convert camera pose to optical frame because we are reading image directly
         Eigen::Isometry3d transform_iso = cam_to_world_ * cam_to_body;
         Eigen::Matrix4f transform = transform_iso.matrix ().cast<float> ();
 
@@ -6454,12 +6460,12 @@ GraphState EnvObjectRecognition::ComputeGreedyICPPoses() {
         // #pragma omp parallel for
         for (double x = env_params_.x_min; x <= env_params_.x_max;
             x += search_resolution) {
-          // #pragma omp parallel for
 
+          // #pragma omp parallel for
           for (double y = env_params_.y_min; y <= env_params_.y_max;
               y += search_resolution) {
-            // #pragma omp parallel for
 
+            // #pragma omp parallel for
             for (double theta = 0; theta < 2 * M_PI; theta += env_params_.theta_res) {
               ContPose p_in(x, y, env_params_.table_height, 0.0, 0.0, theta);
               ContPose p_out = p_in;
@@ -6497,7 +6503,7 @@ GraphState EnvObjectRecognition::ComputeGreedyICPPoses() {
               succ_state.mutable_object_states()[0] = ObjectState(old_state.id(),
                                                                   old_state.symmetric(), p_out);
 
-              if (image_debug_) {
+              if (perch_params_.vis_expanded_states) {
                 string fname = debug_dir_ + "succ_" + to_string(succ_id) + ".png";
                 PrintState(succ_state, fname);
                 printf("%d: %f\n", succ_id, icp_fitness_score);

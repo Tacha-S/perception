@@ -37,6 +37,7 @@ perch_params:
   ## GPU stuff
   use_gpu: true
   gpu_batch_size: 700
+  gpu_stride: 8
 
   ## Visualization and Debugging
   visualize_expanded_states: false

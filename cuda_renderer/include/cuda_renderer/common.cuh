@@ -100,9 +100,8 @@ namespace cuda_renderer {
         z_pcd = static_cast<float>(depth)/depth_factor;
         x_pcd = (static_cast<float>(x) - kCameraCX)/kCameraFX * z_pcd;
         y_pcd = (static_cast<float>(y) - kCameraCY)/kCameraFY * z_pcd;
-        // printf("kCameraCX:%f,kCameraFX:%f, kCameraCY:%f, kCameraCY:%f\n", kCameraCX,kCameraFX,kCameraCY, y_pcd, z_pcd);
+        // printf("kCameraCX:%f,kCameraFX:%f, kCameraCY:%f, kCameraFY:%f\n", kCameraCX,kCameraFX,kCameraCY, kCameraFY);
 
-        // printf("x:%d,y:%d, x_pcd:%f, y_pcd:%f, z_pcd:%f\n", x,y,x_pcd, y_pcd, z_pcd);
         if (camera_transform != NULL)
         {
             Eigen::Matrix<float, 3, 1> pt (x_pcd, y_pcd, z_pcd);
@@ -111,6 +110,7 @@ namespace cuda_renderer {
             z_pcd = world_point[2];
             y_pcd = world_point[1];
             x_pcd = world_point[0];
+            // printf("x:%d,y:%d, x_pcd:%f, y_pcd:%f, z_pcd:%f\n", x,y,x_pcd, y_pcd, z_pcd);
         }
     }
     __global__ void depth_to_mask(

@@ -41,6 +41,7 @@ class FATImage:
             model_mesh_in_mm=False,
             model_mesh_scaling_factor=1,
             models_flipped=False,
+            model_type="default",
             env_config="pr2_env_config.yaml",
             planner_config="pr2_planner_config.yaml",
             img_width=960,
@@ -59,40 +60,42 @@ class FATImage:
         self.height = img_height
         self.distance_scale = distance_scale
         self.dataset_type = dataset_type
-        self.coco_image_directory = coco_image_directory
-        self.example_coco = COCO(coco_annotation_file)
-        example_coco = self.example_coco
-        self.category_id_to_names = example_coco.loadCats(example_coco.getCatIds())
-        self.category_names_to_id = {}
-        self.category_ids = example_coco.getCatIds(catNms=['square', 'shape'])
-        for category in self.category_id_to_names:
-            self.category_names_to_id[category['name']] = category['id']
-
-        self.category_names = list(self.category_names_to_id.keys())
-        print('Custom COCO categories: \n{}\n'.format(' '.join(self.category_names)))
-        # print(coco_predictions)
-        # print(all_predictions[:5])
-
-        # ## Load Image from COCO Dataset
-
-
-        self.image_ids = example_coco.getImgIds(catIds=self.category_ids)
         self.perch_debug_dir = perch_debug_dir
         self.python_debug_dir = python_debug_dir
         mkdir_if_missing(self.python_debug_dir)
+        self.coco_image_directory = coco_image_directory
+        self.model_type = model_type
 
-
-        self.viewpoints_xyz = np.array(example_coco.dataset['viewpoints'])
-        self.inplane_rotations = np.array(example_coco.dataset['inplane_rotations'])
-        self.fixed_transforms_dict = example_coco.dataset['fixed_transforms']
-        self.camera_intrinsics = example_coco.dataset['camera_intrinsic_settings']
         self.camera_intrinsic_matrix = None
-        if self.camera_intrinsics is not None:
-            # Can be none in case of YCB
-            self.camera_intrinsic_matrix = \
-                np.array([[self.camera_intrinsics['fx'], 0, self.camera_intrinsics['cx']],
-                        [0, self.camera_intrinsics['fy'], self.camera_intrinsics['cy']],
-                        [0, 0, 1]])
+        if coco_annotation_file is not None:
+            self.example_coco = COCO(coco_annotation_file)
+            example_coco = self.example_coco
+            self.category_id_to_names = example_coco.loadCats(example_coco.getCatIds())
+            self.category_names_to_id = {}
+            self.category_ids = example_coco.getCatIds(catNms=['square', 'shape'])
+            for category in self.category_id_to_names:
+                self.category_names_to_id[category['name']] = category['id']
+
+            self.category_names = list(self.category_names_to_id.keys())
+            print('Custom COCO categories: \n{}\n'.format(' '.join(self.category_names)))
+            # print(coco_predictions)
+            # print(all_predictions[:5])
+
+            # ## Load Image from COCO Dataset
+
+            self.image_ids = example_coco.getImgIds(catIds=self.category_ids)
+
+            self.viewpoints_xyz = np.array(example_coco.dataset['viewpoints'])
+            self.inplane_rotations = np.array(example_coco.dataset['inplane_rotations'])
+            self.fixed_transforms_dict = example_coco.dataset['fixed_transforms']
+            self.camera_intrinsics = example_coco.dataset['camera_intrinsic_settings']
+            if self.camera_intrinsics is not None:
+                # Can be none in case of YCB
+                self.camera_intrinsic_matrix = \
+                    np.array([[self.camera_intrinsics['fx'], 0, self.camera_intrinsics['cx']],
+                            [0, self.camera_intrinsics['fy'], self.camera_intrinsics['cy']],
+                            [0, 0, 1]])
+
         self.depth_factor = depth_factor
 
         self.world_to_fat_world = {}
@@ -141,7 +144,8 @@ class FATImage:
             "coke_bottle" : 2,
             "sprite_bottle" : 2,
             "fanta_bottle" : 2,
-            "crate_test" : 0
+            "crate_test" : 0,
+            "035_power_drill" : 0
         }
 
         self.env_config = env_config
@@ -756,6 +760,8 @@ class FATImage:
         # For YCB
         elif self.dataset_type == "ycb":
             return color_img_path.replace('color', 'depth')
+        else:
+            return color_img_path.replace('color', 'depth')
 
     def get_mask_img_path(self, color_img_path):
         # For YCB
@@ -918,6 +924,7 @@ class FATImage:
             output_dir_name=output_dir_name,
             models_root=self.model_dir,
             model_params=self.model_params,
+            model_type=self.model_type,
             symmetry_info=self.symmetry_info,
             read_results_only=True,
             perch_debug_dir=self.perch_debug_dir
@@ -948,13 +955,13 @@ class FATImage:
         if input_camera_pose is None:
             if frame == 'fat_world':
                 camera_pose = get_camera_pose_in_world(annotations[0]['camera_pose'], None, 'rot', cam_to_body=cam_to_body)
-                camera_pose[:3, 3] /= 100
+                camera_pose[:3, 3] /= self.distance_scale
             if frame == 'world':
                 camera_pose = get_camera_pose_in_world(annotations[0]['camera_pose'], self.world_to_fat_world, 'rot', cam_to_body=cam_to_body)
-                camera_pose[:3, 3] /= 100
+                camera_pose[:3, 3] /= self.distance_scale
             if frame == 'table':
                 _, _, camera_pose = self.get_camera_pose_relative_table(depth_img_path, type='rot', cam_to_body=cam_to_body)
-                camera_pose[:3, 3] /= 100
+                camera_pose[:3, 3] /= self.distance_scale
             if frame == 'camera':
                 # For 6D version we run in camera frame
                 camera_pose = np.array([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]])
@@ -963,7 +970,7 @@ class FATImage:
         else:
             # Using hardcoded input camera pose from somewhere
             camera_pose = get_camera_pose_in_world(input_camera_pose, type='rot', cam_to_body=cam_to_body)
-            camera_pose[:3, 3] /= 100
+            camera_pose[:3, 3] /= self.distance_scale
 
         print("camera_pose : {}".format(camera_pose))
 
@@ -1031,6 +1038,7 @@ class FATImage:
             output_dir_name=self.get_clean_name(image_data['file_name']),
             models_root=self.model_dir,
             model_params=self.model_params,
+            model_type=self.model_type,
             symmetry_info=self.symmetry_info,
             env_config=self.env_config,
             planner_config=self.planner_config,
@@ -2949,7 +2957,7 @@ def run_ycb_6d(dataset_cfg=None):
     f_runtime.write("{} {} {} {} {}\n".format('name', 'expands', 'runtime', 'icp_runtime', 'peak_gpu_mem'))
 
     # filter_objects = ['004_sugar_box']
-    # required_objects = ['003_cracker_box']
+    required_objects = ['003_cracker_box']
     # required_objects = ['025_mug', '007_tuna_fish_can', '002_master_chef_can']
     # required_objects = fat_image.category_names
     # required_objects = ['002_master_chef_can', '025_mug', '007_tuna_fish_can']
@@ -2966,29 +2974,29 @@ def run_ycb_6d(dataset_cfg=None):
     # ['010_potted_meat_can'] - 49, 59, 53
     # required_objects = ['019_pitcher_base','005_tomato_soup_can','004_sugar_box' ,'007_tuna_fish_can', '010_potted_meat_can', '024_bowl', '002_master_chef_can', '025_mug', '003_cracker_box', '006_mustard_bottle']
     # required_objects = fat_image.category_names
-    required_objects = [
-        "002_master_chef_can",
-        "003_cracker_box",
-        "004_sugar_box",
-        "005_tomato_soup_can",
-        "006_mustard_bottle",
-        "007_tuna_fish_can",
-        "008_pudding_box",
-        "009_gelatin_box",
-        "010_potted_meat_can",
-        "011_banana",
-        "019_pitcher_base",
-        "021_bleach_cleanser",
-        "024_bowl",
-        "025_mug",
-        "035_power_drill",
-        "036_wood_block",
-        "037_scissors",
-        "040_large_marker",
-        "051_large_clamp",
-        "052_extra_large_clamp",
-        "061_foam_brick"
-    ]
+    # required_objects = [
+    #     "002_master_chef_can",
+    #     "003_cracker_box",
+    #     "004_sugar_box",
+    #     "005_tomato_soup_can",
+    #     "006_mustard_bottle",
+    #     "007_tuna_fish_can",
+    #     "008_pudding_box",
+    #     "009_gelatin_box",
+    #     "010_potted_meat_can",
+    #     "011_banana",
+    #     "019_pitcher_base",
+    #     "021_bleach_cleanser",
+    #     "024_bowl",
+    #     "025_mug",
+    #     "035_power_drill",
+    #     "036_wood_block",
+    #     "037_scissors",
+    #     "040_large_marker",
+    #     "051_large_clamp",
+    #     "052_extra_large_clamp",
+    #     "061_foam_brick"
+    # ]
     filter_objects = required_objects
 
     if "posecnn" not in mask_type or print_poses:
@@ -3018,9 +3026,9 @@ def run_ycb_6d(dataset_cfg=None):
     # Trying 80 for sugar
     # do small clamp all upto 200 from 48 to 60
     IMG_LIST = np.loadtxt(os.path.join(image_directory, 'image_sets/keyframe.txt'), dtype=str).tolist()
-    for scene_i in range(52, 53):
+    for scene_i in range(48, 60):
     # for scene_i in [55, 54, 51, 57]:
-        for img_i in (range(272, 273)):
+        for img_i in (range(1, 2500)):
         # for img_i in IMG_LIST:
         # for img_i in tuna_list:
         # for img_i in drill_list:
@@ -3136,6 +3144,65 @@ def run_ycb_6d(dataset_cfg=None):
     f_runtime.close()
     f_accuracy.close()
 
+def run_on_image(dataset_cfg=None):
+    directory = "/media/aditya/A69AFABA9AFA85D9/Cruzr/code/DOPE/catkin_ws/src/Deep_Object_Pose/output/drill"
+    image_data = {}
+    # image_data['file_name'] = "1579546223951406812.color.jpg"
+    camera_pose_path = directory + "/camera_pose.json"
+    camera_intrinsics_matrix_path = directory + "/depth_camera_intrinsics.txt"
+    
+    with open(camera_pose_path) as f:
+        camera_pose =  json.load(f)
+    camera_intrinsics = np.loadtxt(camera_intrinsics_matrix_path)
+
+    max_min_dict = {}
+    max_min_dict['ymax'] = 1.5
+    max_min_dict['ymin'] = 0.0
+    max_min_dict['xmax'] = 0.6
+    max_min_dict['xmin'] = 0.2
+    table_height = 0.735
+    f_runtime = open('runtime.txt', "w", 1)
+    f_runtime.write("{} {} {}\n".format('name', 'expands', 'runtime'))
+
+    required_objects = ['035_power_drill']
+    fat_image = FATImage(
+        coco_image_directory = directory,
+        depth_factor=100,
+        model_dir=dataset_cfg['model_dir'],
+        model_mesh_in_mm=True,
+        model_mesh_scaling_factor=1,
+        models_flipped=False,
+        model_type="upright",
+        img_width=640,
+        img_height=480,
+        distance_scale=1,
+        env_config="pr2_conv_env_config.yaml",
+        planner_config="pr2_planner_config.yaml",
+        perch_debug_dir=dataset_cfg["perch_debug_dir"],
+        python_debug_dir=dataset_cfg["python_debug_dir"],
+        dataset_type=dataset_cfg["type"]
+    )
+    fat_image.search_resolution_translation = 0.07
+    fat_image.search_resolution_yaw = 0.4
+    fat_image.camera_intrinsic_matrix = camera_intrinsics
+    fat_image.category_names_to_id = {
+        '035_power_drill': 0
+    }
+    for img_i in np.arange(150, 360, 10):
+        image_data['file_name'] = "{}.color.jpg".format(img_i)
+        perch_annotations, stats = fat_image.visualize_perch_output(
+            image_data, None, max_min_dict, frame='table',
+            use_external_render=0, required_object=required_objects,
+            # Dont apply cam to body transform because this camera pose is already with non optical frame
+            camera_optical_frame=False, use_external_pose_list=0,
+            input_camera_pose=camera_pose, table_height=table_height, 
+            num_cores=0, compute_type=1
+        )
+
+        f_runtime.write("{} {} {}\n".format(image_data['file_name'], stats['expands'], stats['runtime']))
+
+    f_runtime.close()
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="Video stream from the command line")
@@ -3156,6 +3223,8 @@ if __name__ == '__main__':
     elif config['dataset']['name'] == "crate":
         run_roman_crate_gpu(dataset_cfg=config['dataset'])
         # run_roman_crate(dataset_cfg=config['dataset'])
+    elif config['dataset']['name'] == "image":
+        run_on_image(dataset_cfg=config['dataset'])
 
     # coco_predictions = torch.load('/media/aditya/A69AFABA9AFA85D9/Cruzr/code/fb_mask_rcnn/maskrcnn-benchmark/inference/fat_pose_2018_val_cocostyle/coco_results.pth')
     # all_predictions = torch.load('/media/aditya/A69AFABA9AFA85D9/Cruzr/code/fb_mask_rcnn/maskrcnn-benchmark/inference/fat_pose_2018_val_cocostyle/predictions.pth')

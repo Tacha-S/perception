@@ -1453,9 +1453,9 @@ namespace cuda_renderer {
         {
             // std::cout << observed_cloud_bounds[0] << " " << observed_cloud_bounds[1] << std::endl;
             printf("Using filter bounds to create point cloud\n");
-            printf("x_min : %f, x_max : %f\n", observed_cloud_bounds[0], observed_cloud_bounds[1]);
-            printf("y_min : %f, y_max : %f\n", observed_cloud_bounds[2], observed_cloud_bounds[3]);
-            printf("z_min : %f, z_max : %f\n", observed_cloud_bounds[4], observed_cloud_bounds[5]);
+            printf("x_min : %f, x_max : %f\n", observed_cloud_bounds[1], observed_cloud_bounds[0]);
+            printf("y_min : %f, y_max : %f\n", observed_cloud_bounds[3], observed_cloud_bounds[2]);
+            printf("z_min : %f, z_max : %f\n", observed_cloud_bounds[5], observed_cloud_bounds[4]);
             cudaMalloc(&observed_cloud_bounds_cuda, 6 * sizeof(double));
             cudaMemcpy(observed_cloud_bounds_cuda, observed_cloud_bounds, 6 * sizeof(double), cudaMemcpyHostToDevice);
         }

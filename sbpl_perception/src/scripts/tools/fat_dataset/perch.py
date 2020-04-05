@@ -43,7 +43,7 @@ class FATPerch():
 
     def __init__(
             self, params=None, input_image_files=None, camera_params=None, object_names_to_id=None, output_dir_name=None,
-            models_root=None, model_params=None, symmetry_info=None, read_results_only=False, env_config="pr2_env_config.yaml",
+            models_root=None, model_params=None, model_type="default", symmetry_info=None, read_results_only=False, env_config="pr2_env_config.yaml",
             planner_config="pr2_planner_config.yaml", perch_debug_dir=None
         ):
         self.PERCH_EXEC = subprocess.check_output("catkin_find sbpl_perception perch_fat".split(" ")).decode("utf-8").rstrip().lstrip()
@@ -64,6 +64,7 @@ class FATPerch():
         self.output_dir_name = output_dir_name
 
         self.perch_debug_dir = perch_debug_dir
+        self.model_type = model_type
 
         if read_results_only == False:
             self.load_ros_param_from_file(PERCH_ENV_CONFIG)
@@ -113,9 +114,15 @@ class FATPerch():
         #symmetric true false
         #symmetric number
         for object_name in object_names:
+            if self.model_type == "default":
+                model_path = os.path.join(models_root, object_name, 'textured.ply')
+            elif self.model_type == "upright":
+                # For things like drill which need to be made upright
+                model_path = os.path.join(models_root, object_name, 'textured_upright.ply')
+
             params.append([
                 object_name,
-                os.path.join(models_root, object_name, 'textured.ply'),
+                model_path,
                 model_params['flipped'],
                 False,
                 0 if self.use_external_pose_list == 1 else self.SYMMETRY_INFO[object_name],
