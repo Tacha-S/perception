@@ -65,6 +65,8 @@ class FATImage:
         mkdir_if_missing(self.python_debug_dir)
         self.coco_image_directory = coco_image_directory
         self.model_type = model_type
+        self.fixed_transforms_dict = None
+        self.scene_cloud_pub = None
 
         self.camera_intrinsic_matrix = None
         if coco_annotation_file is not None:
@@ -382,7 +384,8 @@ class FATImage:
         pose_cloud_msg = self.xyzrgb_array_to_pointcloud2(
             cloud_n_array, cloud_color, rospy.Time.now(), "camera"
         )
-        self.scene_cloud_pub.publish(pose_cloud_msg)
+        if self.scene_cloud_pub is not None:
+            self.scene_cloud_pub.publish(pose_cloud_msg)
 
         return cloud_n
 
@@ -3145,11 +3148,20 @@ def run_ycb_6d(dataset_cfg=None):
     f_accuracy.close()
 
 def run_on_image(dataset_cfg=None):
-    directory = "/media/aditya/A69AFABA9AFA85D9/Cruzr/code/DOPE/catkin_ws/src/Deep_Object_Pose/output/drill"
+    import rospy
+    rospy.init_node("image_run_node")
+    if '/opt/ros/kinetic/lib/python2.7/dist-packages' in sys.path:
+        sys.path.remove('/opt/ros/kinetic/lib/python2.7/dist-packages')
+        import cv2
+
+    # directory = "/media/aditya/A69AFABA9AFA85D9/Cruzr/code/DOPE/catkin_ws/src/Deep_Object_Pose/output/drill"
+    # directory = "./bag_output/drill_1"
+    directory = "./bag_output/sugar_1"
     image_data = {}
     # image_data['file_name'] = "1579546223951406812.color.jpg"
     camera_pose_path = directory + "/camera_pose.json"
-    camera_intrinsics_matrix_path = directory + "/depth_camera_intrinsics.txt"
+    # camera_intrinsics_matrix_path = directory + "/depth_camera_intrinsics.txt"
+    camera_intrinsics_matrix_path = directory + "/rgb_camera_intrinsics.txt"
     
     with open(camera_pose_path) as f:
         camera_pose =  json.load(f)
@@ -3164,7 +3176,8 @@ def run_on_image(dataset_cfg=None):
     f_runtime = open('runtime.txt', "w", 1)
     f_runtime.write("{} {} {}\n".format('name', 'expands', 'runtime'))
 
-    required_objects = ['035_power_drill']
+    # required_objects = ['035_power_drill']
+    required_objects = ['004_sugar_box']
     fat_image = FATImage(
         coco_image_directory = directory,
         depth_factor=100,
@@ -3186,14 +3199,58 @@ def run_on_image(dataset_cfg=None):
     fat_image.search_resolution_yaw = 0.4
     fat_image.camera_intrinsic_matrix = camera_intrinsics
     fat_image.category_names_to_id = {
-        '035_power_drill': 0
+        required_objects[0]: 0
     }
-    for img_i in np.arange(150, 360, 10):
+    fat_image.category_names = [
+                "002_master_chef_can",
+                "003_cracker_box",
+                "004_sugar_box",
+                "005_tomato_soup_can",
+                "006_mustard_bottle",
+                "007_tuna_fish_can",
+                "008_pudding_box",
+                "009_gelatin_box",
+                "010_potted_meat_can",
+                "011_banana",
+                "019_pitcher_base",
+                "021_bleach_cleanser",
+                "024_bowl",
+                "025_mug",
+                "035_power_drill",
+                "036_wood_block",
+                "037_scissors",
+                "040_large_marker",
+                "051_large_clamp",
+                "052_extra_large_clamp",
+                "061_foam_brick"
+            ]
+    ## Try to run mask detection
+    # fat_image.init_model(
+    #     dataset_cfg['maskrcnn_config'], 
+    #     print_poses=False, 
+    #     required_objects=required_objects, 
+    #     model_weights=dataset_cfg['maskrcnn_model_path'],
+    #     min_image_size=fat_image.height
+    # )
+    fat_image.init_dope_node()
+    for img_i in np.arange(150, 360, 1):
         image_data['file_name'] = "{}.color.jpg".format(img_i)
+
+        ## Try to run mask detection
+        # color_img_path = os.path.join(fat_image.coco_image_directory, image_data['file_name'])
+        # color_img = cv2.imread(color_img_path)
+        # composite, mask_list_all, labels_all, centroids_2d_all, boxes_all, overall_binary_mask \
+        #         = fat_image.coco_demo.run_on_opencv_image(color_img, use_thresh=True)
+        # mask_output_path = os.path.join(fat_image.coco_image_directory, 
+        #                                     fat_image.get_clean_name(image_data['file_name']) + "_mask.jpg")
+        # cv2.imwrite(mask_output_path, composite) 
+
+        # dope_annotations, runtime = fat_image.visualize_dope_output(image_data)
+
         perch_annotations, stats = fat_image.visualize_perch_output(
             image_data, None, max_min_dict, frame='table',
             use_external_render=0, required_object=required_objects,
-            # Dont apply cam to body transform because this camera pose is already with non optical frame
+            # Apply cam to body transform because this camera pose is with optical frame
             camera_optical_frame=False, use_external_pose_list=0,
             input_camera_pose=camera_pose, table_height=table_height, 
             num_cores=0, compute_type=1

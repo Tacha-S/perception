@@ -118,7 +118,12 @@ class FATPerch():
                 model_path = os.path.join(models_root, object_name, 'textured.ply')
             elif self.model_type == "upright":
                 # For things like drill which need to be made upright
-                model_path = os.path.join(models_root, object_name, 'textured_upright.ply')
+                temp_path = os.path.join(models_root, object_name, 'textured_upright.ply')
+                if os.path.exists(temp_path):
+                    model_path = temp_path
+                else:
+                    model_path = os.path.join(models_root, object_name, 'textured.ply')
+
 
             params.append([
                 object_name,

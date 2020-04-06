@@ -160,8 +160,11 @@ class DopeNode(object):
             try:
                 cloud = PlyData.read(rospy.get_param('meshes_ply')[model]).elements[0].data
                 cloud = np.transpose(np.vstack((cloud['x'], cloud['y'], cloud['z'])))
-                fixed_transform = np.transpose(np.array(self.fixed_transforms_dict[model]))
-                fixed_transform[:3,3] = [i/100 for i in fixed_transform[:3,3]]
+                if self.fixed_transforms_dict is None:
+                    fixed_transform = np.eye(4)
+                else:
+                    fixed_transform = np.transpose(np.array(self.fixed_transforms_dict[model]))
+                    fixed_transform[:3,3] = [i/100 for i in fixed_transform[:3,3]]
                 # fixed_transform = np.linalg.inv(fixed_transform)
                 if model == "coke_bottle" or model == "sprite_bottle":
                     fixed_transform[1,3] = 0.172
@@ -384,7 +387,7 @@ class DopeNode(object):
             for i_r, result in enumerate(results):
                 if result["location"] is None:
                     continue
-                # print(result)
+                print(result)
                 loc = result["location"]
                 ori = result["quaternion"]
                 CONVERT_SCALE_CM_TO_METERS = 100
