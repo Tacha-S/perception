@@ -30,7 +30,7 @@ Setup (For running with a robot camera or bagfile recorded from robot)
     ```
 4.  Clone this repo which contains the code locally : 
     ```
-    git clone https://github.com/SBPL-Cruz/perception -b gpu
+    git clone https://github.com/SBPL-Cruz/perception
     ```
 5. Create a folder for visualization of the output and to store the 3D models. This example works with 3D models of YCB objects :
    ```
