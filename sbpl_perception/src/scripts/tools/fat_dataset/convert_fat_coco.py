@@ -147,6 +147,25 @@ if False:
     OUTFILE_NAME = 'instances_syn_bbox_pose'
     IMG_SUBFOLDER = "data_syn"
 
+if True:
+    ROOT_DIR = '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/DOPE/catkin_ws/src/perception/sbpl_perception/src/scripts/tools/fat_dataset/bag_output'
+    DATASET_TYPE = "conveyor"
+    SELECTED_OBJECTS = []
+    SCENES = [
+        "soup_1",
+        "sugar_1",
+        "sugar_2",
+        "sugar_3",
+        "drill_1",
+        "drill_2",
+        "drill_3",
+        "mustard_1",
+        "mustard_2",
+        "mustard_3"
+    ]
+    OUTFILE_NAME = 'instances_conveyor_pose'
+
+
 ng = 642
 print ( '' )
 print ( '  Number of points NG = %d' % ( ng ) )
@@ -931,9 +950,161 @@ def load_ycb_bbox_dataset():
     with open('{}/{}.json'.format(ROOT_DIR, OUTFILE_NAME), 'w') as output_json_file:
         json.dump(coco_output, output_json_file)
 
+
+def load_conveyor_dataset():
+
+    # CATEGORIES, FIXED_TRANSFORMS, CAMERA_INTRINSICS = pre_load_ycb_dataset()
+    CLASSES = [
+                "002_master_chef_can",
+                "003_cracker_box",
+                "004_sugar_box",
+                "005_tomato_soup_can",
+                "006_mustard_bottle",
+                "007_tuna_fish_can",
+                "008_pudding_box",
+                "009_gelatin_box",
+                "010_potted_meat_can",
+                "011_banana",
+                "019_pitcher_base",
+                "021_bleach_cleanser",
+                "024_bowl",
+                "025_mug",
+                "035_power_drill",
+                "036_wood_block",
+                "037_scissors",
+                "040_large_marker",
+                "051_large_clamp",
+                "052_extra_large_clamp",
+                "061_foam_brick"
+            ]
+    CATEGORIES = [{
+                'id': i,
+                'name': CLASSES[i],
+                'supercategory': 'shape',
+            } for i in range(0,len(CLASSES))]
+    camera_settings_file = os.path.join(ROOT_DIR, SCENES[0], "rgb_camera_intrinsics.txt")
+    CAMERA_INTRINSICS = np.loadtxt(camera_settings_file).tolist()
+    coco_output = {
+        "info": INFO,
+        "licenses": LICENSES,
+        "categories": CATEGORIES,
+        "camera_intrinsic_matrix": CAMERA_INTRINSICS,
+        "images": [],
+        "annotations": []
+    }
+
+    image_global_id = 1
+    segmentation_global_id = 1
+
+    # filter for jpeg images
+    for scene_dir in SCENES:
+        print("Doing scene : {}".format(scene_dir))
+        for ii in trange(1000):
+            image_dir = os.path.join(ROOT_DIR, scene_dir)
+            image_filename = os.path.join(scene_dir, str(ii) + '.color.jpg')
+            # print(image_filename)
+
+            pose_filename = os.path.join(image_dir, str(ii) + '.pose.txt')
+            # print(pose_filename)
+            
+            if not os.path.exists(pose_filename):
+                # print("No label file")
+                continue
+
+            segmentation_image_file =  os.path.join(image_dir, str(ii) + '.mask.jpg')
+            # camera_pose_matrix_file =  os.path.join(image_dir, "camera_pose_matrix.txt")
+            camera_pose_file =  os.path.join(image_dir, "camera_pose.json")
+            # print(camera_pose_matrix_file)
+
+            img_size = (640, 480)
+            image_info = pycococreatortools.create_image_info(
+                image_global_id, image_filename, img_size
+            )
+            # plt.figure()
+            # full_image_file =  os.path.join(ROOT_DIR, image_filename)
+            # skimage.io.imshow(skimage.io.imread(full_image_file))
+            # plt.show()
+            
+            boxes = []
+            labels = []
+            segmentation_ids = []
+            
+            binary_mask = skimage.io.imread(segmentation_image_file)
+            # print(segmentation_image)
+            # print("File %d - %s"% (image_global_id, segmentation_image_files[0]))
+
+            # class_indexes = label_data['cls_indexes'][0][0].flatten().tolist()
+            # print(class_indexes)
+            if "sugar" in scene_dir:
+                class_name = "004_sugar_box"
+            elif "drill" in scene_dir:
+                class_name = "035_power_drill"
+            elif "mustard" in scene_dir:
+                class_name = "006_mustard_bottle"
+            elif "soup" in scene_dir:
+                class_name = "005_tomato_soup_can"
+            # print(class_name)
+
+            # camera_pose_matrix = np.loadtxt(camera_pose_matrix_file)
+            # camera_pose = {}
+            # camera_pose['location_worldframe'] = RT_transform.translation_from_matrix(camera_pose_matrix).tolist()
+            # camera_pose['quaternion_xyzw_worldframe'] = get_xyzw_quaternion(RT_transform.quaternion_from_matrix(camera_pose_matrix).tolist())
+
+            camera_pose = {}
+            with open(camera_pose_file) as f:
+                camera_pose =  json.load(f)
+                camera_pose['location_worldframe'] = camera_pose['location_worldframe']
+                camera_pose['quaternion_xyzw_worldframe'] = camera_pose['quaternion_xyzw_worldframe']
+
+            # print(camera_pose)
+            ## Iterate over every object in annotation
+            # for i in range(0, len(class_indexes)):
+                ## Label starts from 1 in the annotation, need from 0 for indexing but 1 for segmentation image label
+            class_label = CLASSES.index(class_name)
+            pose_matrix = np.loadtxt(pose_filename)
+
+            quat = get_xyzw_quaternion(RT_transform.mat2quat(pose_matrix[:3,:3]).tolist())
+            loc = RT_transform.translation_from_matrix(pose_matrix)
+            
+            # Create binary masks from segmentation image for every object
+            # binary_mask = np.copy(segmentation_image)
+            # binary_mask[binary_mask != class_label + 1] = 0
+            # binary_mask[binary_mask == class_label + 1] = 1
+            # skimage.io.imshow(binary_mask, cmap=plt.cm.gray)
+            # plt.show()
+
+            # TODO : check if its actually a crowd in case of multiple instances of one object type
+            category_info = {'id': class_label, 'is_crowd': 0}
+
+            
+            annotation_info = pycococreatortools.create_annotation_info(
+                segmentation_global_id, image_global_id, category_info, binary_mask,
+                img_size, tolerance=2)
+            
+            if annotation_info is not None:
+                annotation_info['camera_pose'] = camera_pose
+                annotation_info['location'] = loc.tolist()
+                annotation_info['quaternion_xyzw'] = quat
+                # print(annotation_info)
+                coco_output["annotations"].append(annotation_info)
+                coco_output["images"].append(image_info)
+            else:
+                tqdm.write("File {} doesn't have boxes or labels in json file for {}".format(image_filename, class_name))
+            segmentation_global_id = segmentation_global_id + 1
+            # else:
+            #     tqdm.write("File %s doesn't have a label file" % image_filename)
+                    
+
+            image_global_id = image_global_id + 1
+
+    with open('{}/{}.json'.format(ROOT_DIR, OUTFILE_NAME), 'w') as output_json_file:
+        json.dump(coco_output, output_json_file)
+
 if __name__ == "__main__":
     if DATASET_TYPE == "fat":
         load_fat_dataset()
     elif DATASET_TYPE == "ycb":
         # load_ycb_dataset()
         load_ycb_bbox_dataset()
+    elif DATASET_TYPE == "conveyor":
+        load_conveyor_dataset()

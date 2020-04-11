@@ -1559,7 +1559,7 @@ void EnvObjectRecognition::GetStateImagesUnifiedGPU(const string stage,
                                                     validation_points,
                                                     sqr_dists, kNumPixels);
 
-        // printf("validation_search_rad:%f, num_validation_neighbors:%d\n", validation_search_rad, num_validation_neighbors);
+        printf("validation_search_rad:%f, num_validation_neighbors:%d\n", validation_search_rad, num_validation_neighbors);
         pose_obs_points_total.push_back(num_validation_neighbors);
       }
       else
@@ -5829,6 +5829,7 @@ void EnvObjectRecognition::SetInput(const RecognitionInput &input) {
       gpu_stride = perch_params_.gpu_stride; //crate
       // cv_depth_image = cv::imread(input.input_depth_image, CV_LOAD_IMAGE_ANYDEPTH);
       cv_depth_image = cv::imread(input.input_depth_image, CV_LOAD_IMAGE_UNCHANGED);
+      medianBlur(cv_depth_image, cv_depth_image, 17);
       if (perch_params_.use_gpu)
       {
         input_depth_image_vec.assign(
@@ -6031,10 +6032,11 @@ void EnvObjectRecognition::SetInput(const RecognitionInput &input) {
   SetObservation(input.model_names.size(), depth_image);
 
   // Printpoint cloud after downsampling etc.
-  if (perch_params_.vis_expanded_states) {
+  // if (perch_params_.vis_expanded_states) {
+  if (!perch_params_.use_gpu) {
     // Point cloud used for icp in 3dof
     if (IsMaster(mpi_comm_)) {
-      for (int i = 0; i < 1; i++)
+      for (int i = 0; i < 3; i++)
         PrintPointCloud(observed_cloud_, 1, input_point_cloud_topic);
     }
   }

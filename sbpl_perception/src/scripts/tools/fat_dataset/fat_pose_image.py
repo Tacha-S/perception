@@ -87,16 +87,26 @@ class FATImage:
 
             self.image_ids = example_coco.getImgIds(catIds=self.category_ids)
 
-            self.viewpoints_xyz = np.array(example_coco.dataset['viewpoints'])
-            self.inplane_rotations = np.array(example_coco.dataset['inplane_rotations'])
-            self.fixed_transforms_dict = example_coco.dataset['fixed_transforms']
-            self.camera_intrinsics = example_coco.dataset['camera_intrinsic_settings']
-            if self.camera_intrinsics is not None:
-                # Can be none in case of YCB
-                self.camera_intrinsic_matrix = \
-                    np.array([[self.camera_intrinsics['fx'], 0, self.camera_intrinsics['cx']],
-                            [0, self.camera_intrinsics['fy'], self.camera_intrinsics['cy']],
-                            [0, 0, 1]])
+            if "viewpoints" in example_coco.dataset:
+                self.viewpoints_xyz = np.array(example_coco.dataset['viewpoints'])
+                self.inplane_rotations = np.array(example_coco.dataset['inplane_rotations'])
+            
+            if "fixed_transforms" in example_coco.dataset:
+                self.fixed_transforms_dict = example_coco.dataset['fixed_transforms']
+            
+            if "camera_intrinsic_settings" in example_coco.dataset:
+                self.camera_intrinsics = example_coco.dataset['camera_intrinsic_settings']
+            
+                if self.camera_intrinsics is not None:
+                    # Can be none in case of YCB
+                    self.camera_intrinsic_matrix = \
+                        np.array([[self.camera_intrinsics['fx'], 0, self.camera_intrinsics['cx']],
+                                [0, self.camera_intrinsics['fy'], self.camera_intrinsics['cy']],
+                                [0, 0, 1]])
+
+            if "camera_intrinsic_matrix" in example_coco.dataset:
+                self.camera_intrinsic_matrix = np.array(example_coco.dataset['camera_intrinsic_matrix'])
+                
 
         self.depth_factor = depth_factor
 
@@ -147,7 +157,8 @@ class FATImage:
             "sprite_bottle" : 2,
             "fanta_bottle" : 2,
             "crate_test" : 0,
-            "035_power_drill" : 0
+            "035_power_drill" : 0,
+            "005_tomato_soup_can" : 2
         }
 
         self.env_config = env_config
@@ -1837,6 +1848,18 @@ class FATImage:
 
         return annotations, runtime
 
+    def get_model_path(self, object_name):
+        if self.model_type == "default":
+            model_path = os.path.join(self.model_dir, object_name, 'textured.ply')
+        elif self.model_type == "upright":
+            # For things like drill which need to be made upright
+            temp_path = os.path.join(self.model_dir, object_name, 'textured_upright.ply')
+            if os.path.exists(temp_path):
+                model_path = temp_path
+            else:
+                model_path = os.path.join(self.model_dir, object_name, 'textured.ply')
+        return model_path
+
     def compare_clouds(self, annotations_1, annotations_2, downsample=False, use_add_s=True, convert_annotation_2=False, use_points_file=False):
         from plyfile import PlyData, PlyElement
         import scipy
@@ -1867,8 +1890,12 @@ class FATImage:
             annotation_1 = min_ann
 
             object_name = self.category_id_to_names[annotation_1['category_id']]['name']
-            model_file_path = os.path.join(self.model_dir, object_name, "textured.ply")
-            downsampled_cloud_path = object_name + ".npy"
+            # model_file_path = os.path.join(self.model_dir, object_name, "textured.ply")
+            model_file_path = self.get_model_path(object_name)
+            if self.model_type == "upright":
+                downsampled_cloud_path = object_name + "_upright.npy"
+            else:
+                downsampled_cloud_path = object_name + ".npy"
 
             if not downsample or (downsample and not os.path.isfile(downsampled_cloud_path)):
                 # If no downsample or yes downsample but without file
@@ -3148,6 +3175,9 @@ def run_ycb_6d(dataset_cfg=None):
     f_accuracy.close()
 
 def run_on_image(dataset_cfg=None):
+    '''
+        Run on images that have no ground truth
+    '''
     import rospy
     rospy.init_node("image_run_node")
     if '/opt/ros/kinetic/lib/python2.7/dist-packages' in sys.path:
@@ -3260,6 +3290,133 @@ def run_on_image(dataset_cfg=None):
 
     f_runtime.close()
 
+
+def run_on_conveyor(dataset_cfg=None):
+    image_directory = dataset_cfg['image_dir']
+    annotation_file = dataset_cfg['image_dir'] + '/instances_conveyor_pose.json'
+    if dataset_cfg["device"] == "gpu":
+        perch_config_yaml = "pr2_gpu_conv_env_config.yaml"
+    elif dataset_cfg["device"] == "cpu":
+        perch_config_yaml = "pr2_conv_env_config.yaml"
+
+    fat_image = FATImage(
+        coco_annotation_file=annotation_file,
+        coco_image_directory=image_directory,
+        depth_factor=100,
+        model_dir=dataset_cfg['model_dir'],
+        model_mesh_in_mm=False,
+        model_mesh_scaling_factor=1,
+        models_flipped=False,
+        model_type="upright",
+        img_width=640,
+        img_height=480,
+        distance_scale=1,
+        env_config=perch_config_yaml,
+        planner_config="pr2_planner_config.yaml",
+        perch_debug_dir=dataset_cfg["perch_debug_dir"],
+        python_debug_dir=dataset_cfg["python_debug_dir"],
+        dataset_type=dataset_cfg["type"]
+    )
+    # fat_image.search_resolution_translation = 0.07
+    fat_image.search_resolution_yaw = 0.4
+
+    ts = calendar.timegm(time.gmtime())
+    f_accuracy = open('{}/accuracy_6d_{}.txt'.format(fat_image.python_debug_dir, ts), "w", 1)
+    f_runtime = open('{}/runtime_6d_{}.txt'.format(fat_image.python_debug_dir, ts), "w", 1)
+    f_runtime.write("{} {} {} {} {}\n".format('name', 'expands', 'runtime', 'icp_runtime', 'peak_gpu_mem'))
+
+    # required_objects = ['035_power_drill']
+    # required_objects = ['004_sugar_box']
+    # required_objects = ['006_mustard_bottle']
+    required_objects = ['005_tomato_soup_can']
+    f_accuracy.write("name,")
+    for object_name in required_objects:
+        f_accuracy.write("{},".format(object_name))
+    f_accuracy.write("\n")
+    # Accuracy : reduce gpu stride, increase median filter, reduce height
+
+    for scene_name in ["mustard_1", "mustard_2", "mustard_3", "drill_1", "drill_2", "drill_3", "soup_1"]:
+    # for scene_name in ["drill_3", "drill_1", "drill_2"]:
+    # for scene_name in ["mustard_2", "mustard_3", "mustard_1"]:
+        for img_i in range(100, 400):
+            if "mustard" in scene_name:
+                required_objects = ['006_mustard_bottle']
+            elif "drill" in scene_name:
+                required_objects = ['035_power_drill']
+            elif "soup" in scene_name:
+                required_objects = ['005_tomato_soup_can']
+            elif "sugar" in scene_name:
+                required_objects = ['004_sugar_box']
+
+            image_name = '{}/{}.color.jpg'.format(scene_name, str(img_i))
+            # image_name = 'drill_1/{}.color.jpg'.format(str(img_i))
+            # image_name = 'drill_2/{}.color.jpg'.format(str(img_i))
+            # image_name = 'drill_3/{}.color.jpg'.format(str(img_i))
+            # image_name = 'sugar_1/{}.color.jpg'.format(str(img_i))
+            # image_name = 'sugar_2/{}.color.jpg'.format(str(img_i))
+            # image_name = 'sugar_3/{}.color.jpg'.format(str(img_i))
+            # image_name = 'mustard_1/{}.color.jpg'.format(str(img_i))
+            # image_name = 'mustard_2/{}.color.jpg'.format(str(img_i))
+            # image_name = 'mustard_3/{}.color.jpg'.format(str(img_i))
+            # image_name = 'soup_1/{}.color.jpg'.format(str(img_i))
+            image_data, annotations = fat_image.get_random_image(name=image_name, required_objects=required_objects)
+            if annotations is None:
+                continue
+            print(annotations)
+            # In case of crate its hard to get camera pose sometimes as ground is not visible (RANSAC plane estimation will fail)
+            # So get camera pose from an image where ground is visible and use that
+            camera_pose = annotations[0]['camera_pose']
+
+            # Camera pose goes here to get GT in world frame for accuracy computation
+            # Actual frame is not camera, but the base_footprint frame of PR2 used for data collection
+            yaw_only_objects, max_min_dict, transformed_annotations, _ = \
+                fat_image.visualize_pose_ros(
+                    image_data, annotations, frame='camera', camera_optical_frame=False,
+                    input_camera_pose=camera_pose, ros_publish=True
+                )
+
+            max_min_dict['ymax'] = 1.5
+            max_min_dict['ymin'] = 0.0
+            max_min_dict['xmax'] = 0.6
+            max_min_dict['xmin'] = 0.1
+            fat_image.search_resolution_translation = 0.08
+            table_height = 0.735
+
+            if dataset_cfg["device"] == "gpu":
+                perch_annotations, stats = fat_image.visualize_perch_output(
+                    image_data, annotations, max_min_dict, frame='camera',
+                    use_external_render=0, required_object=required_objects,
+                    camera_optical_frame=False, use_external_pose_list=0, gt_annotations=transformed_annotations,
+                    input_camera_pose=camera_pose, table_height=table_height, num_cores=0,
+                    compute_type=1
+                )
+            elif dataset_cfg["device"] == "cpu":
+                perch_annotations, stats = fat_image.visualize_perch_output(
+                    image_data, annotations, max_min_dict, frame='camera',
+                    use_external_render=0, required_object=required_objects,
+                    camera_optical_frame=False, use_external_pose_list=0, gt_annotations=transformed_annotations,
+                    input_camera_pose=camera_pose, table_height=table_height, num_cores=8,
+                    compute_type=2
+                )
+
+            if perch_annotations is None:
+                continue
+            f_accuracy.write("{},".format(image_data['file_name']))
+            add_dict, add_s_dict = \
+                fat_image.compare_clouds(annotations, perch_annotations, downsample=True, use_add_s=True)
+            for object_name in required_objects:
+                if (object_name in add_dict) and (object_name in add_s_dict):
+                    f_accuracy.write("{},{},".format(add_dict[object_name], add_s_dict[object_name]))
+                else:
+                    f_accuracy.write(" , ,")
+            f_accuracy.write("\n")
+
+            if stats is not None:
+                f_runtime.write("{} {} {} {} {}".format(image_data['file_name'], stats['rendered'], stats['runtime'], stats['icp_runtime'], stats['peak_gpu_mem']))
+                f_runtime.write("\n")
+                    
+    f_runtime.close()
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="Video stream from the command line")
@@ -3282,6 +3439,8 @@ if __name__ == '__main__':
         # run_roman_crate(dataset_cfg=config['dataset'])
     elif config['dataset']['name'] == "image":
         run_on_image(dataset_cfg=config['dataset'])
+    elif config['dataset']['name'] == "conveyor":
+        run_on_conveyor(dataset_cfg=config['dataset'])
 
     # coco_predictions = torch.load('/media/aditya/A69AFABA9AFA85D9/Cruzr/code/fb_mask_rcnn/maskrcnn-benchmark/inference/fat_pose_2018_val_cocostyle/coco_results.pth')
     # all_predictions = torch.load('/media/aditya/A69AFABA9AFA85D9/Cruzr/code/fb_mask_rcnn/maskrcnn-benchmark/inference/fat_pose_2018_val_cocostyle/predictions.pth')

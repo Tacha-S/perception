@@ -1,0 +1,62 @@
+dataset :
+    name : "conveyor"
+    type : "conveyor"
+    device : "gpu"
+    model_dir : "/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset/models"
+    image_dir : "/media/aditya/A69AFABA9AFA85D9/Cruzr/code/DOPE/catkin_ws/src/perception/sbpl_perception/src/scripts/tools/fat_dataset/bag_output/"
+    maskrcnn_config : "/media/aditya/A69AFABA9AFA85D9/Cruzr/code/fb_mask_rcnn/maskrcnn-benchmark/configs/ycb_mask/e2e_mask_rcnn_R_101_FPN_1x_test_cocostyle.yaml"
+    maskrcnn_model_path : "/media/aditya/A69AFABA9AFA85D9/Cruzr/code/fb_mask_rcnn/maskrcnn-benchmark/ycb_mask_trained_models/model_0037500.pth"
+    perch_debug_dir : "/media/aditya/A69AFABA9AFA85D9/Cruzr/code/DOPE/catkin_ws/src/perception/sbpl_perception/visualization"
+    python_debug_dir : "./conveyor_output"
+python2_paths :
+  - '/opt/ros/kinetic/lib/python2.7/dist-packages'
+  - '/usr/local/lib/python2.7/dist-packages/'
+  - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/DOPE/catkin_ws/devel/lib/python2.7/dist-packages'
+python3_paths :
+  - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/ros_python3_ws/devel/lib/python3/dist-packages'
+label_gen :
+    model_dir : "/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset/models"
+    # object_name : "004_sugar_box"
+    # output_path : "./bag_output/sugar_2"
+    # object_label : "sugar_2"
+    # # The first image that needs to be considered for labelling (should have good number of points)
+    # start_index : 130
+    
+    # output_path : "./bag_output/sugar_1"
+    # object_label : "sugar_1"
+    # start_index : 160
+
+    # output_path : "./bag_output/sugar_3"
+    # object_label : "sugar_3"
+    # start_index : 155
+
+    # object_name : "035_power_drill"
+    # output_path : "./bag_output/drill_1"
+    # object_label : "drill_1"
+    # start_index : 155
+
+    # output_path : "./bag_output/drill_2"
+    # object_label : "drill_2"
+    # start_index : 125
+
+    # output_path : "./bag_output/drill_3"
+    # object_label : "drill_3"
+    # start_index : 155
+
+    object_name : "005_tomato_soup_can"
+    output_path : "./bag_output/soup_1"
+    object_label : "soup_1"
+    start_index : 115
+
+    # object_name : "006_mustard_bottle"
+    # output_path : "./bag_output/mustard_1"
+    # object_label : "mustard_1"
+    # start_index : 140
+
+    # output_path : "./bag_output/mustard_2"
+    # object_label : "mustard_2"
+    # start_index : 165
+
+    # output_path : "./bag_output/mustard_3"
+    # object_label : "mustard_3"
+    # start_index : 120
