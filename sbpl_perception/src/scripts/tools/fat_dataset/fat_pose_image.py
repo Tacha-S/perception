@@ -49,7 +49,8 @@ class FATImage:
             distance_scale=100,
             perch_debug_dir=None,
             python_debug_dir="./model_outputs",
-            dataset_type="ycb"
+            dataset_type="ycb",
+            analysis_output_dir=None
         ):
         '''
             env_config : env_config.yaml in sbpl_perception/config to use with PERCH
@@ -63,6 +64,10 @@ class FATImage:
         self.perch_debug_dir = perch_debug_dir
         self.python_debug_dir = python_debug_dir
         mkdir_if_missing(self.python_debug_dir)
+        if analysis_output_dir is not None:
+            self.analysis_output_dir = analysis_output_dir
+            mkdir_if_missing(self.analysis_output_dir)
+
         self.coco_image_directory = coco_image_directory
         self.model_type = model_type
         self.fixed_transforms_dict = None
@@ -3290,6 +3295,210 @@ def run_on_image(dataset_cfg=None):
 
     f_runtime.close()
 
+def compute_pose_metrics(rec, max_auc_dist = 0.1, max_pose_dist = 0.02):
+    # TODO : this should be in utils.py
+    '''
+        @rec - np.array - add-s values in sorted order
+        @prec - accuracy number
+    '''
+    rec_mean = np.mean(rec)
+    rec_less = np.where(rec < max_pose_dist)[0]
+    rec_less_perc = rec_less.shape[0]/rec.shape[0] * 100.0
+
+    rec[rec > max_auc_dist] = np.inf
+    rec = np.sort(rec)
+    prec = np.arange(0, rec.shape[0], 1)/rec.shape[0]
+
+    index = np.isfinite(rec)
+    # Actual pose error
+    rec = rec[index]
+    # Percentage of poses with that error
+    prec = prec[index]
+
+    mrec = np.array([0] + rec.tolist() + [0.1])
+    mpre = np.array(prec.tolist() + [1, 1])
+
+    # Indexes where value is not equal to previous value
+    args = np.where(mrec[:-1] != mrec[1:])[0]
+    args_prev = args
+    args = args + 1
+
+    # Calculate area under the curve
+    ap = np.sum((mrec[args] - mrec[args_prev]) * mpre[args]) * 10
+
+    return {
+        "auc" : ap,
+        "pose_error_less_perc" : rec_less_perc,
+        "mean_pose_error" : rec_mean,
+        "pose_count" : rec.shape[0]
+    }
+
+def get_filename_from_path(full_path):
+    return os.path.splitext(os.path.basename(full_path))[0]
+
+def analyze_conveyor_results(config=None):
+    import pandas as pd
+
+    dataset_cfg = config['dataset']
+    analysis_cfg = config['analysis']
+
+    image_directory = dataset_cfg['image_dir']
+    annotation_file = dataset_cfg['image_dir'] + '/instances_conveyor_pose.json'
+    perch_config_yaml = "pr2_gpu_conv_env_config.yaml"
+
+    fat_image = FATImage(
+        coco_annotation_file=annotation_file,
+        coco_image_directory=image_directory,
+        depth_factor=100,
+        model_dir=dataset_cfg['model_dir'],
+        model_mesh_in_mm=False,
+        model_mesh_scaling_factor=1,
+        models_flipped=False,
+        model_type="upright",
+        img_width=640,
+        img_height=480,
+        distance_scale=1,
+        env_config=perch_config_yaml,
+        planner_config="pr2_planner_config.yaml",
+        perch_debug_dir=dataset_cfg["perch_debug_dir"],
+        python_debug_dir=dataset_cfg["python_debug_dir"],
+        dataset_type=dataset_cfg["type"],
+        analysis_output_dir=analysis_cfg["output_dir"]
+    )
+    filename_conveyor_y_dict = {}
+    for scene_name in ["mustard_1", 
+                       "mustard_2", 
+                       "mustard_3", 
+                       "drill_1", 
+                       "drill_2", 
+                       "drill_3", 
+                       "soup_1",
+                       "sugar_1",
+                       "sugar_2",
+                       "sugar_3"]:
+        for img_i in range(100, 400):
+
+            image_name = '{}/{}.color.jpg'.format(scene_name, str(img_i))
+            image_data, annotations = fat_image.get_random_image(name=image_name)
+            if annotations is None:
+                continue
+            filename_conveyor_y_dict[image_name] = annotations[0]['location'][1]
+
+    # df_y_dist = pd.DataFrame(filename_conveyor_y_dict, index=range(0, len(filename_conveyor_y_dict.keys())))
+    df_y_dist = pd.DataFrame.from_dict(filename_conveyor_y_dict, orient='index', columns = ['y_dist'])
+    # print(df_y_dist)
+    min_y = df_y_dist["y_dist"].min()
+    max_y = df_y_dist["y_dist"].max()
+    print("GT Min y: {}, GT Max y : {}".format(min_y, max_y))
+
+    overall_stats_dict = {}
+
+    # Object wise metrics
+    print("\n### Object Wise AUC ###")
+    li = []
+    for accuracy_file in analysis_cfg['result_files']['accuracy']:
+        # Read file for every object
+        print("Accuracy file : {}".format(accuracy_file))
+        df = pd.read_csv(accuracy_file, 
+                         header=None, 
+                         index_col=None, 
+                         names=["filename", "add", "add-s", "blank"],
+                         skiprows=1,
+                         sep=",") 
+        df = df.drop(columns=["add", "blank"])
+        df = df.set_index('filename')
+        add_s = df['add-s'].to_numpy()
+        stats = compute_pose_metrics(add_s)
+        print("AUC : {}, Pose Percentage : {}, Mean ADD-S : {}".format(
+                stats['auc'], stats['pose_error_less_perc'], stats['mean_pose_error']))
+        li.append(df)
+        overall_stats_dict[get_filename_from_path(accuracy_file)] = stats
+
+
+    # Overall Metrics
+    # print("Dataframe with add-s")
+    df_acc = pd.concat(li, axis=0, ignore_index=False)
+    print("\n### Overall AUC ###")
+    stats = compute_pose_metrics(df_acc['add-s'].to_numpy())
+    print("AUC : {}, Pose Percentage : {}, Mean ADD-S : {}".format(
+            stats['auc'], stats['pose_error_less_perc'], stats['mean_pose_error']))
+
+    overall_stats_dict["overall"] = stats
+
+    ## Runtime
+    print("\n### Object Wise Runtimes ###")
+    li = []
+    for runtime_file in analysis_cfg['result_files']['runtime']:
+        # Read file for every object
+        print("Runtime file : {}".format(runtime_file))
+        df = pd.read_csv(runtime_file, 
+                         header=0, 
+                         index_col=None, 
+                        #  names=["filename", "runtime", "icp-runtime"],
+                        #  skiprows=1,
+                         delim_whitespace=True) 
+        # print(df)
+        df = df.set_index('name')
+        mean_runtime = df['runtime'].mean()
+        print("Average runtime : {}".format(mean_runtime))
+        li.append(df)
+        object_name = get_filename_from_path(runtime_file).replace('_runtime', '')
+        overall_stats_dict[object_name]["runtime"] = mean_runtime
+
+    
+    print("\n### Overall Runtime ###")
+    df_runtime = pd.concat(li, axis=0, ignore_index=False)
+    mean_runtime = df_runtime['runtime'].mean()
+    print("Overall average runtime : {}".format(mean_runtime))
+    overall_stats_dict["overall"]["runtime"] = mean_runtime
+
+    print("\n### Compiled Stats ###")
+    df_overall_stats = \
+            pd.DataFrame.from_dict(overall_stats_dict, orient='index')
+    print(df_overall_stats)
+    df_overall_stats.to_csv(
+            os.path.join(fat_image.analysis_output_dir, "compiled_stats.csv"),
+            float_format='%.4f')
+
+    print("\n### Dataframe with y distance and add-s ###")
+    df_all = pd.concat([df_acc, df_y_dist], axis=1)
+    df_all = df_all.dropna()
+    print(df_all)
+
+    print("\n### Splitting in range ###")
+    overall_stats_dict = {}
+    min_y = df_all["y_dist"].min()
+    max_y = df_all["y_dist"].max()
+    y_ranges = np.arange(min_y, max_y, 0.20)
+    for i in range(len(y_ranges)-1):
+        df_subset = df_all[df_all["y_dist"].between(y_ranges[i], y_ranges[i + 1])]
+        # print(df_subset)
+        add_s = df_subset['add-s'].to_numpy()
+        stats = compute_pose_metrics(add_s)
+        print("Y : {}, AUC : {}, Pose Percentage : {}, Mean ADD-S : {}".format(
+            y_ranges[i + 1], stats['auc'], stats['pose_error_less_perc'], stats['mean_pose_error']))
+        overall_stats_dict[y_ranges[i + 1]] = {
+            'AUC': 100*stats['auc'],
+            'ADD-S < 2cm' : stats['pose_error_less_perc']
+        }
+
+    df_overall_stats = \
+            pd.DataFrame.from_dict(overall_stats_dict, orient='index')
+    print(df_overall_stats)
+    df_overall_stats.to_csv(
+        os.path.join(fat_image.analysis_output_dir, "compiled_y_split_stats.csv"),
+        float_format='%.4f')
+
+    plt.figure()
+    ax = df_overall_stats.plot(marker='o')
+    for key, value in overall_stats_dict.items(): 
+        ax.text(key, value['AUC'], str(np.around(value['AUC'], 2)))
+        ax.text(key, value['ADD-S < 2cm'], str(np.around(value['ADD-S < 2cm'], 2)))
+    plt.xlabel("Distance From Robot Along Conveyor (in m)")
+    plt.ylabel("Accuracy")
+    plt.savefig(os.path.join(fat_image.analysis_output_dir, "y_dist_accuracy.png"))
+    # plt.show()
+
 
 def run_on_conveyor(dataset_cfg=None):
     image_directory = dataset_cfg['image_dir']
@@ -3440,7 +3649,8 @@ if __name__ == '__main__':
     elif config['dataset']['name'] == "image":
         run_on_image(dataset_cfg=config['dataset'])
     elif config['dataset']['name'] == "conveyor":
-        run_on_conveyor(dataset_cfg=config['dataset'])
+        # run_on_conveyor(dataset_cfg=config['dataset'])
+        analyze_conveyor_results(config=config)
 
     # coco_predictions = torch.load('/media/aditya/A69AFABA9AFA85D9/Cruzr/code/fb_mask_rcnn/maskrcnn-benchmark/inference/fat_pose_2018_val_cocostyle/coco_results.pth')
     # all_predictions = torch.load('/media/aditya/A69AFABA9AFA85D9/Cruzr/code/fb_mask_rcnn/maskrcnn-benchmark/inference/fat_pose_2018_val_cocostyle/predictions.pth')

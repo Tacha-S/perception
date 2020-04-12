@@ -14,6 +14,31 @@ python2_paths :
   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/DOPE/catkin_ws/devel/lib/python2.7/dist-packages'
 python3_paths :
   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/ros_python3_ws/devel/lib/python3/dist-packages'
+analysis:
+  output_dir : "./conveyor_analysis_output"
+  result_files :
+    root : '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/' 
+    # accuracy :
+    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/drill_cpu/drill.txt'
+    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/mustard_cpu/mustard.txt'
+    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/sugar_cpu/sugar.txt'
+    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/soup_cpu/soup.txt'
+    # runtime :
+    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/sugar_cpu/sugar_runtime.txt'
+    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/drill_cpu/drill_runtime.txt'
+    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/soup_cpu/soup_runtime.txt'
+    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/mustard_cpu/mustard_runtime.txt'      
+    accuracy :
+      - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/drill_gpu/drill_new.txt'
+      - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/mustard_gpu/mustard_new.txt'
+      - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/sugar_gpu/sugar_new.txt'
+      - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/soup_gpu/soup.txt'
+    runtime : 
+      - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/sugar_gpu/sugar_new_runtime.txt'
+      - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/drill_gpu/drill_new_runtime.txt'
+      - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/soup_gpu/soup_runtime.txt'
+      - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/mustard_gpu/mustard_new_runtime.txt'      
+
 label_gen :
     model_dir : "/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset/models"
     # object_name : "004_sugar_box"
