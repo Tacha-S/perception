@@ -187,6 +187,7 @@ EnvObjectRecognition::EnvObjectRecognition(const
     private_nh.param("/perch_params/use_cylinder_observed", perch_params_.use_cylinder_observed, true);
     private_nh.param("/perch_params/gpu_occlusion_threshold", perch_params_.gpu_occlusion_threshold, 1.0);
     private_nh.param("/perch_params/footprint_tolerance", perch_params_.footprint_tolerance, 0.05);
+    private_nh.param("/perch_params/depth_median_blur", perch_params_.depth_median_blur, 17.0);
     perch_params_.initialized = true;
 
     printf("----------PERCH Config-------------\n");
@@ -215,6 +216,7 @@ EnvObjectRecognition::EnvObjectRecognition(const
     printf("GPU stride: %f\n", perch_params_.gpu_stride);
     printf("Use Cylinder Observed: %d\n", perch_params_.use_cylinder_observed);
     printf("Footprint Tolerance: %f\n", perch_params_.footprint_tolerance);
+    printf("Depth Median Blur: %f\n", perch_params_.depth_median_blur);
     printf("\n");
     printf("----------Camera Config-------------\n");
     printf("Camera Width: %d\n", kCameraWidth);
@@ -5829,7 +5831,8 @@ void EnvObjectRecognition::SetInput(const RecognitionInput &input) {
       gpu_stride = perch_params_.gpu_stride; //crate
       // cv_depth_image = cv::imread(input.input_depth_image, CV_LOAD_IMAGE_ANYDEPTH);
       cv_depth_image = cv::imread(input.input_depth_image, CV_LOAD_IMAGE_UNCHANGED);
-      medianBlur(cv_depth_image, cv_depth_image, 17);
+      // medianBlur(cv_depth_image, cv_depth_image, 17); //gpu conveyor
+      medianBlur(cv_depth_image, cv_depth_image, perch_params_.depth_median_blur); //gpu conveyor
       if (perch_params_.use_gpu)
       {
         input_depth_image_vec.assign(
@@ -6418,6 +6421,8 @@ GraphState EnvObjectRecognition::ComputeGreedyICPPoses() {
   // for an object and disallow it for future objects.
   // ICP error is computed over full model (not just the non-occluded points)--this means that the
   // final score is always an upper bound
+  chrono::time_point<chrono::system_clock> start, end;
+  start = chrono::system_clock::now();
 
   int num_models = env_params_.num_models;
   vector<int> model_ids(num_models);
@@ -6442,6 +6447,11 @@ GraphState EnvObjectRecognition::ComputeGreedyICPPoses() {
 
       GraphState empty_state;
       GraphState committed_state;
+      vector<GraphState> candidate_succs;
+      GenerateSuccessorStates(empty_state, &candidate_succs);
+
+      env_stats_.scenes_rendered += static_cast<int>(candidate_succs.size());
+
       double total_score = 0;
       for (int model_id : model_ids) {
 
@@ -6460,16 +6470,26 @@ GraphState EnvObjectRecognition::ComputeGreedyICPPoses() {
         int model_succ_count = 0;
 
         // #pragma omp parallel for
-        for (double x = env_params_.x_min; x <= env_params_.x_max;
-            x += search_resolution) {
+        // for (double x = env_params_.x_min; x <= env_params_.x_max;
+        //     x += search_resolution) {
 
-          // #pragma omp parallel for
-          for (double y = env_params_.y_min; y <= env_params_.y_max;
-              y += search_resolution) {
+        //   // #pragma omp parallel for
+        //   for (double y = env_params_.y_min; y <= env_params_.y_max;
+        //       y += search_resolution) {
 
             // #pragma omp parallel for
-            for (double theta = 0; theta < 2 * M_PI; theta += env_params_.theta_res) {
-              ContPose p_in(x, y, env_params_.table_height, 0.0, 0.0, theta);
+            // for (double theta = 0; theta < 2 * M_PI; theta += env_params_.theta_res) {
+
+              // ContPose p_in(x, y, env_params_.table_height, 0.0, 0.0, theta);
+            #pragma omp parallel for
+            for (int ii = 0; ii < candidate_succs.size(); ii++) {
+              ObjectState succ_obj_state = 
+                candidate_succs[ii].object_states()[candidate_succs[ii].object_states().size() - 1];
+
+              int succ_model_id = succ_obj_state.id();
+              if (succ_model_id != model_id) continue;
+
+              ContPose p_in = succ_obj_state.cont_pose();
               ContPose p_out = p_in;
 
               GraphState succ_state;
@@ -6521,18 +6541,18 @@ GraphState EnvObjectRecognition::ComputeGreedyICPPoses() {
               model_succ_count++;
 
               // Skip multiple orientations for symmetric objects
-              if (obj_models_[model_id].symmetric() || model_meta_data.symmetry_mode == 2) {
-                break;
-              }
+              // if (obj_models_[model_id].symmetric() || model_meta_data.symmetry_mode == 2) {
+              //   break;
+              // }
 
-              // If 180 degree symmetric, then iterate only between 0 and 180.
-              if (model_meta_data.symmetry_mode == 1 &&
-                  theta > (M_PI + env_params_.theta_res)) {
-                break;
-              }
+              // // If 180 degree symmetric, then iterate only between 0 and 180.
+              // if (model_meta_data.symmetry_mode == 1 &&
+              //     theta > (M_PI + env_params_.theta_res)) {
+              //   break;
+              // }
             }
-          }
-        }
+          // }
+        // }
         printf("Processed %d succs for model %d\n", model_succ_count, model_id);
         committed_state.AppendObject(ObjectState(model_id,
                                                 obj_models_[model_id].symmetric(),
@@ -6660,7 +6680,6 @@ GraphState EnvObjectRecognition::ComputeGreedyICPPoses() {
     permutation_states.push_back(committed_state);
 
   }
-
   // Take the first 'k'
   auto min_element_it = std::min_element(permutation_scores.begin(),
                                          permutation_scores.end());
@@ -6672,6 +6691,10 @@ GraphState EnvObjectRecognition::ComputeGreedyICPPoses() {
   const ObjectState & state2) {
     return state1.id() < state2.id();
   });
+  cout << "State from greedy ICP " << endl << greedy_state << endl;
+  end = chrono::system_clock::now();
+  chrono::duration<double> elapsed_seconds = end-start;
+  env_stats_.time = elapsed_seconds.count();
 
   string fname = debug_dir_ + "depth_greedy_state.png";
   string cname = debug_dir_ + "color_greedy_state.png";

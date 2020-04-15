@@ -14,6 +14,7 @@ perch_params:
   use_adaptive_resolution: false
   use_rcnn_heuristic: false
   use_model_specific_search_resolution: false
+  depth_median_blur: 9
 
   ## RGB
   use_color_cost: false
@@ -23,8 +24,8 @@ perch_params:
   use_downsampling: true
   sensor_resolution_radius: 0.015
   # sensor_resolution_radius: 0.005 #m
-  # min_neighbor_points_for_valid_pose: 60 #mustard,sugar,drill
-  min_neighbor_points_for_valid_pose: 40 #soup
+  min_neighbor_points_for_valid_pose: 60 #mustard,sugar,drill
+  # min_neighbor_points_for_valid_pose: 40 #soup
   downsampling_leaf_size: 0.015
   # downsampling_leaf_size: 0.01
 

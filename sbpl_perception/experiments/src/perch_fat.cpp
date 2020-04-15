@@ -183,6 +183,7 @@ int main(int argc, char **argv) {
   // object_recognizer.LocalizeObjects(input, &detected_poses);
 
   if (compute_type == 0) {
+    detected_model_names = input_global.model_names;
     object_recognizer.LocalizeObjectsGreedyICP(
       input_global, &object_transforms, &preprocessing_object_transforms
     );

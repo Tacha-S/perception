@@ -784,7 +784,10 @@ class FATImage:
 
     def get_mask_img_path(self, color_img_path):
         # For YCB
-        return color_img_path.replace('color', 'label')
+        if self.dataset_type == "ycb":
+            return color_img_path.replace('color', 'label')
+        else:
+            return color_img_path.replace('color', 'mask')
 
     def get_annotation_file_path(self, color_img_path):
         return color_img_path.replace(os.path.splitext(color_img_path)[1], '.json')
@@ -1852,6 +1855,46 @@ class FATImage:
         )
 
         return annotations, runtime
+
+    def visualize_densefusion_output(self, image_data, object_name):
+        sys.path.append("/media/aditya/A69AFABA9AFA85D9/Cruzr/code/DenseFusion")
+        from densefusion import run_densefusion_image
+        if '/opt/ros/kinetic/lib/python2.7/dist-packages' in sys.path:
+            sys.path.remove('/opt/ros/kinetic/lib/python2.7/dist-packages')
+        import cv2
+
+        color_img_path = os.path.join(self.coco_image_directory, image_data['file_name'])
+        depth_img_path = self.get_depth_img_path(color_img_path)
+        mask_img_path = self.get_mask_img_path(color_img_path)
+        mask_img = np.array(Image.open(mask_img_path))
+
+        cam_int_matrix = self.camera_intrinsic_matrix
+        bbox = self.get_bbox(mask_img)
+
+        my_pred_wo_refine, my_pred = run_densefusion_image(color_img_path,
+                                                            depth_img_path,
+                                                            mask_img_path,
+                                                            cam_int_matrix,
+                                                            self.depth_factor,
+                                                            bbox)
+        quat = my_pred[:4].tolist()
+        loc = my_pred[4:].tolist()
+        # xyz_rotation_angles = RT_transform.quat2euler(get_wxyz_quaternion(quat))
+        xyz_rotation_angles = RT_transform.quat2euler(quat)
+        rgb_gl, depth_gl = self.render_pose(
+            object_name, self.get_renderer(object_name), xyz_rotation_angles, loc
+        )
+        cv2.imwrite("test.png", rgb_gl)
+        return None, None
+        # output_image_filepath = os.path.join("dope_outputs", (self.get_clean_name(image_data['file_name']) + ".png"))
+        # # annotations = self.dopenode.run_on_image(color_img_path, self.category_names_to_id, output_image_filepath)
+        
+        # cloud_scene = self.get_scene_cloud(image_data, 0.015)
+        # annotations, runtime = self.dopenode.run_on_image_icp(
+        #     color_img_path, self.category_names_to_id, cloud_scene, output_image_filepath
+        # )
+
+        # return annotations, runtime
 
     def get_model_path(self, object_name):
         if self.model_type == "default":
@@ -3327,7 +3370,7 @@ def compute_pose_metrics(rec, max_auc_dist = 0.1, max_pose_dist = 0.02):
     ap = np.sum((mrec[args] - mrec[args_prev]) * mpre[args]) * 10
 
     return {
-        "auc" : ap,
+        "auc" : ap * 100.0,
         "pose_error_less_perc" : rec_less_perc,
         "mean_pose_error" : rec_mean,
         "pose_count" : rec.shape[0]
@@ -3407,7 +3450,7 @@ def analyze_conveyor_results(config=None):
                          sep=",") 
         df = df.drop(columns=["add", "blank"])
         df = df.set_index('filename')
-        add_s = df['add-s'].to_numpy()
+        add_s = np.copy(df['add-s'].to_numpy())
         stats = compute_pose_metrics(add_s)
         print("AUC : {}, Pose Percentage : {}, Mean ADD-S : {}".format(
                 stats['auc'], stats['pose_error_less_perc'], stats['mean_pose_error']))
@@ -3419,7 +3462,7 @@ def analyze_conveyor_results(config=None):
     # print("Dataframe with add-s")
     df_acc = pd.concat(li, axis=0, ignore_index=False)
     print("\n### Overall AUC ###")
-    stats = compute_pose_metrics(df_acc['add-s'].to_numpy())
+    stats = compute_pose_metrics(np.copy(df_acc['add-s'].to_numpy()))
     print("AUC : {}, Pose Percentage : {}, Mean ADD-S : {}".format(
             stats['auc'], stats['pose_error_less_perc'], stats['mean_pose_error']))
 
@@ -3440,17 +3483,21 @@ def analyze_conveyor_results(config=None):
         # print(df)
         df = df.set_index('name')
         mean_runtime = df['runtime'].mean()
+        mean_rendered = df['expands'].mean()
         print("Average runtime : {}".format(mean_runtime))
         li.append(df)
         object_name = get_filename_from_path(runtime_file).replace('_runtime', '')
         overall_stats_dict[object_name]["runtime"] = mean_runtime
+        overall_stats_dict[object_name]["rendered"] = mean_rendered
 
     
     print("\n### Overall Runtime ###")
     df_runtime = pd.concat(li, axis=0, ignore_index=False)
     mean_runtime = df_runtime['runtime'].mean()
+    mean_rendered = df_runtime['expands'].mean()
     print("Overall average runtime : {}".format(mean_runtime))
     overall_stats_dict["overall"]["runtime"] = mean_runtime
+    overall_stats_dict["overall"]["rendered"] = mean_rendered
 
     print("\n### Compiled Stats ###")
     df_overall_stats = \
@@ -3473,12 +3520,13 @@ def analyze_conveyor_results(config=None):
     for i in range(len(y_ranges)-1):
         df_subset = df_all[df_all["y_dist"].between(y_ranges[i], y_ranges[i + 1])]
         # print(df_subset)
-        add_s = df_subset['add-s'].to_numpy()
+        add_s = np.copy(df_subset['add-s'].to_numpy())
         stats = compute_pose_metrics(add_s)
         print("Y : {}, AUC : {}, Pose Percentage : {}, Mean ADD-S : {}".format(
             y_ranges[i + 1], stats['auc'], stats['pose_error_less_perc'], stats['mean_pose_error']))
         overall_stats_dict[y_ranges[i + 1]] = {
-            'AUC': 100*stats['auc'],
+            'range' : "{}-{}".format(np.around(y_ranges[i],2),np.around(y_ranges[i + 1], 2)),
+            'AUC': stats['auc'],
             'ADD-S < 2cm' : stats['pose_error_less_perc']
         }
 
@@ -3506,6 +3554,8 @@ def run_on_conveyor(dataset_cfg=None):
     if dataset_cfg["device"] == "gpu":
         perch_config_yaml = "pr2_gpu_conv_env_config.yaml"
     elif dataset_cfg["device"] == "cpu":
+        perch_config_yaml = "pr2_conv_env_config.yaml"
+    else:
         perch_config_yaml = "pr2_conv_env_config.yaml"
 
     fat_image = FATImage(
@@ -3544,9 +3594,13 @@ def run_on_conveyor(dataset_cfg=None):
     f_accuracy.write("\n")
     # Accuracy : reduce gpu stride, increase median filter, reduce height
 
-    for scene_name in ["mustard_1", "mustard_2", "mustard_3", "drill_1", "drill_2", "drill_3", "soup_1"]:
+    if dataset_cfg["device"] == "dope":            
+        fat_image.init_dope_node()
+
+    for scene_name in ["mustard_1", "mustard_2", "mustard_3", "drill_1", "drill_2", "drill_3", "sugar_3", "sugar_1", "sugar_2"]:
+    # for scene_name in ["soup_1"]:
     # for scene_name in ["drill_3", "drill_1", "drill_2"]:
-    # for scene_name in ["mustard_2", "mustard_3", "mustard_1"]:
+    # for scene_name in ["sugar_3", "sugar_1", "sugar_2"]:
         for img_i in range(100, 400):
             if "mustard" in scene_name:
                 required_objects = ['006_mustard_bottle']
@@ -3607,6 +3661,20 @@ def run_on_conveyor(dataset_cfg=None):
                     input_camera_pose=camera_pose, table_height=table_height, num_cores=8,
                     compute_type=2
                 )
+            elif dataset_cfg["device"] == "densefusion":            
+                perch_annotations, stats = fat_image.visualize_densefusion_output(image_data, required_objects[0]) 
+            elif dataset_cfg["device"] == "dope":            
+                perch_annotations, runtime = fat_image.visualize_dope_output(
+                    image_data)
+                stats = None
+            elif dataset_cfg["device"] == "icp":
+                perch_annotations, stats = fat_image.visualize_perch_output(
+                    image_data, annotations, max_min_dict, frame='camera',
+                    use_external_render=0, required_object=required_objects,
+                    camera_optical_frame=False, use_external_pose_list=0, gt_annotations=transformed_annotations,
+                    input_camera_pose=camera_pose, table_height=table_height, num_cores=0,
+                    compute_type=0
+                )
 
             if perch_annotations is None:
                 continue
@@ -3649,8 +3717,8 @@ if __name__ == '__main__':
     elif config['dataset']['name'] == "image":
         run_on_image(dataset_cfg=config['dataset'])
     elif config['dataset']['name'] == "conveyor":
-        # run_on_conveyor(dataset_cfg=config['dataset'])
-        analyze_conveyor_results(config=config)
+        run_on_conveyor(dataset_cfg=config['dataset'])
+        # analyze_conveyor_results(config=config)
 
     # coco_predictions = torch.load('/media/aditya/A69AFABA9AFA85D9/Cruzr/code/fb_mask_rcnn/maskrcnn-benchmark/inference/fat_pose_2018_val_cocostyle/coco_results.pth')
     # all_predictions = torch.load('/media/aditya/A69AFABA9AFA85D9/Cruzr/code/fb_mask_rcnn/maskrcnn-benchmark/inference/fat_pose_2018_val_cocostyle/predictions.pth')

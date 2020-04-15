@@ -149,6 +149,8 @@ struct PERCHParams {
   double gpu_occlusion_threshold;
   double footprint_tolerance;
 
+  double depth_median_blur;
+
   PERCHParams() : initialized(false) {}
 
   friend class boost::serialization::access;
@@ -178,6 +180,7 @@ struct PERCHParams {
     ar &use_cylinder_observed;
     ar &gpu_occlusion_threshold;
     ar &footprint_tolerance;
+    ar &depth_median_blur;
   }
 };
 // BOOST_IS_MPI_DATATYPE(PERCHParams);
