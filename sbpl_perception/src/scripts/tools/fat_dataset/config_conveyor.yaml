@@ -15,20 +15,21 @@ python2_paths :
 python3_paths :
   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/ros_python3_ws/devel/lib/python3/dist-packages'
 analysis:
-  # output_dir : "./conveyor_analysis_output"
-  output_dir : "./conveyor_analysis_output_icp"
+  output_dir : "./conveyor_analysis_output"
+  # output_dir : "./conveyor_analysis_output_gpu"
+  # output_dir : "./conveyor_analysis_output_icp"
   result_files :
     root : '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/' 
-    # accuracy :
-    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/icp/drill.txt'
-    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/icp/mustard.txt'
-    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/icp/sugar.txt'
-    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/icp/soup.txt'
-    # runtime : 
-    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/icp/drill_runtime.txt'
-    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/icp/mustard_runtime.txt'
-    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/icp/sugar_runtime.txt'
-    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/icp/soup_runtime.txt'
+    accuracy :
+      - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/icp_less_render/drill.txt'
+      - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/icp_less_render/mustard.txt'
+      - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/icp_less_render/sugar.txt'
+      - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/icp_less_render/soup.txt'
+    runtime : 
+      - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/icp_less_render/drill_runtime.txt'
+      - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/icp_less_render/mustard_runtime.txt'
+      - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/icp_less_render/sugar_runtime.txt'
+      - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/icp_less_render/soup_runtime.txt'
     # accuracy :
     #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/cpu/drill_cpu/drill.txt'
     #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/cpu/mustard_cpu/mustard.txt'
@@ -39,16 +40,16 @@ analysis:
     #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/cpu/drill_cpu/drill_runtime.txt'
     #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/cpu/soup_cpu/soup_runtime.txt'
     #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/cpu/mustard_cpu/mustard_runtime.txt'      
-    accuracy :
-      - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/gpu/drill_gpu/drill_new.txt'
-      - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/gpu/mustard_gpu/mustard_new.txt'
-      - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/gpu/sugar_gpu/sugar_new.txt'
-      - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/gpu/soup_gpu/soup.txt'
-    runtime : 
-      - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/gpu/sugar_gpu/sugar_new_runtime.txt'
-      - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/gpu/drill_gpu/drill_new_runtime.txt'
-      - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/gpu/soup_gpu/soup_runtime.txt'
-      - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/gpu/mustard_gpu/mustard_new_runtime.txt'      
+    # accuracy :
+    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/gpu/drill_gpu/drill_new.txt'
+    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/gpu/mustard_gpu/mustard_new.txt'
+    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/gpu/sugar_gpu/sugar_new.txt'
+    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/gpu/soup_gpu/soup.txt'
+    # runtime : 
+    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/gpu/sugar_gpu/sugar_new_runtime.txt'
+    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/gpu/drill_gpu/drill_new_runtime.txt'
+    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/gpu/soup_gpu/soup_runtime.txt'
+    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/gpu/mustard_gpu/mustard_new_runtime.txt'      
 
 label_gen :
     model_dir : "/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset/models"

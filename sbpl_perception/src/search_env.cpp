@@ -2469,12 +2469,14 @@ GraphState EnvObjectRecognition::ComputeGreedyRenderPoses() {
   // source_result_depth.assign(unfiltered_depth_data, unfiltered_depth_data + kCameraWidth * kCameraHeight-1);
   if (env_params_.use_external_pose_list == 1)
   {    
+    float division_factor = input_depth_factor/gpu_depth_factor;
+    printf("Using depth division factor : %f\n", division_factor);
     for (int i = 0; i < input_depth_image_vec.size(); i++)
     {
-      // printf("source depth : %d\n", input_depth_image_vec[i]);
       // TODO : fix this hardcode
       // ycb has depth factor of 10000, and gpu is using 100, divide by 100 to get it to gpu's depth factor
-      input_depth_image_vec[i] /= 100;
+      input_depth_image_vec[i] /= division_factor;
+      // printf("source depth : %d\n", input_depth_image_vec[i]);
     }
   }
   for (size_t ii = 0; ii < last_object_states.size(); ++ii) {
@@ -5795,6 +5797,7 @@ void EnvObjectRecognition::SetInput(const RecognitionInput &input) {
   double* observed_cloud_bounds_ptr = NULL;
   vector<double> bounds;
   Eigen::Matrix4f* camera_transform_ptr = NULL;
+  gpu_stride = perch_params_.gpu_stride;
 
   if (input.use_input_images)
   {
@@ -5803,7 +5806,7 @@ void EnvObjectRecognition::SetInput(const RecognitionInput &input) {
     cv::Mat cv_depth_image, cv_predicted_mask_image;
     input_depth_image_path = input.input_depth_image;
     if (env_params_.use_external_pose_list == 1) {
-      gpu_stride = perch_params_.gpu_stride;
+      // gpu_stride = perch_params_.gpu_stride;
       // gpu_stride = 5; // For fast_vgicp
       // For FAT dataset, we have 16bit images
       cv_depth_image = cv::imread(input.input_depth_image, CV_LOAD_IMAGE_ANYDEPTH);
@@ -5828,7 +5831,7 @@ void EnvObjectRecognition::SetInput(const RecognitionInput &input) {
     }
     else {
       // gpu_stride = 4; //soda
-      gpu_stride = perch_params_.gpu_stride; //crate
+      // gpu_stride = perch_params_.gpu_stride; //crate
       // cv_depth_image = cv::imread(input.input_depth_image, CV_LOAD_IMAGE_ANYDEPTH);
       cv_depth_image = cv::imread(input.input_depth_image, CV_LOAD_IMAGE_UNCHANGED);
       // medianBlur(cv_depth_image, cv_depth_image, 17); //gpu conveyor
@@ -5899,6 +5902,7 @@ void EnvObjectRecognition::SetInput(const RecognitionInput &input) {
     // }
     if (perch_params_.use_gpu)
     {
+      input_depth_factor = input.depth_factor;
       // #ifdef CUDA_ON
       //// 1D array where height is point dimension (3) and length is equal to number of points in color
       // result_observed_cloud = (float*) malloc(gpu_point_dim * env_params_.width*env_params_.height * sizeof(float));
@@ -6036,7 +6040,7 @@ void EnvObjectRecognition::SetInput(const RecognitionInput &input) {
 
   // Printpoint cloud after downsampling etc.
   // if (perch_params_.vis_expanded_states) {
-  if (!perch_params_.use_gpu) {
+  if (!perch_params_.use_gpu || !input.use_input_images) {
     // Point cloud used for icp in 3dof
     if (IsMaster(mpi_comm_)) {
       for (int i = 0; i < 3; i++)
@@ -6078,13 +6082,14 @@ void EnvObjectRecognition::SetInput(const RecognitionInput &input) {
       result_observed_cloud_color[i + 1*observed_point_num] = (rgb >> 8);
       result_observed_cloud_color[i + 2*observed_point_num] = rgb;
     }
+    input_depth_image_vec.resize(kCameraHeight*kCameraWidth, 0);
     for (int ii = 0; ii < kCameraHeight; ++ii) {
       for (int jj = 0; jj < kCameraWidth; ++jj) {
         PointT p = depth_img_cloud->at(jj, ii);
         if (isnan(p.z) || isinf(p.z)) {
-          unfiltered_depth_data[ii * kCameraWidth + jj] = kKinectMaxDepth;
+          input_depth_image_vec[ii * kCameraWidth + jj] = kKinectMaxDepth;
         } else {
-          unfiltered_depth_data[ii * kCameraWidth + jj] = static_cast<int>
+          input_depth_image_vec[ii * kCameraWidth + jj] = static_cast<int>
                                                     (p.z * gpu_depth_factor);
         }
       }

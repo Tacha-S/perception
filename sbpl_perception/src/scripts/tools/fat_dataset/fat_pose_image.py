@@ -779,6 +779,8 @@ class FATImage:
         # For YCB
         elif self.dataset_type == "ycb":
             return color_img_path.replace('color', 'depth')
+        elif self.dataset_type == "jenga":
+            return color_img_path.replace('color', 'depth').replace("jpg", "png")
         else:
             return color_img_path.replace('color', 'depth')
 
@@ -1171,7 +1173,11 @@ class FATImage:
             # "051_large_clamp": [1,1], #whole_0-pi
             "052_extra_large_clamp": [0, 7],  #whole_0-pi
             "051_large_clamp": [0,7],
-            "061_foam_brick": [0,0] #half_0-pi
+            "061_foam_brick": [0,0], #half_0-pi
+            "color_block_1": [0,3], #half_0-pi
+            "color_block_2": [0,3], #half_0-pi
+            "color_block_3": [0,3], #half_0-pi
+            "color_block_4": [0,3] #half_0-pi
         }
         
         viewpoints_xyz = sphere_fibonacci_grid_points_with_sym_metric(num_samples,name_sym_dict[label][0])
@@ -1227,6 +1233,12 @@ class FATImage:
                 # xyz_rotation_angles = [-phi, math.pi, theta]
                 # all_rots.append(xyz_rotation_angles)
                 step_size = math.pi/2
+                for yaw_temp in np.arange(0, 2*math.pi, step_size):
+                    xyz_rotation_angles = [-phi, yaw_temp, theta]
+                    # xyz_rotation_angles = [yaw_temp, -phi, theta]
+                    all_rots.append(xyz_rotation_angles)
+            elif name_sym_dict[label][1] == 8:
+                step_size = math.pi/4
                 for yaw_temp in np.arange(0, 2*math.pi, step_size):
                     xyz_rotation_angles = [-phi, yaw_temp, theta]
                     # xyz_rotation_angles = [yaw_temp, -phi, theta]
@@ -1318,6 +1330,37 @@ class FATImage:
                 mask_args = np.argwhere(mask > 0)
                 rmin, rmax, cmin, cmax = np.min(mask_args[:,0]), np.max(mask_args[:,0]), np.min(mask_args[:,1]), np.max(mask_args[:,1])
 
+            boxes.append([cmin, rmin, cmax, rmax])
+            centroids_2d.append(np.array([(cmin+cmax)/2, (rmin+rmax)/2]))
+
+        # print(boxes)
+        return labels, masks, boxes, centroids_2d 
+
+    def get_jenga_mask(self, mask_image_id=None, class_ids=None):
+        '''
+            Uses posecnn mask and computes centroid using different methods for rendering shift
+        '''
+        labels = []
+        centroids_2d = []
+        masks = []
+        boxes = []
+
+        for class_id in class_ids:
+            mask_path = os.path.join(self.coco_image_directory,
+                "Masks", "{}_color_class_{}.png".format(str(mask_image_id).zfill(4), class_id))
+            overall_mask = np.array(Image.open(mask_path))
+
+            label = self.category_id_to_names[class_id]['name']
+            labels.append(label)
+            
+            mask = np.copy(overall_mask)
+            masks.append(mask)
+
+            # rmin is min of row in np 2d array, #cmin is min of column in 2d np array
+            rmin, rmax, cmin, cmax = None, None, None, None
+            mask_args = np.argwhere(mask > 0)
+            rmin, rmax, cmin, cmax = np.min(mask_args[:,0]), np.max(mask_args[:,0]), np.min(mask_args[:,1]), np.max(mask_args[:,1])
+            
             boxes.append([cmin, rmin, cmax, rmax])
             centroids_2d.append(np.array([(cmin+cmax)/2, (rmin+rmax)/2]))
 
@@ -1422,6 +1465,12 @@ class FATImage:
             # pdb.set_trace()
             composite = self.overlay_masks(color_img, boxes_all, mask_list_all, labels_all, centroids_2d_all)
             composite_image_path = '{}/mask_posecnn_gt_bbox.png'.format(rotation_output_dir)
+
+        elif mask_type == "jenga":
+            predicted_mask_path = os.path.join(os.path.dirname(depth_img_path), os.path.splitext(os.path.basename(color_img_path))[0] + '.jenga_mask.png')
+            labels_all, mask_list_all, boxes_all, centroids_2d_all = self.get_jenga_mask(mask_image_id=mask_image_id, class_ids=[0,1,2,3])
+            composite = self.overlay_masks(color_img, boxes_all, mask_list_all, labels_all, centroids_2d_all)
+            composite_image_path = '{}/mask_posecnn_jenga_bbox.png'.format(rotation_output_dir)
 
         cv2.imwrite(composite_image_path, composite)
         # return None, None, None, None
@@ -2390,7 +2439,94 @@ def run_roman_crate(dataset_cfg=None):
 
     f_runtime.close()
 
+def analyze_roman_results(config=None):
+    import pandas as pd
+
+    dataset_cfg = config['dataset']
+
+    for device, analysis_cfg in config['analysis']['device'].items():
+        overall_stats_dict = {}
+        # Object wise metrics
+        print("\n### Object Wise AUC ###")
+        li = []
+        for accuracy_file in analysis_cfg['result_files']['accuracy']:
+            # Read file for every object
+            print("Accuracy file : {}".format(accuracy_file))
+            df = pd.read_csv(accuracy_file, 
+                            header=None, 
+                            index_col=None, 
+                            names=["filename", "add", "add-s", "blank"],
+                            skiprows=1,
+                            sep=",") 
+            df = df.drop(columns=["add", "blank"])
+            df = df.set_index('filename')
+            add_s = np.copy(df['add-s'].to_numpy())
+            stats = compute_pose_metrics(add_s)
+            print("AUC : {}, Pose Percentage : {}, Mean ADD-S : {}".format(
+                    stats['auc'], stats['pose_error_less_perc'], stats['mean_pose_error']))
+            li.append(df)
+            overall_stats_dict[get_filename_from_path(accuracy_file)] = stats
+
+
+        # Overall Metrics
+        # print("Dataframe with add-s")
+        df_acc = pd.concat(li, axis=0, ignore_index=False)
+        print("\n### Overall AUC ###")
+        stats = compute_pose_metrics(np.copy(df_acc['add-s'].to_numpy()))
+        print("AUC : {}, Pose Percentage : {}, Mean ADD-S : {}".format(
+                stats['auc'], stats['pose_error_less_perc'], stats['mean_pose_error']))
+
+        overall_stats_dict["overall"] = stats
+
+        ## Runtime
+        print("\n### Object Wise Runtimes ###")
+        li = []
+        for runtime_file in analysis_cfg['result_files']['runtime']:
+            # Read file for every object
+            print("Runtime file : {}".format(runtime_file))
+            df = pd.read_csv(runtime_file, 
+                            header=0, 
+                            index_col=None, 
+                            #  names=["filename", "runtime", "icp-runtime"],
+                            #  skiprows=1,
+                            delim_whitespace=True) 
+            # print(df)
+            df = df.set_index('name')
+            mean_runtime = df['runtime'].mean()
+            mean_rendered = df['expands'].mean()
+            print("Average runtime : {}, Average Rendered : {}".format(mean_runtime, mean_rendered))
+            li.append(df)
+            object_name = get_filename_from_path(runtime_file).replace('_runtime', '')
+            # overall_stats_dict[object_name]["runtime"] = mean_runtime
+            # overall_stats_dict[object_name]["rendered"] = mean_rendered
+
+        
+        print("\n### Overall Runtime ###")
+        df_runtime = pd.concat(li, axis=0, ignore_index=False)
+        mean_runtime = df_runtime['runtime'].mean()
+        mean_rendered = df_runtime['expands'].mean()
+        print("Overall average runtime : {}".format(mean_runtime))
+        print("Overall average rendered : {}".format(mean_rendered))
+        # overall_stats_dict["overall"]["runtime"] = mean_runtime
+        # overall_stats_dict["overall"]["rendered"] = mean_rendered
+
+        # print("\n### Compiled Stats ###")
+        # df_overall_stats = \
+        #         pd.DataFrame.from_dict(overall_stats_dict, orient='index')
+        # print(df_overall_stats)
+        # df_overall_stats.to_csv(
+        #         os.path.join(fat_image.analysis_output_dir, "compiled_stats.csv"),
+        #         float_format='%.4f')
+
 def run_roman_crate_gpu(dataset_cfg=None):
+
+    if dataset_cfg["device"] == "gpu":
+        perch_config_yaml = "roman_gpu_env_config.yaml"
+    elif dataset_cfg["device"] == "cpu":
+        perch_config_yaml = "roman_env_config.yaml"
+    elif dataset_cfg["device"] == "icp":
+        perch_config_yaml = "roman_env_config.yaml"
+        
     image_directory = dataset_cfg['image_dir']
     annotation_file = dataset_cfg['image_dir'] + '/instances_newmap1_roman_2018.json'
     fat_image = FATImage(
@@ -2405,7 +2541,7 @@ def run_roman_crate_gpu(dataset_cfg=None):
         img_width=960,
         img_height=540,
         distance_scale=100,
-        env_config="roman_gpu_env_config.yaml",
+        env_config=perch_config_yaml,
         planner_config="roman_planner_config.yaml",
         perch_debug_dir=dataset_cfg["perch_debug_dir"],
         python_debug_dir=dataset_cfg["python_debug_dir"],
@@ -2458,15 +2594,22 @@ def run_roman_crate_gpu(dataset_cfg=None):
         # max_min_dict['xmin'] -= 0.6
         fat_image.search_resolution_translation = 0.08
 
-
-
-        perch_annotations, stats = fat_image.visualize_perch_output(
-            image_data, annotations, max_min_dict, frame='table',
-            use_external_render=0, required_object=required_objects,
-            camera_optical_frame=False, use_external_pose_list=0, gt_annotations=transformed_annotations,
-            input_camera_pose=camera_pose, table_height=0.006, num_cores=0,
-            compute_type=1
-        )
+        if dataset_cfg["device"] == "gpu":
+            perch_annotations, stats = fat_image.visualize_perch_output(
+                image_data, annotations, max_min_dict, frame='table',
+                use_external_render=0, required_object=required_objects,
+                camera_optical_frame=False, use_external_pose_list=0, gt_annotations=transformed_annotations,
+                input_camera_pose=camera_pose, table_height=0.006, num_cores=0,
+                compute_type=1
+            )
+        elif dataset_cfg["device"] == "icp":
+            perch_annotations, stats = fat_image.visualize_perch_output(
+                image_data, annotations, max_min_dict, frame='table',
+                use_external_render=0, required_object=required_objects,
+                camera_optical_frame=False, use_external_pose_list=0, gt_annotations=transformed_annotations,
+                input_camera_pose=camera_pose, table_height=0.006, num_cores=0,
+                compute_type=0
+            )
         # print(perch_annotations)
         # print(transformed_annotations)
 
@@ -3338,6 +3481,141 @@ def run_on_image(dataset_cfg=None):
 
     f_runtime.close()
 
+
+def run_on_jenga_image(dataset_cfg=None):
+    '''
+        Run on images that have no ground truth
+    '''
+    import rospy
+    rospy.init_node("image_run_node")
+    if '/opt/ros/kinetic/lib/python2.7/dist-packages' in sys.path:
+        sys.path.remove('/opt/ros/kinetic/lib/python2.7/dist-packages')
+        import cv2
+
+    # directory = os.path.join(dataset_cfg['image_dir'], "1") 
+    # directory = os.path.join(dataset_cfg['image_dir'], "1_resize") 
+    directory = os.path.join(dataset_cfg['image_dir'], "4_crop") 
+    image_data = {}
+    camera_intrinsics_matrix_path = "/media/aditya/A69AFABA9AFA85D9/Datasets/Jenga/camera_params/calib_color.yaml"
+    with open(camera_intrinsics_matrix_path) as f:
+        camera_config = yaml.load(f)
+    camera_intrinsics = np.array(camera_config['cameraMatrix']['data']).reshape(3,3)
+    print(camera_intrinsics)
+    # camera_intrinsics[0,:] *= 0.5
+    # camera_intrinsics[1,:] *= 0.5
+    camera_intrinsics[0,2] -= 500
+    camera_intrinsics[1,2] -= 300
+
+    # max_min_dict = {}
+    # max_min_dict['ymax'] = 1.5
+    # max_min_dict['ymin'] = 0.0
+    # max_min_dict['xmax'] = 0.6
+    # max_min_dict['xmin'] = 0.2
+    # table_height = 0.735
+    f_runtime = open('runtime.txt', "w", 1)
+    f_runtime.write("{} {} {}\n".format('name', 'expands', 'runtime'))
+
+    # required_objects = ['color_block_1', 'color_block_2', 'color_block_3']
+    required_objects = ['color_block_1', 'color_block_2', 'color_block_3', 'color_block_4']
+    # required_objects = ['color_block_1']
+    fat_image = FATImage(
+        coco_image_directory = directory,
+        depth_factor=1000,
+        model_dir=dataset_cfg['model_dir'],
+        model_mesh_in_mm=False,
+        model_mesh_scaling_factor=1,
+        models_flipped=False,
+        model_type="default",
+        # img_width=1920,
+        # img_height=1080,
+        # img_width=960,
+        # img_height=540,
+        img_width=640,
+        img_height=360,
+        distance_scale=1,
+        env_config="pr3_jenga_env_config.yaml",
+        planner_config="pr3_planner_config.yaml",
+        perch_debug_dir=dataset_cfg["perch_debug_dir"],
+        python_debug_dir=dataset_cfg["python_debug_dir"],
+        dataset_type=dataset_cfg["type"]
+    )
+    fat_image.camera_intrinsic_matrix = camera_intrinsics
+    fat_image.category_names_to_id = {
+        "color_block_1": 0,
+        "color_block_2": 1,
+        "color_block_3": 2,
+        "color_block_4": 3
+    }
+    fat_image.category_id_to_names = {
+        0:
+        {
+            "name": "color_block_1"
+        },
+        1:
+        {
+            "name": "color_block_2"
+        },
+        2:
+        {
+            "name": "color_block_3"
+        },
+        3:
+        {
+            "name": "color_block_4"
+        }
+    }
+    fat_image.category_names = ["color_block_1","color_block_2","color_block_3"]
+    ## Try to run mask detection
+    # fat_image.init_model(
+    #     dataset_cfg['maskrcnn_config'], 
+    #     print_poses=False, 
+    #     required_objects=required_objects, 
+    #     model_weights=dataset_cfg['maskrcnn_model_path'],
+    #     min_image_size=fat_image.height
+    # )
+    for img_i in np.arange(0, 1, 1):
+        image_data['file_name'] = "{}_color.jpg".format(str(img_i).zfill(4))
+
+        ## Try to run mask detection
+        # color_img_path = os.path.join(fat_image.coco_image_directory, image_data['file_name'])
+        # color_img = cv2.imread(color_img_path)
+        # composite, mask_list_all, labels_all, centroids_2d_all, boxes_all, overall_binary_mask \
+        #         = fat_image.coco_demo.run_on_opencv_image(color_img, use_thresh=True)
+        # mask_output_path = os.path.join(fat_image.coco_image_directory, 
+        #                                     fat_image.get_clean_name(image_data['file_name']) + "_mask.jpg")
+        # cv2.imwrite(mask_output_path, composite) 
+
+        # dope_annotations, runtime = fat_image.visualize_dope_output(image_data)
+        labels, model_annotations, predicted_mask_path, model_poses_file = \
+                    fat_image.visualize_sphere_sampling(
+                        image_data, annotations=None, print_poses=False, 
+                        required_objects=required_objects, num_samples=100,
+                        mask_type="jenga", mask_image_id=img_i
+                    )
+
+        _, max_min_dict, _, _ = fat_image.visualize_pose_ros(image_data, 
+                                                            model_annotations, 
+                                                            frame='camera', 
+                                                            camera_optical_frame=False, 
+                                                            num_publish=1, 
+                                                            write_poses=True, 
+                                                            ros_publish=False,
+                                                        )
+
+        perch_annotations, stats = fat_image.visualize_perch_output(
+            image_data, model_annotations, max_min_dict, frame='camera', 
+            # use_external_render=0, required_object=[labels[1]],
+            use_external_render=0, required_object=labels,
+            camera_optical_frame=False, use_external_pose_list=1,
+            # model_poses_file=model_poses_file, use_centroid_shifting=0,
+            model_poses_file=model_poses_file, use_centroid_shifting=0,
+            predicted_mask_path=predicted_mask_path, num_cores=0
+        )
+
+        f_runtime.write("{} {} {}\n".format(image_data['file_name'], stats['expands'], stats['runtime']))
+
+    f_runtime.close()
+
 def compute_pose_metrics(rec, max_auc_dist = 0.1, max_pose_dist = 0.02):
     # TODO : this should be in utils.py
     '''
@@ -3698,6 +3976,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="Video stream from the command line")
     parser.add_argument("--config", "-c", dest='config', type=str)
+    parser.add_argument("--mode", "-m", dest='mode', type=str, default="algo")
     args = parser.parse_args()
 
     with open(args.config, 'r') as cfg:
@@ -3712,13 +3991,20 @@ if __name__ == '__main__':
     elif config['dataset']['name'] == "sameshape":
         run_sameshape_gpu(dataset_cfg=config['dataset'])
     elif config['dataset']['name'] == "crate":
-        run_roman_crate_gpu(dataset_cfg=config['dataset'])
+        if args.mode == "algo":
+            run_roman_crate_gpu(dataset_cfg=config['dataset'])
+        elif args.mode == "analysis":
+            analyze_roman_results(config=config)
         # run_roman_crate(dataset_cfg=config['dataset'])
     elif config['dataset']['name'] == "image":
         run_on_image(dataset_cfg=config['dataset'])
     elif config['dataset']['name'] == "conveyor":
-        run_on_conveyor(dataset_cfg=config['dataset'])
-        # analyze_conveyor_results(config=config)
+        if args.mode == "algo":
+            run_on_conveyor(dataset_cfg=config['dataset'])
+        elif args.mode == "analysis":
+            analyze_conveyor_results(config=config)
+    elif config['dataset']['name'] == "jenga":
+        run_on_jenga_image(dataset_cfg=config['dataset'])
 
     # coco_predictions = torch.load('/media/aditya/A69AFABA9AFA85D9/Cruzr/code/fb_mask_rcnn/maskrcnn-benchmark/inference/fat_pose_2018_val_cocostyle/coco_results.pth')
     # all_predictions = torch.load('/media/aditya/A69AFABA9AFA85D9/Cruzr/code/fb_mask_rcnn/maskrcnn-benchmark/inference/fat_pose_2018_val_cocostyle/predictions.pth')

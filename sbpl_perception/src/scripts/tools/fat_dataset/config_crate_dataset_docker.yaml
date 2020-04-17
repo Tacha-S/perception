@@ -1,6 +1,7 @@
 dataset :
     name : "crate"
     type : "ndds"
+    device : "gpu"
     model_dir : "/data/roman/models"
     image_dir : "/data/SameShape/Final"
     perch_debug_dir : "/data/perch_output"

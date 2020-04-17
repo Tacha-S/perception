@@ -401,6 +401,7 @@ class EnvObjectRecognition : public EnvironmentMHA {
   vector<int> tris_model_count;
   vector<cuda_renderer::Model::Triangle> tris;
   float gpu_depth_factor = 100.0;
+  float input_depth_factor;
   int gpu_point_dim = 3;
   // Stride should divide width exactly
   int gpu_stride = 5;
