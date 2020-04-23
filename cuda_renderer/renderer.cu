@@ -755,6 +755,7 @@ namespace cuda_renderer {
         printf("depth_factor : %d\n", depth_factor);
         printf("observed_point_num : %d\n", observed_point_num);
         printf("occlusion_threshold : %f\n", occlusion_threshold);
+        printf("calculate_observed_cost : %d\n", calculate_observed_cost);
 
         std::chrono::time_point<std::chrono::system_clock> start, end_1, end_2, end_3, end_3a, end_3b, end_3c, end_4;
         start = std::chrono::system_clock::now();
@@ -1036,7 +1037,7 @@ namespace cuda_renderer {
         device_red_int.clear(); device_red_int.shrink_to_fit();
         device_blue_int.clear(); device_blue_int.shrink_to_fit();
         device_green_int.clear(); device_green_int.shrink_to_fit();
-        if (stage.compare("DEBUG") == 0 || stage.compare("CLOUD") == 0)
+        if (stage.compare("DEBUG") == 0 || stage.find("CLOUD") != std::string::npos)
         {
             printf("Copying point clouds to CPU\n");
             //// Allocate CPU memory
@@ -1220,7 +1221,7 @@ namespace cuda_renderer {
         
 
         thrust::device_vector<float> percentage_multiplier_val(num_images, 100);
-        if (stage.compare("DEBUG") == 0 || stage.compare("COST") == 0)
+        if (stage.compare("DEBUG") == 0 || stage.find("COST") != std::string::npos)
         {
             printf("Copying rendered cost to CPU\n");
             // Trying to get number of points explained in rendered
@@ -1321,7 +1322,7 @@ namespace cuda_renderer {
             //     cuda_observed_cost_vec.end(), 
             //     std::ostream_iterator<int>(std::cout, " ")
             // );
-            if (stage.compare("DEBUG") == 0 || stage.compare("COST") == 0)
+            if (stage.compare("DEBUG") == 0 || stage.find("COST") != std::string::npos)
             {
                 printf("Copying observed cost to CPU\n");
                 observed_cost = (float*) malloc(num_images * size_of_float);

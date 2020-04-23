@@ -1477,6 +1477,7 @@ void EnvObjectRecognition::GetStateImagesUnifiedGPU(const string stage,
                     float* &rendered_cost,
                     float* &observed_cost,
                     float* &points_diff_cost,
+                    float sensor_resolution,
                     int cost_type,
                     bool calculate_observed_cost)
 {
@@ -1601,7 +1602,7 @@ void EnvObjectRecognition::GetStateImagesUnifiedGPU(const string stage,
                           result_observed_cloud_label,
                           cost_type,
                           calculate_observed_cost,
-                          perch_params_.sensor_resolution,
+                          sensor_resolution,
                           perch_params_.color_distance_threshold,
                           perch_params_.gpu_occlusion_threshold,
                           result_depth,
@@ -1701,12 +1702,21 @@ void EnvObjectRecognition::ComputeGreedyCostsInParallelGPU(const std::vector<int
     std::vector<int> rendered_cost(num_poses, 0);
     std::vector<float> rendered_cost_gpu_vec(num_poses, -1);
     float* rendered_cost_gpu = rendered_cost_gpu_vec.data();
+
+    std::vector<float> rendered_preicp_cost_gpu_vec(num_poses, -1);
+    float* rendered_preicp_cost_gpu = rendered_preicp_cost_gpu_vec.data();
+
     uint8_t* observed_explained;
     std::vector<int> last_level_cost(num_poses, 0);
     std::vector<float> observed_cost_gpu_vec(num_poses, 0);
     float* observed_cost_gpu = observed_cost_gpu_vec.data();
+    
+    std::vector<float> observed_preicp_cost_gpu_vec(num_poses, 0);    
+    float* observed_preicp_cost_gpu = observed_preicp_cost_gpu_vec.data();
+
     std::vector<int> total_cost(num_poses, 0);
     float* points_diff_cost_gpu;
+    float* points_diff_preicp_cost_gpu;
 
     std::vector<int> poses_occluded(num_poses, 0);
     std::vector<int> poses_occluded_other(num_poses, 1);
@@ -1731,10 +1741,32 @@ void EnvObjectRecognition::ComputeGreedyCostsInParallelGPU(const std::vector<int
     int* dc_index;
     int* cloud_pose_map;
     int rendered_point_num;
+    // string stage = "CLOUD_COST";
     string stage = "CLOUD";
-    // if (perch_params_.vis_expanded_states) {
-    //   stage = "DEBUG";
-    // } 
+    if (perch_params_.vis_expanded_states) {
+      stage = "DEBUG";
+    } 
+    int cost_type;
+    bool calc_obs_cost = false;
+    if (env_params_.use_external_pose_list == 1)
+    {
+      cost_type = 2;
+      calc_obs_cost = true;
+    }
+    else
+    {
+      if (perch_params_.use_color_cost)
+      {
+        cost_type = 1;
+      }
+      else
+      {
+        cost_type = 0;
+      }
+      calc_obs_cost = true;
+    }
+    printf("Using cost type : %d\n", cost_type);
+
     GetStateImagesUnifiedGPU(
       stage,
       last_object_states,
@@ -1749,17 +1781,20 @@ void EnvObjectRecognition::ComputeGreedyCostsInParallelGPU(const std::vector<int
       rendered_point_num,
       dc_index,
       cloud_pose_map,
-      rendered_cost_gpu,
-      observed_cost_gpu,
-      points_diff_cost_gpu
+      rendered_preicp_cost_gpu,
+      observed_preicp_cost_gpu,
+      points_diff_preicp_cost_gpu,
+      perch_params_.sensor_resolution,
+      cost_type,
+      calc_obs_cost
     );
 
-    // if (perch_params_.vis_expanded_states) {
-    //   PrintGPUImages(
-    //     result_depth, result_color, num_poses, 
-    //     "succ_" + std::to_string(source_id), adjusted_poses_occluded,
-    //     total_cost);
-    // }
+    if (perch_params_.vis_expanded_states) {
+      PrintGPUImages(
+        result_depth, result_color, num_poses, 
+        "succ_" + std::to_string(source_id), adjusted_poses_occluded,
+        total_cost);
+    }
 
     //// Do ICP for occluded stuff, poses which are not occluded by other would be same as original
     // PrintGPUClouds(
@@ -1781,26 +1816,7 @@ void EnvObjectRecognition::ComputeGreedyCostsInParallelGPU(const std::vector<int
     //   random_modified_last_object_states, false, render_point_cloud_topic, true
     // );
     //// Count parallely how many points are explained in color and distance
-    int cost_type;
-    bool calc_obs_cost = false;
-    if (env_params_.use_external_pose_list == 1)
-    {
-      cost_type = 2;
-      calc_obs_cost = true;
-    }
-    else
-    {
-      if (perch_params_.use_color_cost)
-      {
-        cost_type = 1;
-      }
-      else
-      {
-        cost_type = 0;
-      }
-      calc_obs_cost = true;
-    }
-    printf("Using cost type : %d\n", cost_type);
+
 
     stage = "COST";
     if (perch_params_.vis_expanded_states) {
@@ -1823,6 +1839,7 @@ void EnvObjectRecognition::ComputeGreedyCostsInParallelGPU(const std::vector<int
       rendered_cost_gpu,
       observed_cost_gpu,
       points_diff_cost_gpu,
+      perch_params_.sensor_resolution,
       cost_type,
       calc_obs_cost
     );
@@ -1861,6 +1878,7 @@ void EnvObjectRecognition::ComputeGreedyCostsInParallelGPU(const std::vector<int
         }
         // cur_unit.cost = (int) (rendered_cost_gpu[i] + observed_cost_gpu[i] + abs(points_diff_cost_gpu[i]));
         cur_unit.cost = (int) (rendered_cost_gpu[i] + observed_cost_gpu[i]);
+        cur_unit.preicp_cost = (int) (rendered_preicp_cost_gpu[i] + observed_preicp_cost_gpu[i]);
       }
       GraphState greedy_state;
       greedy_state.AppendObject(modified_last_object_states[i]);
@@ -1873,6 +1891,9 @@ void EnvObjectRecognition::ComputeGreedyCostsInParallelGPU(const std::vector<int
       // cur_unit.state_properties.target_cost =  rendered_cost[i];
       cur_unit.state_properties.target_cost =  (int) rendered_cost_gpu[i];
       cur_unit.state_properties.source_cost = (int) observed_cost_gpu[i];
+
+      cur_unit.state_properties.preicp_target_cost =  (int) rendered_preicp_cost_gpu[i];
+      cur_unit.state_properties.preicp_source_cost = (int) observed_preicp_cost_gpu[i];
       // cur_unit.state_properties.last_level_cost = last_level_cost[i];
       cur_unit.state_properties.last_level_cost = (int) points_diff_cost_gpu[i];
       cur_unit.depth_image = source_depth_image;
@@ -2516,8 +2537,12 @@ GraphState EnvObjectRecognition::ComputeGreedyRenderPoses() {
   // ComputeCostsInParallelGPU(cost_computation_input, &cost_computation_output, false);
   ObjectState temp(-1, false, DiscPose(0, 0, 0, 0, 0, 0));
   vector<int> lowest_cost_per_object(env_params_.num_models, INT_MAX);
+  vector<int> lowest_preicp_cost_per_object(env_params_.num_models, INT_MAX);
   vector<ObjectState> lowest_cost_state_per_object(env_params_.num_models, temp);
-  printf("State number,     label         target_cost    source_cost    last_level_cost    candidate_costs    g_value_map\n");
+
+  vector<int> lowest_cost_state_id_per_object(env_params_.num_models, -1);
+  vector<int> lowest_preicp_cost_state_id_per_object(env_params_.num_models, -1);
+  printf("State number,     label     preicp_target_cost    preicp_source_cost     target_cost    source_cost    last_level_cost    preicp_candidate_costs    candidate_costs\n");
   for (size_t ii = 0; ii < candidate_succ_ids.size(); ++ii) {
       const auto &output_unit = cost_computation_output[ii];
       const auto &adjusted_state = cost_computation_output[ii].adjusted_state;
@@ -2540,6 +2565,13 @@ GraphState EnvObjectRecognition::ComputeGreedyRenderPoses() {
         {
           lowest_cost_per_object[model_id] = output_unit.cost;
           lowest_cost_state_per_object[model_id] = adjusted_object_state;
+          lowest_cost_state_id_per_object[model_id] = ii;
+        }
+        if (output_unit.preicp_cost < lowest_preicp_cost_per_object[model_id]
+        && abs(output_unit.state_properties.preicp_target_cost - output_unit.state_properties.preicp_source_cost) < 30)
+        {
+          lowest_preicp_cost_per_object[model_id] = output_unit.preicp_cost;
+          lowest_preicp_cost_state_id_per_object[model_id] = ii;
         }
       }
       else
@@ -2555,14 +2587,16 @@ GraphState EnvObjectRecognition::ComputeGreedyRenderPoses() {
 
       if (image_debug_) {
 
-        printf("State %d,           %s       %d      %d      %d      %d      %d\n",
+        printf("State %d           %s       %d      %d       %d      %d      %d      %d      %d\n",
               ii,
               model_name.c_str(),
+              output_unit.state_properties.preicp_target_cost,
+              output_unit.state_properties.preicp_source_cost,
               output_unit.state_properties.target_cost,
               output_unit.state_properties.source_cost,
               output_unit.state_properties.last_level_cost,
-              output_unit.cost,
-              g_value_map_[candidate_succ_ids[ii]]);
+              output_unit.preicp_cost,
+              output_unit.cost);
 
       }
   }
@@ -2572,7 +2606,13 @@ GraphState EnvObjectRecognition::ComputeGreedyRenderPoses() {
     if (lowest_cost_per_object[model_id] < INT_MAX)
     {
       greedy_state.AppendObject(lowest_cost_state_per_object[model_id]);
-      printf("Cost of lowest cost state for %s : %d\n", obj_models_[model_id].name().c_str(),lowest_cost_per_object[model_id]);
+      printf("Cost of lowest pre ICP cost state for %s : %d ID : %d\n", 
+        obj_models_[model_id].name().c_str(),lowest_preicp_cost_per_object[model_id],
+        lowest_preicp_cost_state_id_per_object[model_id]);
+      printf("Cost of lowest cost state for %s : %d ID : %d\n", 
+        obj_models_[model_id].name().c_str(),lowest_cost_per_object[model_id],
+        lowest_cost_state_id_per_object[model_id]);
+
     }
   }
   end = chrono::system_clock::now();
@@ -6920,7 +6960,8 @@ void EnvObjectRecognition::GetShiftedCentroidPosesGPU(const vector<ObjectState>&
     cloud_pose_map,
     rendered_cost,
     observed_cost,
-    points_diff_cost_gpu
+    points_diff_cost_gpu,
+    perch_params_.sensor_resolution
   );
 
   

@@ -31,6 +31,7 @@ from lib.render_glumpy.render_py import Render_Py
 from lib.utils.mkdir_if_missing import mkdir_if_missing
 import scipy.io
 import sys
+import yaml
 
 if False:
     DATASET_TYPE = "fat"
@@ -147,7 +148,7 @@ if False:
     OUTFILE_NAME = 'instances_syn_bbox_pose'
     IMG_SUBFOLDER = "data_syn"
 
-if True:
+if False:
     ROOT_DIR = '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/DOPE/catkin_ws/src/perception/sbpl_perception/src/scripts/tools/fat_dataset/bag_output'
     DATASET_TYPE = "conveyor"
     SELECTED_OBJECTS = []
@@ -165,6 +166,11 @@ if True:
     ]
     OUTFILE_NAME = 'instances_conveyor_pose'
 
+if True:
+    ROOT_DIR = "/media/aditya/A69AFABA9AFA85D9/Datasets/Jenga_v2/"
+    DATASET_TYPE = "jenga"
+    SELECTED_OBJECTS = []
+    OUTFILE_NAME = 'instances_jenga_clutter_pose'
 
 ng = 642
 print ( '' )
@@ -1099,6 +1105,138 @@ def load_conveyor_dataset():
 
     with open('{}/{}.json'.format(ROOT_DIR, OUTFILE_NAME), 'w') as output_json_file:
         json.dump(coco_output, output_json_file)
+    
+
+
+def load_jenga_dataset():
+
+    # CATEGORIES, FIXED_TRANSFORMS, CAMERA_INTRINSICS = pre_load_ycb_dataset()
+    CLASSES = [
+                "color_block_0",
+                "color_block_1",
+                "color_block_2",
+                "color_block_3",
+                "color_block_4",
+                "color_block_5",
+                "color_block_6"
+            ]
+    CATEGORIES = [{
+                'id': i,
+                'name': CLASSES[i],
+                'supercategory': 'shape',
+            } for i in range(0,len(CLASSES))]
+    camera_settings_file = os.path.join(ROOT_DIR, "camera_params", "calib_color.yaml")
+    with open(camera_settings_file) as f:
+        camera_config = yaml.load(f)
+    camera_intrinsics = np.array(camera_config['cameraMatrix']['data']).reshape(3,3)
+    print(camera_intrinsics)
+    crop_x = 500 #width
+    crop_y = 350 #height
+    camera_intrinsics[0,2] -= crop_x
+    camera_intrinsics[1,2] -= crop_y
+    crop_height = 360
+    crop_width = 640
+
+    coco_output = {
+        "info": INFO,
+        "licenses": LICENSES,
+        "categories": CATEGORIES,
+        "camera_intrinsic_matrix": camera_intrinsics.tolist(),
+        "images": [],
+        "annotations": []
+    }
+
+    image_global_id = 1
+    segmentation_global_id = 1
+
+    for scene_dir in range(1, 26):
+        # Go through all scenes
+        scene_dir = str(scene_dir)
+        print("Doing scene : {}".format(scene_dir))
+        for ii in range(3):
+            # Go through all cameras
+            image_dir = os.path.join(ROOT_DIR, "clutter", scene_dir)
+            image_filename = os.path.join("clutter", scene_dir, str(ii).zfill(4) + '_color.jpg')
+            depth_image_filename = os.path.join("clutter", scene_dir, str(ii).zfill(4) + '_depth.png')
+            
+            image_cropped_filename = os.path.join("clutter", scene_dir, str(ii).zfill(4) + '_color_crop.jpg')
+            depth_image_cropped_filename = os.path.join("clutter", scene_dir, str(ii).zfill(4) + '_depth_crop.png')
+            
+            image_cropped = Image.open(os.path.join(ROOT_DIR, image_filename))
+            image_cropped = image_cropped.crop((crop_x, crop_y, crop_x + crop_width, crop_y + crop_height))
+            image_cropped.save(os.path.join(ROOT_DIR, image_cropped_filename))
+
+            if os.path.exists(os.path.join(ROOT_DIR, depth_image_filename)):
+                image_cropped = Image.open(os.path.join(ROOT_DIR, depth_image_filename))
+                image_cropped = image_cropped.crop((crop_x, crop_y, crop_x + crop_width, crop_y + crop_height))
+                image_cropped.save(os.path.join(ROOT_DIR, depth_image_cropped_filename))
+
+            img_size = (crop_width, crop_height)
+            image_info = pycococreatortools.create_image_info(
+                image_global_id, image_cropped_filename, img_size
+            )
+            # print(image_filename)
+
+            ## Iterate over every object in annotation
+            for seg_i in range(len(CLASSES)):
+                class_name = "color_block_{}".format(seg_i)
+                segmentation_image_file =  os.path.join(
+                    image_dir, "Masks", str(ii).zfill(4) + '_color_class_{}.png'.format(seg_i))
+                if not os.path.exists(segmentation_image_file):
+                    continue
+                segmentation_cropped_image_file =  os.path.join(
+                    image_dir, "Masks", str(ii).zfill(4) + '_color_class_crop{}.png'.format(seg_i))
+
+                # plt.figure()
+                # full_image_file =  os.path.join(ROOT_DIR, image_filename)
+                # skimage.io.imshow(skimage.io.imread(full_image_file))
+                # plt.show()
+                
+                boxes = []
+                labels = []
+                segmentation_ids = []
+                
+                # binary_mask = skimage.io.imread(segmentation_image_file)
+
+                image_cropped = Image.open(os.path.join(ROOT_DIR, "clutter", segmentation_image_file))
+                image_cropped = image_cropped.crop((crop_x, crop_y, crop_x + crop_width, crop_y + crop_height))
+                image_cropped.save(os.path.join(ROOT_DIR, "clutter", segmentation_cropped_image_file))
+
+                binary_mask = skimage.io.imread(segmentation_cropped_image_file)
+                if np.count_nonzero(binary_mask.flatten()) == 0:
+                    continue
+                # print(segmentation_image)
+                # print("File %d - %s"% (image_global_id, segmentation_image_files[0]))
+
+                # class_indexes = label_data['cls_indexes'][0][0].flatten().tolist()
+                # print(class_indexes)
+                # print(class_name)
+
+                class_label = CLASSES.index(class_name)
+                # Create binary masks from segmentation image for every object
+                # binary_mask = np.copy(segmentation_image)
+                # binary_mask[binary_mask != class_label + 1] = 0
+                # binary_mask[binary_mask == class_label + 1] = 1
+                # skimage.io.imshow(binary_mask, cmap=plt.cm.gray)
+                # plt.show()
+
+                category_info = {'id': class_label, 'is_crowd': 0}
+
+                
+                annotation_info = pycococreatortools.create_annotation_info(
+                    segmentation_global_id, image_global_id, category_info, binary_mask,
+                    img_size, tolerance=2)
+                if annotation_info is not None:
+                    coco_output["annotations"].append(annotation_info)
+                    coco_output["images"].append(image_info)
+                else:
+                    tqdm.write("File {} doesn't have boxes or labels in json file for {}".format(image_filename, class_name))
+                segmentation_global_id = segmentation_global_id + 1
+
+            image_global_id = image_global_id + 1
+
+    with open('{}/{}.json'.format(ROOT_DIR, OUTFILE_NAME), 'w') as output_json_file:
+        json.dump(coco_output, output_json_file)
 
 if __name__ == "__main__":
     if DATASET_TYPE == "fat":
@@ -1108,3 +1246,5 @@ if __name__ == "__main__":
         load_ycb_bbox_dataset()
     elif DATASET_TYPE == "conveyor":
         load_conveyor_dataset()
+    elif DATASET_TYPE == "jenga":
+        load_jenga_dataset()

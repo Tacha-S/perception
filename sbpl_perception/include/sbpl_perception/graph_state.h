@@ -41,6 +41,8 @@ struct GraphStateProperties {
   unsigned short last_max_depth;
   int target_cost;
   int source_cost;
+  int preicp_target_cost;
+  int preicp_source_cost;
   int last_level_cost;
   template <typename Ar> void serialize(Ar &ar, const unsigned int) {
     ar &last_min_depth;

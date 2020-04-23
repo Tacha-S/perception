@@ -408,8 +408,9 @@ class FATImage:
 
 
     def get_table_pose(self, depth_img_path, frame):
-        # Creates a point cloud in camera frame and calculates table pose using RANSAC
-
+        '''
+            Creates a point cloud in camera frame and calculates table pose using RANSAC
+        '''
         import rospy
         # from tf.transformations import quaternion_from_euler
         if '/opt/ros/kinetic/lib/python2.7/dist-packages' in sys.path:
@@ -422,6 +423,7 @@ class FATImage:
         count = 0
         cloud = pcl.PointCloud_PointXYZRGB()
         depth_image_pil = np.asarray(Image.open(depth_img_path), dtype=np.float16)
+        # TODO : replace this with numpy based point cloud creation - check densefusion
         for x in range(depth_image.shape[1]):
             for y in range(depth_image.shape[0]):
                 # point = np.array([x,y,1])
@@ -483,7 +485,7 @@ class FATImage:
         ros_msg = self.xyzrgb_array_to_pointcloud2(
             points_3d[:,:3], points_3d[:,3], rospy.Time.now(), frame
         )
-        location = np.mean(inlier_points[:,:3], axis=0) * 100
+        location = np.mean(inlier_points[:,:3], axis=0) * self.distance_scale
         # for i in inliers:
         #     inlier_points.append(points_3d[inliers,:])
 
@@ -592,6 +594,9 @@ class FATImage:
             self, image_data, annotations, frame='camera', camera_optical_frame=True, num_publish=10, 
             write_poses=False, ros_publish=True, get_table_pose=False, input_camera_pose=None
         ):
+        '''
+            Function to visualize poses, get pose of table from RANSAC, convert poses to table frame, write poses to file
+        '''
         if ros_publish:
             print("ROS visualizing")
             if '/opt/ros/kinetic/lib/python2.7/dist-packages' not in sys.path:
@@ -681,7 +686,7 @@ class FATImage:
                         invert_fixed_transform=False
                     )
                     # units = 'm'
-                    location = (np.array(location)*100).tolist()
+                    location = (np.array(location)*self.distance_scale).tolist()
                     if class_name == 'sprite_bottle' or class_name == 'coke_bottle':
                         location[2] = 0
 
@@ -951,7 +956,8 @@ class FATImage:
             model_type=self.model_type,
             symmetry_info=self.symmetry_info,
             read_results_only=True,
-            perch_debug_dir=self.perch_debug_dir
+            perch_debug_dir=self.perch_debug_dir,
+            distance_scale=self.distance_scale
         )
         perch_annotations = fat_perch.read_pose_results()
         return perch_annotations
@@ -1066,7 +1072,8 @@ class FATImage:
             symmetry_info=self.symmetry_info,
             env_config=self.env_config,
             planner_config=self.planner_config,
-            perch_debug_dir=self.perch_debug_dir
+            perch_debug_dir=self.perch_debug_dir,
+            distance_scale=self.distance_scale
         )
         perch_annotations = fat_perch.run_perch_node(model_poses_file, num_cores)
         return perch_annotations
@@ -1174,6 +1181,7 @@ class FATImage:
             "052_extra_large_clamp": [0, 7],  #whole_0-pi
             "051_large_clamp": [0,7],
             "061_foam_brick": [0,0], #half_0-pi
+            "color_block_0": [0,3], #half_0-pi
             "color_block_1": [0,3], #half_0-pi
             "color_block_2": [0,3], #half_0-pi
             "color_block_3": [0,3], #half_0-pi
@@ -1336,7 +1344,7 @@ class FATImage:
         # print(boxes)
         return labels, masks, boxes, centroids_2d 
 
-    def get_jenga_mask(self, mask_image_id=None, class_ids=None):
+    def get_jenga_mask(self, image_data, annotations, mask_image_id=None, class_ids=None):
         '''
             Uses posecnn mask and computes centroid using different methods for rendering shift
         '''
@@ -1345,12 +1353,15 @@ class FATImage:
         masks = []
         boxes = []
 
-        for class_id in class_ids:
-            mask_path = os.path.join(self.coco_image_directory,
-                "Masks", "{}_color_class_{}.png".format(str(mask_image_id).zfill(4), class_id))
-            overall_mask = np.array(Image.open(mask_path))
-
-            label = self.category_id_to_names[class_id]['name']
+        # for class_id in class_ids:
+        for ann in annotations:
+            # mask_path = os.path.join(self.coco_image_directory, "clutter/1",
+            #     "Masks", "{}_color_class_crop{}.png".format(str(0).zfill(4), ann['category_id']))
+            
+            # overall_mask = np.array(Image.open(mask_path))
+            overall_mask = self.example_coco.annToMask(ann)
+            # print((overall_mask[overall_mask != 0]))
+            label = self.category_id_to_names[ann['category_id']]['name']
             labels.append(label)
             
             mask = np.copy(overall_mask)
@@ -1468,7 +1479,7 @@ class FATImage:
 
         elif mask_type == "jenga":
             predicted_mask_path = os.path.join(os.path.dirname(depth_img_path), os.path.splitext(os.path.basename(color_img_path))[0] + '.jenga_mask.png')
-            labels_all, mask_list_all, boxes_all, centroids_2d_all = self.get_jenga_mask(mask_image_id=mask_image_id, class_ids=[0,1,2,3])
+            labels_all, mask_list_all, boxes_all, centroids_2d_all = self.get_jenga_mask(image_data, annotations, mask_image_id=mask_image_id, class_ids=[0,1,2,3])
             composite = self.overlay_masks(color_img, boxes_all, mask_list_all, labels_all, centroids_2d_all)
             composite_image_path = '{}/mask_posecnn_jenga_bbox.png'.format(rotation_output_dir)
 
@@ -3247,9 +3258,9 @@ def run_ycb_6d(dataset_cfg=None):
     # Trying 80 for sugar
     # do small clamp all upto 200 from 48 to 60
     IMG_LIST = np.loadtxt(os.path.join(image_directory, 'image_sets/keyframe.txt'), dtype=str).tolist()
-    for scene_i in range(48, 60):
+    for scene_i in range(54, 55):
     # for scene_i in [55, 54, 51, 57]:
-        for img_i in (range(1, 2500)):
+        for img_i in (range(1, 2)):
         # for img_i in IMG_LIST:
         # for img_i in tuna_list:
         # for img_i in drill_list:
@@ -3487,24 +3498,28 @@ def run_on_jenga_image(dataset_cfg=None):
         Run on images that have no ground truth
     '''
     import rospy
-    rospy.init_node("image_run_node")
+    from sensor_msgs.msg import Image, PointCloud2
+    # rospy.init_node("image_run_node")
     if '/opt/ros/kinetic/lib/python2.7/dist-packages' in sys.path:
         sys.path.remove('/opt/ros/kinetic/lib/python2.7/dist-packages')
         import cv2
+    image_directory = dataset_cfg['image_dir']
+    annotation_file = image_directory + '/instances_jenga_clutter_pose.json'
+    model_dir = dataset_cfg['model_dir']
 
     # directory = os.path.join(dataset_cfg['image_dir'], "1") 
     # directory = os.path.join(dataset_cfg['image_dir'], "1_resize") 
-    directory = os.path.join(dataset_cfg['image_dir'], "4_crop") 
-    image_data = {}
-    camera_intrinsics_matrix_path = "/media/aditya/A69AFABA9AFA85D9/Datasets/Jenga/camera_params/calib_color.yaml"
-    with open(camera_intrinsics_matrix_path) as f:
-        camera_config = yaml.load(f)
-    camera_intrinsics = np.array(camera_config['cameraMatrix']['data']).reshape(3,3)
-    print(camera_intrinsics)
-    # camera_intrinsics[0,:] *= 0.5
-    # camera_intrinsics[1,:] *= 0.5
-    camera_intrinsics[0,2] -= 500
-    camera_intrinsics[1,2] -= 300
+    # directory = os.path.join(dataset_cfg['image_dir'], "4_crop") 
+    # image_data = {}
+    # camera_intrinsics_matrix_path = "/media/aditya/A69AFABA9AFA85D9/Datasets/Jenga/camera_params/calib_color.yaml"
+    # with open(camera_intrinsics_matrix_path) as f:
+    #     camera_config = yaml.load(f)
+    # camera_intrinsics = np.array(camera_config['cameraMatrix']['data']).reshape(3,3)
+    # print(camera_intrinsics)
+    # # camera_intrinsics[0,:] *= 0.5
+    # # camera_intrinsics[1,:] *= 0.5
+    # camera_intrinsics[0,2] -= 500
+    # camera_intrinsics[1,2] -= 300
 
     # max_min_dict = {}
     # max_min_dict['ymax'] = 1.5
@@ -3516,20 +3531,18 @@ def run_on_jenga_image(dataset_cfg=None):
     f_runtime.write("{} {} {}\n".format('name', 'expands', 'runtime'))
 
     # required_objects = ['color_block_1', 'color_block_2', 'color_block_3']
-    required_objects = ['color_block_1', 'color_block_2', 'color_block_3', 'color_block_4']
-    # required_objects = ['color_block_1']
+    # required_objects = ['color_block_1', 'color_block_2', 'color_block_3', 'color_block_4']
+    required_objects = ['color_block_0', 'color_block_1', 'color_block_2']
+    # required_objects = ['color_block_2']
     fat_image = FATImage(
-        coco_image_directory = directory,
+        coco_annotation_file=annotation_file,
+        coco_image_directory = image_directory,
         depth_factor=1000,
-        model_dir=dataset_cfg['model_dir'],
+        model_dir=model_dir,
         model_mesh_in_mm=False,
         model_mesh_scaling_factor=1,
         models_flipped=False,
         model_type="default",
-        # img_width=1920,
-        # img_height=1080,
-        # img_width=960,
-        # img_height=540,
         img_width=640,
         img_height=360,
         distance_scale=1,
@@ -3539,32 +3552,26 @@ def run_on_jenga_image(dataset_cfg=None):
         python_debug_dir=dataset_cfg["python_debug_dir"],
         dataset_type=dataset_cfg["type"]
     )
-    fat_image.camera_intrinsic_matrix = camera_intrinsics
-    fat_image.category_names_to_id = {
-        "color_block_1": 0,
-        "color_block_2": 1,
-        "color_block_3": 2,
-        "color_block_4": 3
-    }
-    fat_image.category_id_to_names = {
-        0:
-        {
-            "name": "color_block_1"
-        },
-        1:
-        {
-            "name": "color_block_2"
-        },
-        2:
-        {
-            "name": "color_block_3"
-        },
-        3:
-        {
-            "name": "color_block_4"
-        }
-    }
-    fat_image.category_names = ["color_block_1","color_block_2","color_block_3"]
+    # fat_image.camera_intrinsic_matrix = camera_intrinsics
+    # fat_image.category_id_to_names = {
+    #     0:
+    #     {
+    #         "name": "color_block_1"
+    #     },
+    #     1:
+    #     {
+    #         "name": "color_block_2"
+    #     },
+    #     2:
+    #     {
+    #         "name": "color_block_3"
+    #     },
+    #     3:
+    #     {
+    #         "name": "color_block_4"
+    #     }
+    # }
+    # fat_image.category_names = ["color_block_1","color_block_2","color_block_3"]
     ## Try to run mask detection
     # fat_image.init_model(
     #     dataset_cfg['maskrcnn_config'], 
@@ -3573,33 +3580,42 @@ def run_on_jenga_image(dataset_cfg=None):
     #     model_weights=dataset_cfg['maskrcnn_model_path'],
     #     min_image_size=fat_image.height
     # )
-    for img_i in np.arange(0, 1, 1):
-        image_data['file_name'] = "{}_color.jpg".format(str(img_i).zfill(4))
-
-        ## Try to run mask detection
-        # color_img_path = os.path.join(fat_image.coco_image_directory, image_data['file_name'])
-        # color_img = cv2.imread(color_img_path)
-        # composite, mask_list_all, labels_all, centroids_2d_all, boxes_all, overall_binary_mask \
-        #         = fat_image.coco_demo.run_on_opencv_image(color_img, use_thresh=True)
-        # mask_output_path = os.path.join(fat_image.coco_image_directory, 
-        #                                     fat_image.get_clean_name(image_data['file_name']) + "_mask.jpg")
-        # cv2.imwrite(mask_output_path, composite) 
+    for img_i in np.arange(1, 26, 1):
+        image_name = "clutter/{}/{}_color_crop.jpg".format(img_i, str(0).zfill(4))
+        image_data, annotations = fat_image.get_random_image(
+            name=image_name, required_objects=None
+        )
 
         # dope_annotations, runtime = fat_image.visualize_dope_output(image_data)
+        # color_img_path = os.path.join(fat_image.coco_image_directory, image_data['file_name'])
+        # depth_img_path = fat_image.get_depth_img_path(color_img_path)
+        # scene_cloud, table_location, table_quat = \
+        #     fat_image.get_table_pose(depth_img_path, 'camera')
+        # _, max_min_dict, _, _ = fat_image.visualize_pose_ros(image_data, 
+        #                                                 annotations, 
+        #                                                 frame='camera', 
+        #                                                 camera_optical_frame=False, 
+        #                                                 num_publish=2, 
+        #                                                 write_poses=False, 
+        #                                                 ros_publish=True,
+        #                                                 get_table_pose=True
+        #                                             )
+
         labels, model_annotations, predicted_mask_path, model_poses_file = \
                     fat_image.visualize_sphere_sampling(
-                        image_data, annotations=None, print_poses=False, 
+                        image_data, annotations=annotations, print_poses=False, 
                         required_objects=required_objects, num_samples=100,
                         mask_type="jenga", mask_image_id=img_i
                     )
-
+        # Write poses to file for perch
         _, max_min_dict, _, _ = fat_image.visualize_pose_ros(image_data, 
                                                             model_annotations, 
                                                             frame='camera', 
                                                             camera_optical_frame=False, 
                                                             num_publish=1, 
                                                             write_poses=True, 
-                                                            ros_publish=False,
+                                                            ros_publish=True,
+                                                            get_table_pose=True
                                                         )
 
         perch_annotations, stats = fat_image.visualize_perch_output(
@@ -3609,8 +3625,22 @@ def run_on_jenga_image(dataset_cfg=None):
             camera_optical_frame=False, use_external_pose_list=1,
             # model_poses_file=model_poses_file, use_centroid_shifting=0,
             model_poses_file=model_poses_file, use_centroid_shifting=0,
-            predicted_mask_path=predicted_mask_path, num_cores=0
+            predicted_mask_path=predicted_mask_path, num_cores=0,
         )
+
+        # Convert poses to table frame for simulator
+        _, _, transformed_anns, cam_pose = fat_image.visualize_pose_ros(image_data, 
+                                                            perch_annotations, 
+                                                            frame='table', 
+                                                            camera_optical_frame=False, 
+                                                            num_publish=1, 
+                                                            write_poses=False, 
+                                                            ros_publish=True
+                                                            # get_table_pose=True
+                                                        )
+        pose_output_filename = "clutter/{}/{}_poses.json".format(img_i, str(0).zfill(4))
+        with open(os.path.join(fat_image.coco_image_directory, pose_output_filename), 'w') as outfile:
+            json.dump(transformed_anns, outfile)
 
         f_runtime.write("{} {} {}\n".format(image_data['file_name'], stats['expands'], stats['runtime']))
 
