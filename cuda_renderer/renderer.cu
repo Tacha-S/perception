@@ -1383,7 +1383,7 @@ namespace cuda_renderer {
         cudaFree(cuda_cloud_pose_map);
         cudaFree(index_dev);
         cudaFree(dist_dev);
-        cudaFree(cuda_observed_cloud_label);
+        if (cost_type == 2) cudaFree(cuda_observed_cloud_label);
         cudaFree(cuda_observed_cloud_color);
 
         end_4 = std::chrono::system_clock::now();

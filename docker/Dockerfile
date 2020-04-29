@@ -1,4 +1,4 @@
-ARG CUDA="8.0"
+ARG CUDA="10.2"
 ARG CUDNN="7"
 
 FROM nvidia/cuda:${CUDA}-cudnn${CUDNN}-devel-ubuntu16.04
@@ -27,17 +27,22 @@ RUN apt-get update && apt-get install -y --allow-unauthenticated\
 #     && rm -rf /var/lib/apt/lists/*
 
 # Install Miniconda
-RUN curl -so /miniconda.sh https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh \
+RUN  apt-get update \
+  && apt-get install -y wget \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN wget -O /miniconda.sh https://repo.continuum.io/miniconda/Miniconda3-4.7.12.1-Linux-x86_64.sh \
  && chmod +x /miniconda.sh \
  && /miniconda.sh -b -p /miniconda \
  && rm /miniconda.sh
 
+RUN ls /miniconda/
 ENV PATH=/miniconda/bin:$PATH
 
 # Create a Python 3.6 environment
-RUN /miniconda/bin/conda install -y conda-build \
- && /miniconda/bin/conda create -y --name py36 python=3.6.7 \
- && /miniconda/bin/conda clean -ya
+RUN conda install -y conda-build \
+ && conda create -y --name py36 python=3.6.7 \
+ && conda clean -ya
 
 ENV CONDA_DEFAULT_ENV=py36
 ENV CONDA_PREFIX=/miniconda/envs/$CONDA_DEFAULT_ENV
@@ -50,7 +55,7 @@ RUN pip install ninja yacs cython matplotlib opencv-python tqdm tensorboardX
 
 # Install PyTorch 1.0 Nightly
 ARG CUDA
-RUN conda install pytorch==1.0.0 torchvision==0.2.1 cuda80 -c pytorch \
+RUN conda install pytorch==1.0.0 torchvision==0.2.1 cudatoolkit=${CUDA} -c pytorch \
  && conda clean -ya
 
 RUN conda install pillow==6.1
@@ -195,8 +200,7 @@ RUN git clone https://github.com/eigenteam/eigen-git-mirror.git \
 #                          Xvfb :5 -screen 0 800x600x24 & export DISPLAY=:5; \
 #                          python fat_pose_image.py --config config_docker.yaml'
 
-
-
+RUN wget -qO- "https://cmake.org/files/v3.17/cmake-3.17.0-Linux-x86_64.tar.gz" | tar --strip-components=1 -xz -C /usr/local
 
 ### Debug Version below, code not cloned inside docker ###
 RUN cd /ros_python3_ws/src \

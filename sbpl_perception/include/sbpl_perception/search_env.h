@@ -51,6 +51,7 @@
 #include <fast_gicp/gicp/fast_vgicp.hpp>
 #include <fast_gicp/gicp/fast_gicp.hpp>
 #include <fast_gicp/gicp/fast_gicp_st.hpp>
+#include <fast_gicp/gicp/fast_gicp_cuda.hpp>
 
 #include <memory>
 #include <string>
@@ -150,6 +151,7 @@ struct PERCHParams {
   double footprint_tolerance;
 
   double depth_median_blur;
+  int icp_type;
 
   PERCHParams() : initialized(false) {}
 
@@ -181,6 +183,7 @@ struct PERCHParams {
     ar &gpu_occlusion_threshold;
     ar &footprint_tolerance;
     ar &depth_median_blur;
+    ar &icp_type;
   }
 };
 // BOOST_IS_MPI_DATATYPE(PERCHParams);

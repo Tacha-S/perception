@@ -47,6 +47,7 @@ class FATImage:
             img_width=960,
             img_height=540,
             distance_scale=100,
+            table_ransac_threshold=0.05,
             perch_debug_dir=None,
             python_debug_dir="./model_outputs",
             dataset_type="ycb",
@@ -63,6 +64,7 @@ class FATImage:
         self.dataset_type = dataset_type
         self.perch_debug_dir = perch_debug_dir
         self.python_debug_dir = python_debug_dir
+        self.table_ransac_threshold = table_ransac_threshold
         mkdir_if_missing(self.python_debug_dir)
         if analysis_output_dir is not None:
             self.analysis_output_dir = analysis_output_dir
@@ -447,7 +449,7 @@ class FATImage:
         # Mandatory
         seg.set_model_type (pcl.SACMODEL_PLANE)
         seg.set_method_type (pcl.SAC_RANSAC)
-        seg.set_distance_threshold (0.05)
+        seg.set_distance_threshold (self.table_ransac_threshold)
         # ros_msg = self.xyzrgb_array_to_pointcloud2(
         #     points_3d[:,:3], points_3d[:,3], rospy.Time.now(), frame
         # )
@@ -1181,11 +1183,11 @@ class FATImage:
             "052_extra_large_clamp": [0, 7],  #whole_0-pi
             "051_large_clamp": [0,7],
             "061_foam_brick": [0,0], #half_0-pi
-            "color_block_0": [0,3], #half_0-pi
-            "color_block_1": [0,3], #half_0-pi
-            "color_block_2": [0,3], #half_0-pi
-            "color_block_3": [0,3], #half_0-pi
-            "color_block_4": [0,3] #half_0-pi
+            "color_block_0": [0,8], #half_0-pi
+            "color_block_1": [0,8], #half_0-pi
+            "color_block_2": [0,8], #half_0-pi
+            "color_block_3": [0,8], #half_0-pi
+            "color_block_4": [0,8] #half_0-pi
         }
         
         viewpoints_xyz = sphere_fibonacci_grid_points_with_sym_metric(num_samples,name_sym_dict[label][0])
@@ -1246,11 +1248,11 @@ class FATImage:
                     # xyz_rotation_angles = [yaw_temp, -phi, theta]
                     all_rots.append(xyz_rotation_angles)
             elif name_sym_dict[label][1] == 8:
-                step_size = math.pi/4
-                for yaw_temp in np.arange(0, 2*math.pi, step_size):
-                    xyz_rotation_angles = [-phi, yaw_temp, theta]
-                    # xyz_rotation_angles = [yaw_temp, -phi, theta]
+                step_size = math.pi/3
+                for yaw_temp in np.arange(0, math.pi, step_size):
+                    xyz_rotation_angles = [yaw_temp, -phi, theta]
                     all_rots.append(xyz_rotation_angles)
+
         return all_rots
 
     def get_posecnn_bbox(self, idx, posecnn_rois):
@@ -3189,7 +3191,7 @@ def run_ycb_6d(dataset_cfg=None):
     f_runtime.write("{} {} {} {} {}\n".format('name', 'expands', 'runtime', 'icp_runtime', 'peak_gpu_mem'))
 
     # filter_objects = ['004_sugar_box']
-    required_objects = ['003_cracker_box']
+    required_objects = ['003_cracker_box', "035_power_drill"]
     # required_objects = ['025_mug', '007_tuna_fish_can', '002_master_chef_can']
     # required_objects = fat_image.category_names
     # required_objects = ['002_master_chef_can', '025_mug', '007_tuna_fish_can']
@@ -3260,17 +3262,17 @@ def run_ycb_6d(dataset_cfg=None):
     IMG_LIST = np.loadtxt(os.path.join(image_directory, 'image_sets/keyframe.txt'), dtype=str).tolist()
     for scene_i in range(54, 55):
     # for scene_i in [55, 54, 51, 57]:
-        for img_i in (range(1, 2)):
+        # for img_i in (range(1, 2500)):
         # for img_i in IMG_LIST:
         # for img_i in tuna_list:
         # for img_i in drill_list:
         # for img_i in wood_list:
-        # for img_i in cracker_list:
+        for img_i in cracker_list:
             # if "0050" not in img_i:
             #     continue
             # Get Image
-            image_name = 'data/00{}/00{}-color.png'.format(str(scene_i), str(img_i).zfill(4))
-            # image_name = '{}'.format(img_i)
+            # image_name = 'data/00{}/00{}-color.png'.format(str(scene_i), str(img_i).zfill(4))
+            image_name = '{}'.format(img_i)
             # if image_name in skip_list:
             #     continue
             # image_data, annotations = fat_image.get_random_image(name='{}_16k/kitchen_4/000005.left.jpg'.format(category_name))
@@ -3532,7 +3534,10 @@ def run_on_jenga_image(dataset_cfg=None):
 
     # required_objects = ['color_block_1', 'color_block_2', 'color_block_3']
     # required_objects = ['color_block_1', 'color_block_2', 'color_block_3', 'color_block_4']
-    required_objects = ['color_block_0', 'color_block_1', 'color_block_2']
+    required_objects = ['color_block_0', 
+                        'color_block_1', 
+                        'color_block_2', 
+                        'color_block_3']
     # required_objects = ['color_block_2']
     fat_image = FATImage(
         coco_annotation_file=annotation_file,
@@ -3546,6 +3551,7 @@ def run_on_jenga_image(dataset_cfg=None):
         img_width=640,
         img_height=360,
         distance_scale=1,
+        table_ransac_threshold=0.025,
         env_config="pr3_jenga_env_config.yaml",
         planner_config="pr3_planner_config.yaml",
         perch_debug_dir=dataset_cfg["perch_debug_dir"],
@@ -3580,7 +3586,7 @@ def run_on_jenga_image(dataset_cfg=None):
     #     model_weights=dataset_cfg['maskrcnn_model_path'],
     #     min_image_size=fat_image.height
     # )
-    for img_i in np.arange(1, 26, 1):
+    for img_i in np.arange(25, 26, 1):
         image_name = "clutter/{}/{}_color_crop.jpg".format(img_i, str(0).zfill(4))
         image_data, annotations = fat_image.get_random_image(
             name=image_name, required_objects=None
@@ -3639,8 +3645,15 @@ def run_on_jenga_image(dataset_cfg=None):
                                                             # get_table_pose=True
                                                         )
         pose_output_filename = "clutter/{}/{}_poses.json".format(img_i, str(0).zfill(4))
-        with open(os.path.join(fat_image.coco_image_directory, pose_output_filename), 'w') as outfile:
-            json.dump(transformed_anns, outfile)
+        for ann in transformed_anns:
+            ann["type"] = "jenga"
+        pose_output = {}
+        pose_output["poses"] = transformed_anns
+        pose_output["num_objects"] = len(transformed_anns)
+        pose_output["runtime"] = stats['runtime']
+        mkdir_if_missing("jenga_output_poses/clutter/{}".format(img_i))
+        with open(os.path.join("jenga_output_poses", pose_output_filename), 'w') as outfile:
+            json.dump(pose_output, outfile, indent=2)
 
         f_runtime.write("{} {} {}\n".format(image_data['file_name'], stats['expands'], stats['runtime']))
 
