@@ -1121,73 +1121,80 @@ void EnvObjectRecognition::GetICPAdjustedPosesCPU(const vector<ObjectState>& obj
 
   if (perch_params_.icp_type == 2)
   {
-    // Testing CUDA GICP
-    fast_gicp::FastGICPCuda<pcl::PointXYZ, pcl::PointXYZ> gicp_cuda;
-    std::vector<Eigen::Isometry3f> estimated;
-    gicp_cuda.setMaximumIterations(perch_params_.max_icp_iterations);
-    gicp_cuda.setCorrespondenceRandomness(10);
-    gicp_cuda.computeTransformationMulti(result_cloud, 
-                                        rendered_point_num, 
-                                        result_observed_cloud, 
-                                        observed_point_num,
-                                        cloud_pose_map,
-                                        num_poses,
-                                        estimated);
-    for (int n = 0; n < num_poses; n++)
-    {
-      ContPose pose_in = objects[n].cont_pose();
-      ContPose pose_out;
-      Eigen::Matrix4f transformation;
-      // if (env_params_.use_external_pose_list == 1)
-      // {
-      transformation = estimated[n].matrix();      
-      // } 
-      // else
-      // {
-      //   transformation = estimated[n].matrix() * transform.matrix().cast<float>();      
-      // }   
-      Eigen::Matrix4f transformation_old = pose_in.GetTransform().matrix().cast<float>();
-      Eigen::Matrix4f transformation_new = transformation * transformation_old;
-      Eigen::Vector4f vec_out;
-      if (env_params_.use_external_pose_list == 0)
+      vector<int> pose_segmen_label;
+      for (int i = 0; i < num_poses; i++)
       {
-        Eigen::Vector4f vec_in;
-        vec_in << pose_in.x(), pose_in.y(), pose_in.z(), 1.0;
-        vec_out = transformation * vec_in;
-        double yaw = atan2(transformation(1, 0), transformation(0, 0));
-
-        double yaw1 = pose_in.yaw();
-        double yaw2 = yaw;
-        double cos_term = cos(yaw1 + yaw2);
-        double sin_term = sin(yaw1 + yaw2);
-        double total_yaw = atan2(sin_term, cos_term);
-        pose_out = ContPose(vec_out[0], vec_out[1], vec_out[2], pose_in.roll(), pose_in.pitch(), total_yaw);
+        pose_segmen_label.push_back(objects[i].segmentation_label_id());
       }
-      else
+      // Testing CUDA GICP
+      fast_gicp::FastGICPCuda<pcl::PointXYZ, pcl::PointXYZ> gicp_cuda;
+      std::vector<Eigen::Isometry3f> estimated;
+      gicp_cuda.setMaximumIterations(perch_params_.max_icp_iterations);
+      gicp_cuda.setCorrespondenceRandomness(10);
+      gicp_cuda.computeTransformationMulti(result_cloud,
+                                           rendered_point_num,
+                                           result_observed_cloud,
+                                           observed_point_num,
+                                           cloud_pose_map,
+                                           result_observed_cloud_label,
+                                           pose_segmen_label.data(),
+                                           num_poses,
+                                           estimated);
+      for (int n = 0; n < num_poses; n++)
       {
-        vec_out << transformation_new(0, 3), transformation_new(1, 3), transformation_new(2, 3), 1.0;
-        Matrix3f rotation_new(3, 3);
-        for (int i = 0; i < 3; i++)
+        ContPose pose_in = objects[n].cont_pose();
+        ContPose pose_out;
+        Eigen::Matrix4f transformation;
+        // if (env_params_.use_external_pose_list == 1)
+        // {
+        transformation = estimated[n].matrix();
+        // }
+        // else
+        // {
+        //   transformation = estimated[n].matrix() * transform.matrix().cast<float>();
+        // }
+        Eigen::Matrix4f transformation_old = pose_in.GetTransform().matrix().cast<float>();
+        Eigen::Matrix4f transformation_new = transformation * transformation_old;
+        Eigen::Vector4f vec_out;
+        if (env_params_.use_external_pose_list == 0)
         {
-          for (int j = 0; j < 3; j++)
-          {
-            rotation_new(i, j) = transformation_new(i, j);
-          }
+          Eigen::Vector4f vec_in;
+          vec_in << pose_in.x(), pose_in.y(), pose_in.z(), 1.0;
+          vec_out = transformation * vec_in;
+          double yaw = atan2(transformation(1, 0), transformation(0, 0));
+
+          double yaw1 = pose_in.yaw();
+          double yaw2 = yaw;
+          double cos_term = cos(yaw1 + yaw2);
+          double sin_term = sin(yaw1 + yaw2);
+          double total_yaw = atan2(sin_term, cos_term);
+          pose_out = ContPose(vec_out[0], vec_out[1], vec_out[2], pose_in.roll(), pose_in.pitch(), total_yaw);
         }
-        auto euler = rotation_new.eulerAngles(2, 1, 0);
-        double roll_ = euler[0];
-        double pitch_ = euler[1];
-        double yaw_ = euler[2];
+        else
+        {
+          vec_out << transformation_new(0, 3), transformation_new(1, 3), transformation_new(2, 3), 1.0;
+          Matrix3f rotation_new(3, 3);
+          for (int i = 0; i < 3; i++)
+          {
+            for (int j = 0; j < 3; j++)
+            {
+              rotation_new(i, j) = transformation_new(i, j);
+            }
+          }
+          auto euler = rotation_new.eulerAngles(2, 1, 0);
+          double roll_ = euler[0];
+          double pitch_ = euler[1];
+          double yaw_ = euler[2];
 
-        Quaternionf quaternion(rotation_new.cast<float>());
+          Quaternionf quaternion(rotation_new.cast<float>());
 
-        pose_out = ContPose(vec_out[0], vec_out[1], vec_out[2], quaternion.x(), quaternion.y(), quaternion.z(), quaternion.w());
+          pose_out = ContPose(vec_out[0], vec_out[1], vec_out[2], quaternion.x(), quaternion.y(), quaternion.z(), quaternion.w());
+        }
+        ObjectState modified_object_state(objects[n].id(),
+                                          objects[n].symmetric(), pose_out, objects[n].segmentation_label_id());
+        modified_objects[n] = modified_object_state;
       }
-      ObjectState modified_object_state(objects[n].id(),
-                                        objects[n].symmetric(), pose_out, objects[n].segmentation_label_id());
-      modified_objects[n] = modified_object_state;
     }
-  }
   else if (perch_params_.icp_type == 0 || perch_params_.icp_type == 1)
   {
     vector<int> parent_counted_pixels;
@@ -1607,6 +1614,7 @@ void EnvObjectRecognition::GetStateImagesUnifiedGPU(const string stage,
     if (env_params_.use_external_pose_list == 1)
     {
       int required_object_id = objects[i].segmentation_label_id() - 1; 
+      // For every pose, a mapping to its segmentation label
       pose_segmen_label.push_back(objects[i].segmentation_label_id());
       pose_obs_points_total.push_back(segmented_observed_point_count[required_object_id]);
     }
