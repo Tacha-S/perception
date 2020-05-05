@@ -174,7 +174,8 @@ namespace cuda_renderer {
     __global__ void depth_to_2d_cloud(
         int32_t* depth, uint8_t* r_in, uint8_t* g_in, uint8_t* b_in, float* cloud, size_t cloud_pitch, uint8_t* cloud_color, int cloud_rendered_cloud_point_num, int* mask, int width, int height, 
         float kCameraCX, float kCameraCY, float kCameraFX, float kCameraFY, float depth_factor,
-        int stride, int num_poses, int* cloud_pose_map, uint8_t* label_mask_data,  int* cloud_mask_label)
+        int stride, int num_poses, int* cloud_pose_map, uint8_t* label_mask_data,  int* cloud_mask_label,
+        double* observed_cloud_bounds, Eigen::Matrix4f* camera_transform)
     {
         /**
          * Creates a point cloud by combining a mask corresponding to valid depth pixels and depth data using the camera params
@@ -193,17 +194,29 @@ namespace cuda_renderer {
         if(n >= num_poses) return;
         uint32_t idx_depth = n * width * height + x + y*width;
     
+        // Need to check if pixel is valid here so that some invalid depth doesn't get written
+        // Previously was happening in getgravityalignedpointcloud in search_env.cpp
         if(depth[idx_depth] <= 0) return;
-    
-        // uchar depth_val = depth[idx_depth];
-        // float z_pcd = static_cast<float>(depth[idx_depth])/depth_factor;
-        // float x_pcd = (static_cast<float>(x) - kCameraCX)/kCameraFX * z_pcd;
-        // float y_pcd = (static_cast<float>(y) - kCameraCY)/kCameraFY * z_pcd;
+        // 6-Dof invalid pixel case
+        if (label_mask_data != NULL)
+        {
+            if(label_mask_data[idx_depth] <= 0) return;
+        }
         float x_pcd, y_pcd, z_pcd;
         // printf("depth:%d\n", depth[idx_depth]);
-        transform_point(x, y, depth[idx_depth], kCameraCX, kCameraCY, kCameraFX, kCameraFY,
-                depth_factor, NULL, x_pcd, y_pcd, z_pcd);
+        // 3-Dof invalid pixel case, transform to table frame and check bounds       
+        if (camera_transform != NULL && observed_cloud_bounds != NULL) 
+        {
+            transform_point(x, y, depth[idx_depth], kCameraCX, kCameraCY, kCameraFX, kCameraFY,
+                depth_factor, camera_transform, x_pcd, y_pcd, z_pcd);
+            if (x_pcd > (float) observed_cloud_bounds[0] || x_pcd < (float) observed_cloud_bounds[1]) return;
+            if (y_pcd > (float) observed_cloud_bounds[2] || y_pcd < (float) observed_cloud_bounds[3]) return;
+            if (z_pcd > (float) observed_cloud_bounds[4] || z_pcd < (float) observed_cloud_bounds[5]) return;
+        }
 
+        // Get actual point which should be in camera frame itself
+        transform_point(x, y, depth[idx_depth], kCameraCX, kCameraCY, kCameraFX, kCameraFY,
+            depth_factor, NULL, x_pcd, y_pcd, z_pcd);
         // printf("kCameraCX:%f,kCameraFX:%f, kCameraCY:%f, kCameraCY:%f\n", kCameraCX,kCameraFX,kCameraCY, y_pcd, z_pcd);
         
         uint32_t idx_mask = n * width * height + x + y*width;

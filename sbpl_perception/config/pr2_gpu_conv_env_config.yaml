@@ -15,6 +15,7 @@ perch_params:
   use_rcnn_heuristic: false
   use_model_specific_search_resolution: false
   depth_median_blur: 17
+  icp_type: 0
 
   ## RGB
   use_color_cost: false

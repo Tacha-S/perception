@@ -1,0 +1,96 @@
+dataset :
+    name : "conveyor"
+    type : "conveyor"
+    device : "gpu"
+    model_dir : "/data/YCB_Video_Dataset/models"
+    image_dir : "/data/conveyor/"
+    perch_debug_dir : "/data/perch_output"
+    python_debug_dir : "/data/model_outputs"
+python2_paths :
+  - '/opt/ros/kinetic/lib/python2.7/dist-packages'
+  - '/usr/local/lib/python2.7/dist-packages/'
+python3_paths :
+  - '/ros_python3_ws/devel/lib/python3/dist-packages'
+analysis:
+  output_dir : "./conveyor_analysis_output"
+  # output_dir : "./conveyor_analysis_output_gpu"
+  # output_dir : "./conveyor_analysis_output_icp"
+  result_files :
+    root : '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/' 
+    accuracy :
+      - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/icp_less_render/drill.txt'
+      - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/icp_less_render/mustard.txt'
+      - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/icp_less_render/sugar.txt'
+      - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/icp_less_render/soup.txt'
+    runtime : 
+      - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/icp_less_render/drill_runtime.txt'
+      - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/icp_less_render/mustard_runtime.txt'
+      - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/icp_less_render/sugar_runtime.txt'
+      - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/icp_less_render/soup_runtime.txt'
+    # accuracy :
+    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/cpu/drill_cpu/drill.txt'
+    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/cpu/mustard_cpu/mustard.txt'
+    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/cpu/sugar_cpu/sugar.txt'
+    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/cpu/soup_cpu/soup.txt'
+    # runtime :
+    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/cpu/sugar_cpu/sugar_runtime.txt'
+    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/cpu/drill_cpu/drill_runtime.txt'
+    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/cpu/soup_cpu/soup_runtime.txt'
+    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/cpu/mustard_cpu/mustard_runtime.txt'      
+    # accuracy :
+    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/gpu/drill_gpu/drill_new.txt'
+    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/gpu/mustard_gpu/mustard_new.txt'
+    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/gpu/sugar_gpu/sugar_new.txt'
+    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/gpu/soup_gpu/soup.txt'
+    # runtime : 
+    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/gpu/sugar_gpu/sugar_new_runtime.txt'
+    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/gpu/drill_gpu/drill_new_runtime.txt'
+    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/gpu/soup_gpu/soup_runtime.txt'
+    #   - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/conveyor/gpu/mustard_gpu/mustard_new_runtime.txt'      
+
+label_gen :
+    model_dir : "/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset/models"
+    # object_name : "004_sugar_box"
+    # output_path : "./bag_output/sugar_2"
+    # object_label : "sugar_2"
+    # # The first image that needs to be considered for labelling (should have good number of points)
+    # start_index : 130
+    
+    # output_path : "./bag_output/sugar_1"
+    # object_label : "sugar_1"
+    # start_index : 160
+
+    # output_path : "./bag_output/sugar_3"
+    # object_label : "sugar_3"
+    # start_index : 155
+
+    # object_name : "035_power_drill"
+    # output_path : "./bag_output/drill_1"
+    # object_label : "drill_1"
+    # start_index : 155
+
+    # output_path : "./bag_output/drill_2"
+    # object_label : "drill_2"
+    # start_index : 125
+
+    # output_path : "./bag_output/drill_3"
+    # object_label : "drill_3"
+    # start_index : 155
+
+    object_name : "005_tomato_soup_can"
+    output_path : "./bag_output/soup_1"
+    object_label : "soup_1"
+    start_index : 115
+
+    # object_name : "006_mustard_bottle"
+    # output_path : "./bag_output/mustard_1"
+    # object_label : "mustard_1"
+    # start_index : 140
+
+    # output_path : "./bag_output/mustard_2"
+    # object_label : "mustard_2"
+    # start_index : 165
+
+    # output_path : "./bag_output/mustard_3"
+    # object_label : "mustard_3"
+    # start_index : 120

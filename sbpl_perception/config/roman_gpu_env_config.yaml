@@ -12,6 +12,7 @@ perch_params:
   use_adaptive_resolution: false
   use_rcnn_heuristic: false
   use_model_specific_search_resolution: false
+  icp_type: 0
 
   footprint_tolerance: 0.25
 

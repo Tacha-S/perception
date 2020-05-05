@@ -1124,7 +1124,9 @@ void EnvObjectRecognition::GetICPAdjustedPosesCPU(const vector<ObjectState>& obj
       vector<int> pose_segmen_label;
       for (int i = 0; i < num_poses; i++)
       {
-        pose_segmen_label.push_back(objects[i].segmentation_label_id());
+        pose_segmen_label.push_back(objects[i].segmentation_label_id() - 1);
+        // Need to do -1 no 0s in segmentation label
+        // pose_segmen_label.push_back(objects[i].segmentation_label_id());
       }
       // Testing CUDA GICP
       fast_gicp::FastGICPCuda<pcl::PointXYZ, pcl::PointXYZ> gicp_cuda;
@@ -6027,11 +6029,11 @@ void EnvObjectRecognition::SetInput(const RecognitionInput &input) {
       // result_observed_cloud = (float*) malloc(gpu_point_dim * env_params_.width*env_params_.height * sizeof(float));
       // result_observed_cloud_color = (uint8_t*) malloc(gpu_point_dim * env_params_.width*env_params_.height * sizeof(uint8_t));
       // observed_dc_index;
-      // observed_depth_data = cv_input_filtered_depth_image.ptr<int>(0);
+      // observed_depth_data = cv_input_filtered_depth_image.ptr<int>(0); //old
       // cv_depth_image = cv::imread(input.input_depth_image, CV_32S);
       // observed_depth_data = static_cast<int*>(cv_depth_image.ptr<unsigned short>(0));
       // observed_depth_data = cv_depth_image.ptr<int>(0);
-      observed_depth_data = input_depth_image_vec.data();
+      observed_depth_data = input_depth_image_vec.data(); //AD
       // unfiltered_depth_data = cv_input_unfiltered_depth_image.ptr<int>(0);
       // unfiltered_depth_data = input_depth_image_vec.data();
       // observed_point_num;

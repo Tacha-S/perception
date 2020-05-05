@@ -12,7 +12,8 @@ perch_params:
   use_adaptive_resolution: false
   use_rcnn_heuristic: false
   use_model_specific_search_resolution: false
-
+  icp_type: 0
+  
   ## RGB
   use_color_cost: true
   color_distance_threshold: 11.5

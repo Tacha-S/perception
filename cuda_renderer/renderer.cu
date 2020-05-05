@@ -1027,7 +1027,7 @@ namespace cuda_renderer {
                             depth_image_vec, red_image_vec, green_image_vec, blue_image_vec,
                             cuda_cloud, query_pitch_in_bytes, cuda_cloud_color, result_cloud_point_num, mask_ptr, width, height, 
                             kCameraCX, kCameraCY, kCameraFX, kCameraFY, depth_factor, stride, num_images, cuda_cloud_pose_map,
-                            NULL, NULL);
+                            NULL, NULL, NULL, NULL);
         if (cudaGetLastError() != cudaSuccess) 
         {
             printf("ERROR: Unable to execute kernel depth_to_2d_cloud\n");
@@ -1533,7 +1533,7 @@ namespace cuda_renderer {
                             depth_data_cuda, red_in, green_in, blue_in,
                             cuda_cloud, query_pitch_in_bytes, cuda_cloud_color, rendered_cloud_point_num, mask_ptr, width, height, 
                             kCameraCX, kCameraCY, kCameraFX, kCameraFY, depth_factor, stride, num_poses, cuda_cloud_pose_map,
-                            label_mask_data_cuda, cuda_cloud_mask_label);
+                            label_mask_data_cuda, cuda_cloud_mask_label, observed_cloud_bounds_cuda, camera_transform_cuda);
         // depth_to_cloud<<<numBlocks, threadsPerBlock>>>(
         //                     depth_data_cuda, red_in, green_in, blue_in,
         //                     cuda_cloud, cuda_cloud_color, rendered_cloud_point_num, mask_ptr, width, height, 
