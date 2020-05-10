@@ -3210,12 +3210,12 @@ def run_ycb_6d(dataset_cfg=None):
     # required_objects = fat_image.category_names
     required_objects = [
     #    "002_master_chef_can",
-       "003_cracker_box",
+    #    "003_cracker_box",
     #    "004_sugar_box",
     #    "005_tomato_soup_can",
     #    "006_mustard_bottle",
     #    "007_tuna_fish_can",
-    #    "008_pudding_box",
+       "008_pudding_box",
     #    "009_gelatin_box",
     #    "010_potted_meat_can",
     #    "011_banana",
@@ -3260,9 +3260,10 @@ def run_ycb_6d(dataset_cfg=None):
     # Trying 80 for sugar
     # do small clamp all upto 200 from 48 to 60
     IMG_LIST = np.loadtxt(os.path.join(image_directory, 'image_sets/keyframe.txt'), dtype=str).tolist()
-    for scene_i in range(54, 55):
+    for scene_i in range(56, 60):
     # for scene_i in [55, 54, 51, 57]:
-        for img_i in (range(1139, 1160)):
+        for img_i in (range(1, 2500)):
+        # for img_i in (range(1, 2500)):
         # for img_i in IMG_LIST:
         # for img_i in tuna_list:
         # for img_i in drill_list:

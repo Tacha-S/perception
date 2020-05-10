@@ -1339,7 +1339,7 @@ void EnvObjectRecognition::PrintGPUClouds(const vector<ObjectState>& objects,
     ObjectState temp;
     modified_objects.resize(objects.size(), temp);
   }
-  #pragma omp parallel for if (do_icp)
+  // #pragma omp parallel for if (do_icp)
   for(int n = 0; n < num_poses; n ++)
   {
     // if(pose_occluded[n]) continue;
@@ -1390,42 +1390,42 @@ void EnvObjectRecognition::PrintGPUClouds(const vector<ObjectState>& objects,
       }
     }
     // cout << pose_occluded[n] << endl;
-    if (do_icp)
-    {
-      if(pose_occluded[n])
-      {
-        ContPose pose_in = objects[n].cont_pose();
-        ContPose pose_out;
-        if (env_params_.use_external_pose_list == 1)
-        {
-          string model_name = obj_models_[objects[n].id()].name();
-          int required_object_id = distance(segmented_object_names.begin(), 
-          find(segmented_object_names.begin(), segmented_object_names.end(), model_name));
-          GetICPAdjustedPose(
-            transformed_cloud, pose_in, cloud_out, &pose_out, parent_counted_pixels, 
-            segmented_object_clouds[required_object_id], model_name);
-        }
-        else
-        {
-          GetICPAdjustedPose(
-            transformed_cloud, pose_in, cloud_out, &pose_out, parent_counted_pixels);
-        }
-        // cout << "pose_in " << pose_in << endl;
-        // cout << "pose_out " << pose_out << endl;
-        if (print_cloud)
-        {
-          PrintPointCloud(cloud_out, 1, render_point_cloud_topic);
-          std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        }
-        ObjectState modified_object_state(objects[n].id(),
-                                              objects[n].symmetric(), pose_out);
-        modified_objects[n] = modified_object_state;
-      }
-      else
-      {
-        modified_objects[n] = objects[n];
-      }
-    }
+    // if (do_icp)
+    // {
+    //   if(pose_occluded[n])
+    //   {
+    //     ContPose pose_in = objects[n].cont_pose();
+    //     ContPose pose_out;
+    //     if (env_params_.use_external_pose_list == 1)
+    //     {
+    //       string model_name = obj_models_[objects[n].id()].name();
+    //       int required_object_id = distance(segmented_object_names.begin(), 
+    //       find(segmented_object_names.begin(), segmented_object_names.end(), model_name));
+    //       GetICPAdjustedPose(
+    //         transformed_cloud, pose_in, cloud_out, &pose_out, parent_counted_pixels, 
+    //         segmented_object_clouds[required_object_id], model_name);
+    //     }
+    //     else
+    //     {
+    //       GetICPAdjustedPose(
+    //         transformed_cloud, pose_in, cloud_out, &pose_out, parent_counted_pixels);
+    //     }
+    //     // cout << "pose_in " << pose_in << endl;
+    //     // cout << "pose_out " << pose_out << endl;
+    //     if (print_cloud)
+    //     {
+    //       PrintPointCloud(cloud_out, 1, render_point_cloud_topic);
+    //       std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    //     }
+    //     ObjectState modified_object_state(objects[n].id(),
+    //                                           objects[n].symmetric(), pose_out);
+    //     modified_objects[n] = modified_object_state;
+    //   }
+    //   else
+    //   {
+    //     modified_objects[n] = objects[n];
+    //   }
+    // }
     // myfile.close();
   }
 }
@@ -1655,6 +1655,49 @@ void EnvObjectRecognition::GetStateImagesUnifiedGPU(const string stage,
     }
   }
   double peak_memory_usage;
+  // cuda_renderer::render_cuda_multi_unified_old(
+  //                         stage,
+  //                         tris,
+  //                         mat4_v,
+  //                         pose_model_map,
+  //                         tris_model_count,
+  //                         env_params_.width, env_params_.height, 
+  //                         env_params_.proj_mat, 
+  //                         source_result_depth,
+  //                         source_result_color,
+  //                         single_result_image,
+  //                         pose_clutter_cost,
+  //                         predicted_mask_image,
+  //                         pose_segmen_label,
+  //                         gpu_stride,
+  //                         gpu_point_dim,
+  //                         gpu_depth_factor,
+  //                         kCameraCX,
+  //                         kCameraCY,
+  //                         kCameraFX,
+  //                         kCameraFY,
+  //                         result_observed_cloud,
+  //                         result_observed_cloud_color,
+  //                         observed_point_num,
+  //                         pose_obs_points_total,
+  //                         result_observed_cloud_label,
+  //                         cost_type,
+  //                         calculate_observed_cost,
+  //                         sensor_resolution,
+  //                         perch_params_.color_distance_threshold,
+  //                         perch_params_.gpu_occlusion_threshold,
+  //                         result_depth,
+  //                         result_color,
+  //                         result_cloud,
+  //                         result_cloud_color,
+  //                         result_cloud_point_num,
+  //                         result_cloud_pose_map,
+  //                         result_dc_index,
+  //                         rendered_cost,
+  //                         observed_cost,
+  //                         points_diff_cost,
+  //                         peak_memory_usage);
+
   cuda_renderer::render_cuda_multi_unified(
                           stage,
                           tris,
@@ -1677,6 +1720,7 @@ void EnvObjectRecognition::GetStateImagesUnifiedGPU(const string stage,
                           kCameraFX,
                           kCameraFY,
                           result_observed_cloud,
+                          result_observed_cloud_eigen,
                           result_observed_cloud_color,
                           observed_point_num,
                           pose_obs_points_total,
@@ -2196,6 +2240,7 @@ void EnvObjectRecognition::ComputeCostsInParallelGPU(std::vector<CostComputation
       // Compute clouds needed for Pre-icp
     
     float* result_cloud;
+    Eigen::Vector3f* result_cloud_eigen;
     uint8_t* result_cloud_color;
     int* dc_index;
     int* cloud_pose_map;
@@ -2206,8 +2251,8 @@ void EnvObjectRecognition::ComputeCostsInParallelGPU(std::vector<CostComputation
 
       //// Convert to point cloud
       cuda_renderer::depth2cloud_global(
-        depth_data, result_color, result_cloud, result_cloud_color, dc_index, rendered_point_num, cloud_pose_map, env_params_.width, env_params_.height, 
-        num_poses, poses_occluded_ptr, kCameraCX, kCameraCY, kCameraFX, kCameraFY, gpu_depth_factor, gpu_stride, gpu_point_dim, cloud_label
+        result_depth, result_color, result_cloud_eigen, result_cloud, result_cloud_color, dc_index, rendered_point_num, cloud_pose_map, cloud_label, env_params_.width, env_params_.height, 
+        num_poses, poses_occluded, kCameraCX, kCameraCY, kCameraFX, kCameraFY, gpu_depth_factor, gpu_stride, gpu_point_dim
       );
 
       // PrintGPUClouds(
@@ -2251,8 +2296,9 @@ void EnvObjectRecognition::ComputeCostsInParallelGPU(std::vector<CostComputation
         poses_occluded_ptr = adjusted_poses_occluded.data();
         // Override adjusted clouds to same variable
         cuda_renderer::depth2cloud_global(
-          depth_data, adjusted_result_color, result_cloud, result_cloud_color, dc_index, rendered_point_num, cloud_pose_map, env_params_.width, env_params_.height, 
-          num_poses, poses_occluded_ptr, kCameraCX, kCameraCY, kCameraFX, kCameraFY, gpu_depth_factor, gpu_stride, gpu_point_dim, cloud_label
+          adjusted_result_depth, adjusted_result_color, result_cloud_eigen, result_cloud, result_cloud_color, dc_index, rendered_point_num, cloud_pose_map, cloud_label,
+          env_params_.width, env_params_.height, 
+          num_poses, adjusted_poses_occluded, kCameraCX, kCameraCY, kCameraFX, kCameraFY, gpu_depth_factor, gpu_stride, gpu_point_dim
         );
         
         // if (kUseRenderGreedy)
@@ -6039,14 +6085,35 @@ void EnvObjectRecognition::SetInput(const RecognitionInput &input) {
       // observed_point_num;
       // gpu_depth_factor = input.depth_factor;
       std::vector<int> random_poses_occluded(1, 0);
-      int * cloud_pose_map;
+      int* cloud_pose_map;
       std::vector<ObjectState> last_object_states;
       vector<ObjectState> modified_last_object_states;
 
       cuda_renderer::depth2cloud_global(
-          observed_depth_data, input_color_image_vec, result_observed_cloud, result_observed_cloud_color, observed_dc_index, observed_point_num, cloud_pose_map, env_params_.width, env_params_.height,
-          1, random_poses_occluded.data(), kCameraCX, kCameraCY, kCameraFX, kCameraFY, input.depth_factor, gpu_stride, gpu_point_dim,
-          result_observed_cloud_label, predicted_mask_image_ptr, observed_cloud_bounds_ptr, camera_transform_ptr);
+          input_depth_image_vec, 
+          input_color_image_vec, 
+          result_observed_cloud_eigen,
+          result_observed_cloud, 
+          result_observed_cloud_color, 
+          observed_dc_index, 
+          observed_point_num, 
+          cloud_pose_map, 
+          result_observed_cloud_label,
+          env_params_.width, 
+          env_params_.height,
+          1, 
+          random_poses_occluded, 
+          kCameraCX, 
+          kCameraCY, 
+          kCameraFX, 
+          kCameraFY, 
+          input.depth_factor, 
+          gpu_stride, 
+          gpu_point_dim,
+          predicted_mask_image, 
+          bounds, 
+          camera_transform_ptr
+      );
       PrintGPUClouds(
         last_object_states, result_observed_cloud, result_observed_cloud_color, 
         observed_depth_data, observed_dc_index, 1, 

@@ -32,155 +32,156 @@
 #include <algorithm>
 #include "math.h"
 #include <chrono>
+#include "cuda_renderer/model.h"
 
 namespace cuda_renderer {
 
-class Model{
-public:
-    Model();
-    ~Model();
+// class Model{
+// public:
+//     Model();
+//     ~Model();
 
-    Model(const std::string & fileName);
+//     Model(const std::string & fileName);
 
-    const struct aiScene* scene;
-    void LoadModel(const std::string & fileName);
+//     const struct aiScene* scene;
+//     void LoadModel(const std::string & fileName);
 
-    struct int3 {
-        size_t v0;
-        size_t v1;
-        size_t v2;
-    };
+//     struct int3 {
+//         size_t v0;
+//         size_t v1;
+//         size_t v2;
+//     };
 
-    struct ROI{
-        size_t x;
-        size_t y;
-        size_t width;
-        size_t height;
-    };
+//     struct ROI{
+//         size_t x;
+//         size_t y;
+//         size_t width;
+//         size_t height;
+//     };
 
-    struct float3{
-        float x;
-        float y;
-        float z;
-        friend std::ostream& operator<<(std::ostream& os, const float3& dt)
-        {
-            os << dt.x << '\t' << dt.y << '\t' << dt.z << std::endl;
-            return os;
-        }
-    };
-    struct Triangle{
-        float3 v0;
-        float3 v1;
-        float3 v2;
-        int3 color;
+//     struct float3{
+//         float x;
+//         float y;
+//         float z;
+//         friend std::ostream& operator<<(std::ostream& os, const float3& dt)
+//         {
+//             os << dt.x << '\t' << dt.y << '\t' << dt.z << std::endl;
+//             return os;
+//         }
+//     };
+//     struct Triangle{
+//         float3 v0;
+//         float3 v1;
+//         float3 v2;
+//         int3 color;
 
-        friend std::ostream& operator<<(std::ostream& os, const Triangle& dt)
-        {
-            os << dt.v0 << dt.v1 << dt.v2;
-            return os;
-        }
-    };
-    struct mat4x4{
-        float a0=1; float a1=0; float a2=0; float a3=0;
-        float b0=0; float b1=1; float b2=0; float b3=0;
-        float c0=0; float c1=0; float c2=1; float c3=0;
-        float d0=0; float d1=0; float d2=0; float d3=1;
+//         friend std::ostream& operator<<(std::ostream& os, const Triangle& dt)
+//         {
+//             os << dt.v0 << dt.v1 << dt.v2;
+//             return os;
+//         }
+//     };
+//     struct mat4x4{
+//         float a0=1; float a1=0; float a2=0; float a3=0;
+//         float b0=0; float b1=1; float b2=0; float b3=0;
+//         float c0=0; float c1=0; float c2=1; float c3=0;
+//         float d0=0; float d1=0; float d2=0; float d3=1;
 
-        void t(){
-            float temp;
-            temp = a1; a1=b0; b0=temp;
-            temp = a2; a2=c0; c0=temp;
-            temp = a3; a3=d0; d0=temp;
-            temp = b2; b2=c1; c1=temp;
-            temp = b3; b3=d1; d1=temp;
-            temp = c3; c3=d2; d2=temp;
-        }
-        void init_from_eigen(const Eigen::Matrix4d& pose_in_cam, int scale_factor){
-            // scale factor is to convert to cm for rendering
-            a0 = pose_in_cam(0,0)*scale_factor;
-            a1 = pose_in_cam(0,1)*scale_factor;
-            a2 = pose_in_cam(0,2)*scale_factor;
-            a3 = pose_in_cam(0,3)*scale_factor;
-            b0 = pose_in_cam(1,0)*scale_factor;
-            b1 = pose_in_cam(1,1)*scale_factor;
-            b2 = pose_in_cam(1,2)*scale_factor;
-            b3 = pose_in_cam(1,3)*scale_factor;
-            c0 = pose_in_cam(2,0)*scale_factor;
-            c1 = pose_in_cam(2,1)*scale_factor;
-            c2 = pose_in_cam(2,2)*scale_factor;
-            c3 = pose_in_cam(2,3)*scale_factor;
-            d0 = pose_in_cam(3,0);
-            d1 = pose_in_cam(3,1);
-            d2 = pose_in_cam(3,2);
-            d3 = pose_in_cam(3,3);
-        }
-        void init_from_cv(const cv::Mat& pose){ // so stupid
-            assert(pose.type() == CV_32F);
+//         void t(){
+//             float temp;
+//             temp = a1; a1=b0; b0=temp;
+//             temp = a2; a2=c0; c0=temp;
+//             temp = a3; a3=d0; d0=temp;
+//             temp = b2; b2=c1; c1=temp;
+//             temp = b3; b3=d1; d1=temp;
+//             temp = c3; c3=d2; d2=temp;
+//         }
+//         void init_from_eigen(const Eigen::Matrix4d& pose_in_cam, int scale_factor){
+//             // scale factor is to convert to cm for rendering
+//             a0 = pose_in_cam(0,0)*scale_factor;
+//             a1 = pose_in_cam(0,1)*scale_factor;
+//             a2 = pose_in_cam(0,2)*scale_factor;
+//             a3 = pose_in_cam(0,3)*scale_factor;
+//             b0 = pose_in_cam(1,0)*scale_factor;
+//             b1 = pose_in_cam(1,1)*scale_factor;
+//             b2 = pose_in_cam(1,2)*scale_factor;
+//             b3 = pose_in_cam(1,3)*scale_factor;
+//             c0 = pose_in_cam(2,0)*scale_factor;
+//             c1 = pose_in_cam(2,1)*scale_factor;
+//             c2 = pose_in_cam(2,2)*scale_factor;
+//             c3 = pose_in_cam(2,3)*scale_factor;
+//             d0 = pose_in_cam(3,0);
+//             d1 = pose_in_cam(3,1);
+//             d2 = pose_in_cam(3,2);
+//             d3 = pose_in_cam(3,3);
+//         }
+//         void init_from_cv(const cv::Mat& pose){ // so stupid
+//             assert(pose.type() == CV_32F);
 
-            a0 = pose.at<float>(0, 0); a1 = pose.at<float>(0, 1);
-            a2 = pose.at<float>(0, 2); a3 = pose.at<float>(0, 3);
+//             a0 = pose.at<float>(0, 0); a1 = pose.at<float>(0, 1);
+//             a2 = pose.at<float>(0, 2); a3 = pose.at<float>(0, 3);
 
-            b0 = pose.at<float>(1, 0); b1 = pose.at<float>(1, 1);
-            b2 = pose.at<float>(1, 2); b3 = pose.at<float>(1, 3);
+//             b0 = pose.at<float>(1, 0); b1 = pose.at<float>(1, 1);
+//             b2 = pose.at<float>(1, 2); b3 = pose.at<float>(1, 3);
 
-            c0 = pose.at<float>(2, 0); c1 = pose.at<float>(2, 1);
-            c2 = pose.at<float>(2, 2); c3 = pose.at<float>(2, 3);
+//             c0 = pose.at<float>(2, 0); c1 = pose.at<float>(2, 1);
+//             c2 = pose.at<float>(2, 2); c3 = pose.at<float>(2, 3);
 
-            d0 = pose.at<float>(3, 0); d1 = pose.at<float>(3, 1);
-            d2 = pose.at<float>(3, 2); d3 = pose.at<float>(3, 3);
-        }
+//             d0 = pose.at<float>(3, 0); d1 = pose.at<float>(3, 1);
+//             d2 = pose.at<float>(3, 2); d3 = pose.at<float>(3, 3);
+//         }
 
-        void init_from_ptr(const float* data){
-            a0 = data[0]; a1 = data[1]; a2 = data[2]; a3 = data[3];
-            b0 = data[4]; b1 = data[5]; b2 = data[6]; b3 = data[7];
-            c0 = data[8]; c1 = data[9]; c2 = data[10]; c3 = data[11];
-            d0 = data[12]; d1 = data[13]; d2 = data[14]; d3 = data[15];
-        }
+//         void init_from_ptr(const float* data){
+//             a0 = data[0]; a1 = data[1]; a2 = data[2]; a3 = data[3];
+//             b0 = data[4]; b1 = data[5]; b2 = data[6]; b3 = data[7];
+//             c0 = data[8]; c1 = data[9]; c2 = data[10]; c3 = data[11];
+//             d0 = data[12]; d1 = data[13]; d2 = data[14]; d3 = data[15];
+//         }
 
-        void init_from_ptr(const float* R, const float* t){
-            a0 = R[0]; a1 = R[1]; a2 = R[2];  a3 = t[0];
-            b0 = R[3]; b1 = R[4]; b2 = R[5];  b3 = t[1];
-            c0 = R[6]; c1 = R[7]; c2 = R[8];  c3 = t[2];
-        }
+//         void init_from_ptr(const float* R, const float* t){
+//             a0 = R[0]; a1 = R[1]; a2 = R[2];  a3 = t[0];
+//             b0 = R[3]; b1 = R[4]; b2 = R[5];  b3 = t[1];
+//             c0 = R[6]; c1 = R[7]; c2 = R[8];  c3 = t[2];
+//         }
 
-        void init_from_cv(const cv::Mat& R, const cv::Mat& t){
-            assert(R.type() == CV_32F);
-            assert(t.type() == CV_32F);
+//         void init_from_cv(const cv::Mat& R, const cv::Mat& t){
+//             assert(R.type() == CV_32F);
+//             assert(t.type() == CV_32F);
 
-            a0 = R.at<float>(0, 0)*100; a1 = R.at<float>(0, 1)*100;
-            a2 = R.at<float>(0, 2)*100; a3 = t.at<float>(0, 0);
+//             a0 = R.at<float>(0, 0)*100; a1 = R.at<float>(0, 1)*100;
+//             a2 = R.at<float>(0, 2)*100; a3 = t.at<float>(0, 0);
 
-            b0 = R.at<float>(1, 0)*100; b1 = R.at<float>(1, 1)*100;
-            b2 = R.at<float>(1, 2)*100; b3 = t.at<float>(1, 0);
+//             b0 = R.at<float>(1, 0)*100; b1 = R.at<float>(1, 1)*100;
+//             b2 = R.at<float>(1, 2)*100; b3 = t.at<float>(1, 0);
 
-            c0 = R.at<float>(2, 0)*100; c1 = R.at<float>(2, 1)*100;
-            c2 = R.at<float>(2, 2)*100; c3 = t.at<float>(2, 0);
+//             c0 = R.at<float>(2, 0)*100; c1 = R.at<float>(2, 1)*100;
+//             c2 = R.at<float>(2, 2)*100; c3 = t.at<float>(2, 0);
 
-            d0 = 0; d1 = 0;
-            d2 = 0; d3 = 1;
-        }
+//             d0 = 0; d1 = 0;
+//             d2 = 0; d3 = 1;
+//         }
 
-        void print(){
-            std::cout<<a0<<", "<<a1<<", "<<a2<<", "<<a3<<"\n"
-                <<b0<<", "<<b1<<", "<<b2<<", "<<b3<<"\n"
-                <<c0<<", "<<c1<<", "<<c2<<", "<<c3<<"\n"
-                <<d0<<", "<<d1<<", "<<d2<<", "<<d3<<"\n";
-        }
-    };
+//         void print(){
+//             std::cout<<a0<<", "<<a1<<", "<<a2<<", "<<a3<<"\n"
+//                 <<b0<<", "<<b1<<", "<<b2<<", "<<b3<<"\n"
+//                 <<c0<<", "<<c1<<", "<<c2<<", "<<c3<<"\n"
+//                 <<d0<<", "<<d1<<", "<<d2<<", "<<d3<<"\n";
+//         }
+//     };
 
-    // wanted data
-    std::vector<Triangle> tris;
-    std::vector<float3> vertices;
-    std::vector<int3> faces;
-    aiVector3D bbox_min, bbox_max;
+//     // wanted data
+//     std::vector<Triangle> tris;
+//     std::vector<float3> vertices;
+//     std::vector<int3> faces;
+//     aiVector3D bbox_min, bbox_max;
 
-    void recursive_render(const struct aiScene *sc, const struct aiNode* nd, aiMatrix4x4 m = aiMatrix4x4());
+//     void recursive_render(const struct aiScene *sc, const struct aiNode* nd, aiMatrix4x4 m = aiMatrix4x4());
 
-    static float3 mat_mul_vec(const aiMatrix4x4& mat, const aiVector3D& vec);
+//     static float3 mat_mul_vec(const aiMatrix4x4& mat, const aiVector3D& vec);
 
-    void get_bounding_box_for_node(const aiNode* nd, aiVector3D& min, aiVector3D& max, aiMatrix4x4* trafo) const;
-    void get_bounding_box(aiVector3D& min, aiVector3D& max) const;
-};
+//     void get_bounding_box_for_node(const aiNode* nd, aiVector3D& min, aiVector3D& max, aiMatrix4x4* trafo) const;
+//     void get_bounding_box(aiVector3D& min, aiVector3D& max) const;
+// };
 
 #ifdef CUDA_ON
 // thrust device vector can't be used in cpp by design
@@ -272,28 +273,29 @@ device_vector_holder<int> render_cuda_keep_in_gpu(device_vector_holder<Model::Tr
                             size_t width, size_t height, const Model::mat4x4& proj_mat,
                                                                const Model::ROI roi= {0, 0, 0, 0});
 
-bool depth2cloud_global(int32_t *depth_data,
-                        std::vector<std::vector<u_int8_t>> &color_data,
+bool depth2cloud_global(const std::vector<int32_t>& depth_data,
+                        const std::vector<std::vector<uint8_t>> &color_data,
+                        Eigen::Vector3f* &result_cloud_eigen,
                         float *&result_cloud,
                         uint8_t *&result_cloud_color,
                         int *&dc_index,
                         int &point_num,
                         int *&cloud_pose_map,
-                        int width,
-                        int height,
-                        int num_poses,
-                        int *pose_occluded,
-                        float kCameraCX,
-                        float kCameraCY,
-                        float kCameraFX,
-                        float kCameraFY,
-                        float depth_factor,
-                        int stride,
-                        int point_dim,
                         int *&result_observed_cloud_label,
-                        uint8_t *label_mask_data = NULL,
-                        double *observed_cloud_bounds = NULL,
-                        Eigen::Matrix4f *camera_transform = NULL);
+                        const int width,
+                        const int height,
+                        const int num_poses,
+                        const std::vector<int>& pose_occluded,
+                        const float kCameraCX,
+                        const float kCameraCY,
+                        const float kCameraFX,
+                        const float kCameraFY,
+                        const float depth_factor,
+                        const int stride,
+                        const int point_dim,
+                        const std::vector<uint8_t>& label_mask_data = std::vector<uint8_t>(),
+                        const std::vector<double>& observed_cloud_bounds = std::vector<double>(),
+                        const Eigen::Matrix4f *camera_transform = NULL);
 
 bool compute_rgbd_cost(
     float &sensor_resolution,
@@ -316,6 +318,51 @@ bool compute_rgbd_cost(
     int cost_type,
     bool calculate_observed_cost);
 
+void render_cuda_multi_unified_old(
+        const std::string stage, 
+        const std::vector<Model::Triangle>& tris,
+        const std::vector<Model::mat4x4>& poses,
+        const std::vector<int> pose_model_map,
+        const std::vector<int> tris_model_count,
+        size_t width, size_t height, const Model::mat4x4& proj_mat,
+        const std::vector<int32_t>& source_depth,
+        const std::vector<std::vector<uint8_t>>& source_color,
+        int single_result_image,
+        std::vector<float>& clutter_cost,
+        const std::vector<uint8_t>& source_mask_label,
+        const std::vector<int>& pose_segmentation_label,
+        int stride,
+        int point_dim,
+        int depth_factor,
+        float kCameraCX,
+        float kCameraCY,
+        float kCameraFX,
+        float kCameraFY,
+        float* observed_depth,
+        uint8_t* observed_color,
+        int observed_point_num,
+        // Cost calculation specific stuff
+        std::vector<float> pose_observed_points_total,
+        int* result_observed_cloud_label,
+        int cost_type,
+        bool calculate_observed_cost,
+        float sensor_resolution,
+        float color_distance_threshold,
+        float occlusion_threshold,
+        //// Outputs
+        std::vector<int32_t>& result_depth, 
+        std::vector<std::vector<uint8_t>>& result_color,
+        float* &result_cloud,
+        uint8_t* &result_cloud_color,
+        int& result_cloud_point_num,
+        int* &result_cloud_pose_map,
+        int* &result_dc_index,
+        // Costs
+        float* &rendered_cost,
+        float* &observed_cost,
+        float* &points_diff_cost,
+        double& peak_memory_usage);
+
 void render_cuda_multi_unified(
         const std::string stage, 
         const std::vector<Model::Triangle>& tris,
@@ -337,6 +384,7 @@ void render_cuda_multi_unified(
         float kCameraFX,
         float kCameraFY,
         float* observed_depth,
+        Eigen::Vector3f* observed_depth_eigen,
         uint8_t* observed_color,
         int observed_point_num,
         // Cost calculation specific stuff

@@ -409,6 +409,7 @@ class EnvObjectRecognition : public EnvironmentMHA {
   // Stride should divide width exactly
   int gpu_stride = 5;
   float* result_observed_cloud;
+  Eigen::Vector3f* result_observed_cloud_eigen;
   uint8_t* result_observed_cloud_color;
   int observed_point_num;
   int* observed_dc_index;

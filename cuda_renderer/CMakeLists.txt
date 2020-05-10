@@ -40,21 +40,34 @@ find_package(Eigen3 REQUIRED)
 include_directories(${EIGEN3_INCLUDE_DIR})
 
 include_directories("include")
+find_package(catkin REQUIRED 
+    COMPONENTS 
+        roscpp 
+        OpenCV 
+        fast_gicp
+)
+include_directories(${catkin_INCLUDE_DIRS})
 
 # src
 SET(renderer_cuda renderer.cu)
-SET(renderer_srcs renderer.cpp)
+SET(renderer_srcs renderer.cpp model.cpp)
 SET(renderer_knn knncuda.cu)
 
 if(USE_CUDA)
 CUDA_COMPILE(renderer_cuda_objs ${renderer_cuda} ${renderer_knn})
 endif()
+#cuda_add_library(renderer_cuda_objs
+#     ${renderer_cuda} ${renderer_knn}
+#  )
 
-find_package(catkin REQUIRED COMPONENTS roscpp OpenCV)
 
 catkin_package(
-    INCLUDE_DIRS include
-    LIBRARIES ${PROJECT_NAME}
+    CATKIN_DEPENDS
+        fast_gicp
+    INCLUDE_DIRS 
+        include
+    LIBRARIES 
+        ${PROJECT_NAME}
 )
 # lib & test exe
 add_library(cuda_renderer
@@ -63,7 +76,7 @@ add_library(cuda_renderer
                ${renderer_knn}
                ${renderer_cuda_objs} 
 )
-target_include_directories(cuda_renderer PUBLIC ${renderer_inc})
+target_include_directories(cuda_renderer PUBLIC ${renderer_inc} ${catkin_INCLUDE_DIRS})
 target_link_libraries(cuda_renderer PUBLIC ${renderer_lib} ${catkin_LIBRARIES} )
 
 
