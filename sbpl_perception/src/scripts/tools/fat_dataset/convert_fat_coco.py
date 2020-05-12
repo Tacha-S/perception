@@ -1124,7 +1124,13 @@ def load_jenga_dataset():
                 "color_block_3",
                 "color_block_4",
                 "color_block_5",
-                "color_block_6"
+                "color_block_6",
+                "color_block_7",
+                "color_block_8",
+                "color_block_9",
+                "color_block_10",
+                "color_block_11",
+                "color_block_12"
             ]
     CATEGORIES = [{
                 'id': i,

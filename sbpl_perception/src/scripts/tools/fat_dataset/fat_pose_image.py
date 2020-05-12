@@ -722,8 +722,8 @@ class FATImage:
                 if ros_publish:
                     print("Location for {} : {}".format(class_name, location))
                     print("Rotation Eulers for {} : {}".format(class_name, rotation_angles))
-                    print("ROS Pose for {} : {}".format(class_name, object_pose_ros))
-                    print("Rotation Quaternion for {} : {}\n".format(class_name, quat))
+                    # print("ROS Pose for {} : {}".format(class_name, object_pose_ros))
+                    # print("Rotation Quaternion for {} : {}\n".format(class_name, quat))
                     try:
                         self.scene_color_image_pub.publish(self.bridge.cv2_to_imgmsg(cv_scene_color_image, "bgr8"))
                     except CvBridgeError as e:
@@ -1187,7 +1187,15 @@ class FATImage:
             "color_block_1": [0,8], #half_0-pi
             "color_block_2": [0,8], #half_0-pi
             "color_block_3": [0,8], #half_0-pi
-            "color_block_4": [0,8] #half_0-pi
+            "color_block_4": [0,8], #half_0-pi
+            "color_block_5": [0,8], #half_0-pi
+            "color_block_6": [0,8], #half_0-pi
+            "color_block_7": [0,8], #half_0-pi
+            "color_block_8": [0,8], #half_0-pi
+            "color_block_9": [0,8], #half_0-pi
+            "color_block_10": [0,8], #half_0-pi
+            "color_block_11": [0,8], #half_0-pi
+            "color_block_12": [0,8] #half_0-pi
         }
         
         viewpoints_xyz = sphere_fibonacci_grid_points_with_sym_metric(num_samples,name_sym_dict[label][0])
@@ -3210,12 +3218,12 @@ def run_ycb_6d(dataset_cfg=None):
     # required_objects = fat_image.category_names
     required_objects = [
     #    "002_master_chef_can",
-    #    "003_cracker_box",
+       "003_cracker_box",
     #    "004_sugar_box",
     #    "005_tomato_soup_can",
     #    "006_mustard_bottle",
     #    "007_tuna_fish_can",
-       "008_pudding_box",
+    #    "008_pudding_box",
     #    "009_gelatin_box",
     #    "010_potted_meat_can",
     #    "011_banana",
@@ -3260,7 +3268,7 @@ def run_ycb_6d(dataset_cfg=None):
     # Trying 80 for sugar
     # do small clamp all upto 200 from 48 to 60
     IMG_LIST = np.loadtxt(os.path.join(image_directory, 'image_sets/keyframe.txt'), dtype=str).tolist()
-    for scene_i in range(56, 60):
+    for scene_i in range(50, 60):
     # for scene_i in [55, 54, 51, 57]:
         for img_i in (range(1, 2500)):
         # for img_i in (range(1, 2500)):
@@ -3507,39 +3515,33 @@ def run_on_jenga_image(dataset_cfg=None):
         sys.path.remove('/opt/ros/kinetic/lib/python2.7/dist-packages')
         import cv2
     image_directory = dataset_cfg['image_dir']
-    annotation_file = image_directory + '/instances_jenga_clutter_pose.json'
+    # annotation_file = image_directory + '/instances_jenga_clutter_pose.json'
+    annotation_file = image_directory + '/instances_jenga_tower_pose.json'
     model_dir = dataset_cfg['model_dir']
 
-    # directory = os.path.join(dataset_cfg['image_dir'], "1") 
-    # directory = os.path.join(dataset_cfg['image_dir'], "1_resize") 
-    # directory = os.path.join(dataset_cfg['image_dir'], "4_crop") 
-    # image_data = {}
-    # camera_intrinsics_matrix_path = "/media/aditya/A69AFABA9AFA85D9/Datasets/Jenga/camera_params/calib_color.yaml"
-    # with open(camera_intrinsics_matrix_path) as f:
-    #     camera_config = yaml.load(f)
-    # camera_intrinsics = np.array(camera_config['cameraMatrix']['data']).reshape(3,3)
-    # print(camera_intrinsics)
-    # # camera_intrinsics[0,:] *= 0.5
-    # # camera_intrinsics[1,:] *= 0.5
-    # camera_intrinsics[0,2] -= 500
-    # camera_intrinsics[1,2] -= 300
-
-    # max_min_dict = {}
-    # max_min_dict['ymax'] = 1.5
-    # max_min_dict['ymin'] = 0.0
-    # max_min_dict['xmax'] = 0.6
-    # max_min_dict['xmin'] = 0.2
-    # table_height = 0.735
     f_runtime = open('runtime.txt', "w", 1)
     f_runtime.write("{} {} {}\n".format('name', 'expands', 'runtime'))
 
-    # required_objects = ['color_block_1', 'color_block_2', 'color_block_3']
-    # required_objects = ['color_block_1', 'color_block_2', 'color_block_3', 'color_block_4']
     required_objects = ['color_block_0', 
                         'color_block_1', 
                         'color_block_2', 
                         'color_block_3']
-    # required_objects = ['color_block_2']
+    required_objects = ['color_block_0']
+    required_objects = [
+                "color_block_0",
+                "color_block_1",
+                "color_block_2",
+                "color_block_3",
+                "color_block_4",
+                "color_block_5",
+                "color_block_6",
+                "color_block_7",
+                "color_block_8",
+                "color_block_9",
+                "color_block_10",
+                "color_block_11",
+                "color_block_12"
+        ]
     fat_image = FATImage(
         coco_annotation_file=annotation_file,
         coco_image_directory = image_directory,
@@ -3559,34 +3561,7 @@ def run_on_jenga_image(dataset_cfg=None):
         python_debug_dir=dataset_cfg["python_debug_dir"],
         dataset_type=dataset_cfg["type"]
     )
-    # fat_image.camera_intrinsic_matrix = camera_intrinsics
-    # fat_image.category_id_to_names = {
-    #     0:
-    #     {
-    #         "name": "color_block_1"
-    #     },
-    #     1:
-    #     {
-    #         "name": "color_block_2"
-    #     },
-    #     2:
-    #     {
-    #         "name": "color_block_3"
-    #     },
-    #     3:
-    #     {
-    #         "name": "color_block_4"
-    #     }
-    # }
-    # fat_image.category_names = ["color_block_1","color_block_2","color_block_3"]
-    ## Try to run mask detection
-    # fat_image.init_model(
-    #     dataset_cfg['maskrcnn_config'], 
-    #     print_poses=False, 
-    #     required_objects=required_objects, 
-    #     model_weights=dataset_cfg['maskrcnn_model_path'],
-    #     min_image_size=fat_image.height
-    # )
+
     for img_i in np.arange(1, 26, 1):
         image_name = "clutter/{}/{}_color_crop.jpg".format(img_i, str(0).zfill(4))
         image_data, annotations = fat_image.get_random_image(

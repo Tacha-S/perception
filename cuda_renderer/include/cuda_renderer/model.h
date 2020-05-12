@@ -21,6 +21,11 @@
 
 namespace cuda_renderer {
 
+struct gpu_stats {
+    float icp_runtime;
+    double peak_memory_usage;
+};
+
 class Model{
 public:
     Model();
@@ -100,6 +105,26 @@ public:
             d2 = pose_in_cam(3,2);
             d3 = pose_in_cam(3,3);
         }
+        Eigen::Matrix4f to_eigen(int scale_factor){
+            Eigen::Matrix4f pose_in_cam;
+            pose_in_cam(0,0) = a0/scale_factor;
+            pose_in_cam(0,1) = a1/scale_factor;
+            pose_in_cam(0,2) = a2/scale_factor;
+            pose_in_cam(0,3) = a3/scale_factor;
+            pose_in_cam(1,0) = b0/scale_factor;
+            pose_in_cam(1,1) = b1/scale_factor;
+            pose_in_cam(1,2) = b2/scale_factor;
+            pose_in_cam(1,3) = b3/scale_factor;
+            pose_in_cam(2,0) = c0/scale_factor;
+            pose_in_cam(2,1) = c1/scale_factor;
+            pose_in_cam(2,2) = c2/scale_factor;
+            pose_in_cam(2,3) = c3/scale_factor;
+            pose_in_cam(3,0) = d0;
+            pose_in_cam(3,1) = d1;
+            pose_in_cam(3,2) = d2;
+            pose_in_cam(3,3) = d3;
+            return pose_in_cam;
+        }
         void init_from_cv(const cv::Mat& pose){ // so stupid
             assert(pose.type() == CV_32F);
 
@@ -151,6 +176,15 @@ public:
                 <<b0<<", "<<b1<<", "<<b2<<", "<<b3<<"\n"
                 <<c0<<", "<<c1<<", "<<c2<<", "<<c3<<"\n"
                 <<d0<<", "<<d1<<", "<<d2<<", "<<d3<<"\n";
+        }
+
+        void print_device(){
+            printf("\n");
+            printf("%f,%f,%f,%f\n", a0, a1, a2, a3);
+            printf("%f,%f,%f,%f\n", b0, b1, b2, b3);
+            printf("%f,%f,%f,%f\n", c0, c1, c2, c3);
+            printf("%f,%f,%f,%f\n", d0, d1, d2, d3);
+            printf("\n");
         }
     };
 

@@ -6,6 +6,7 @@
 #include <thrust/copy.h>
 
 #include "cuda_renderer/model.h"
+#include "cuda_renderer/utils.cuh"
 
 namespace cuda_renderer {
 namespace cost_computation {
@@ -299,7 +300,8 @@ void compute_costs(const int   num_images,
                         const thrust::device_vector<int>&   k_indices,
                         thrust::device_vector<float>& cuda_rendered_cost_vec,
                         thrust::device_vector<float>& cuda_observed_cost_vec,
-                        thrust::device_vector<float>& cuda_pose_points_diff_cost_vec                        
+                        thrust::device_vector<float>& cuda_pose_points_diff_cost_vec,
+                        gpu_stats& stats                        
                         ) {
         /*
         * rendered_poses_observed_points_total - number of observed points in cylinder volume or in segmentation for given pose
@@ -328,6 +330,8 @@ void compute_costs(const int   num_images,
         const uint8_t* cuda_cloud_color = thrust::raw_pointer_cast(rendered_cloud_color.data());
         const int* device_pose_segmentation_label_vec = thrust::raw_pointer_cast(rendered_poses_label.data());
         
+        stats.peak_memory_usage = std::max(print_cuda_memory_usage(), stats.peak_memory_usage);
+
         dim3 numBlocksR((rendered_cloud_point_count + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK, 1);
         cost_computation::compute_render_cost<<<numBlocksR, THREADS_PER_BLOCK>>>(
             dist_dev,
@@ -382,6 +386,8 @@ void compute_costs(const int   num_images,
         
             dim3 numBlocksO((num_images * observed_cloud_point_count + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK, 1);
             //// Calculate the number of explained points in every pose, by adding
+            stats.peak_memory_usage = std::max(print_cuda_memory_usage(), stats.peak_memory_usage);
+
             cost_computation::compute_observed_cost<<<numBlocksO, THREADS_PER_BLOCK>>>(
                 num_images,
                 observed_cloud_point_count,

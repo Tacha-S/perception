@@ -33,6 +33,8 @@
 #include "math.h"
 #include <chrono>
 #include "cuda_renderer/model.h"
+// #include <fast_gicp/gicp/fast_gicp_cuda.hpp>
+
 
 namespace cuda_renderer {
 
@@ -395,6 +397,7 @@ void render_cuda_multi_unified(
         float sensor_resolution,
         float color_distance_threshold,
         float occlusion_threshold,
+        bool do_icp,
         //// Outputs
         std::vector<int32_t>& result_depth, 
         std::vector<std::vector<uint8_t>>& result_color,
@@ -403,11 +406,13 @@ void render_cuda_multi_unified(
         int& result_cloud_point_num,
         int* &result_cloud_pose_map,
         int* &result_dc_index,
+        // ICP stuff
+        std::vector<Model::mat4x4>& adjusted_poses,
         // Costs
         float* &rendered_cost,
         float* &observed_cost,
         float* &points_diff_cost,
-        double& peak_memory_usage);
+        gpu_stats& stats);
 
 #endif
 

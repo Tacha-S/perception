@@ -7,6 +7,7 @@
 #include <Eigen/Core>
 
 #include "cuda_renderer/model.h"
+#include "cuda_renderer/utils.cuh"
 
 namespace cuda_renderer {
 namespace image_to_cloud {
@@ -15,6 +16,7 @@ namespace image_to_cloud {
         const Eigen::Matrix4f* camera_transform,
         float &x_pcd, float &y_pcd, float &z_pcd)
     {
+        // depth factor here basically converts from cm depth to value in m
         z_pcd = static_cast<float>(depth)/depth_factor;
         x_pcd = (static_cast<float>(x) - kCameraCX)/kCameraFX * z_pcd;
         y_pcd = (static_cast<float>(y) - kCameraCY)/kCameraFY * z_pcd;
@@ -199,6 +201,7 @@ void compute_point_clouds(const thrust::device_vector<int32_t>& device_depth_int
                           thrust::device_vector<int>&     result_dc_index,
                           thrust::device_vector<int>&     result_cloud_pose_map,
                           thrust::device_vector<int>&     result_cloud_label,
+                          gpu_stats& stats,
                           const Eigen::Matrix4f* camera_transform = NULL,
                           const thrust::device_vector<uint8_t>&  device_image_label   = thrust::device_vector<uint8_t>(0),
                           const thrust::device_vector<double>&   device_observed_cloud_bounds = thrust::device_vector<double>(0)
@@ -251,6 +254,7 @@ void compute_point_clouds(const thrust::device_vector<int32_t>& device_depth_int
     // //     cudaMemcpy(camera_transform_cuda, camera_transform, sizeof(Eigen::Matrix4f), cudaMemcpyHostToDevice);
     // }
     // thrust::device_vector<int> mask(width*height*num_poses, 0);
+    result_dc_index.clear();
     result_dc_index.resize(width*height*num_poses, 0);
     int* mask_ptr = thrust::raw_pointer_cast(result_dc_index.data());
 
@@ -281,6 +285,11 @@ void compute_point_clouds(const thrust::device_vector<int32_t>& device_depth_int
 
     cudaMallocPitch(&result_2d_point_cloud,   &query_pitch_in_bytes,   result_cloud_point_count * sizeof(float), POINT_DIM);
     
+    result_cloud_eigen.clear();
+    result_point_cloud.clear();
+    result_point_cloud_color.clear();
+    result_cloud_pose_map.clear();
+
     result_cloud_eigen.resize(result_cloud_point_count, Eigen::Vector3f::Constant(0));
     result_point_cloud.resize(POINT_DIM * result_cloud_point_count, 0);
     result_point_cloud_color.resize(POINT_DIM * result_cloud_point_count, 0);
@@ -298,7 +307,7 @@ void compute_point_clouds(const thrust::device_vector<int32_t>& device_depth_int
         result_cloud_label.resize(result_cloud_point_count, 0);
         cloud_mask_label = thrust::raw_pointer_cast(result_cloud_label.data());
     }
-
+    stats.peak_memory_usage = std::max(print_cuda_memory_usage(), stats.peak_memory_usage);
     image_to_cloud::depth_to_2d_cloud<<<numBlocks, threadsPerBlock>>>(depth_data, 
                                                       red_in, 
                                                       green_in, 

@@ -477,11 +477,14 @@ class EnvObjectRecognition : public EnvironmentMHA {
                       int& result_cloud_point_num,
                       int* &dc_index,
                       int* &cloud_pose_map,
+                      // GPU  ICP 
+                      std::vector<cuda_renderer::Model::mat4x4>& adjusted_poses,
                       // Costs
                       float* &rendered_cost,
                       float* &observed_cost,
                       float* &points_diff_cost,
                       float sensor_resolution,
+                      bool do_gpu_icp,
                       int cost_type = 0,
                       bool calculate_observed_cost = false);
 

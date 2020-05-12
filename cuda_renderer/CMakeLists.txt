@@ -60,7 +60,27 @@ endif()
 #     ${renderer_cuda} ${renderer_knn}
 #  )
 
-
+# Compile CUDA lib
+# cuda_add_library(cuda_renderer_gpu
+#     renderer.cu
+#     knncuda.cu
+#     # ${renderer_cuda} 
+#     # ${renderer_knn}
+# )
+# target_include_directories(cuda_renderer_gpu PUBLIC
+#     include
+#     ${ASSIMP_INCLUDE_DIRS}
+#     ${catkin_INCLUDE_DIRS}
+#     ${EIGEN3_INCLUDE_DIR}
+#     ${OpenCV_INCLUDE_DIRS}
+#     ${CUDA_INCLUDE_DIRS}
+# )
+# target_link_libraries(cuda_renderer_gpu
+#     ${CUDA_cublas_LIBRARY}
+#     ${CUDA_LIBRARIES}
+#     ${catkin_LIBRARIES}
+# )
+# 
 catkin_package(
     CATKIN_DEPENDS
         fast_gicp
@@ -80,8 +100,8 @@ target_include_directories(cuda_renderer PUBLIC ${renderer_inc} ${catkin_INCLUDE
 target_link_libraries(cuda_renderer PUBLIC ${renderer_lib} ${catkin_LIBRARIES} )
 
 
-add_executable(renderer_test test.cpp)
-target_link_libraries(renderer_test cuda_renderer)
+#add_executable(renderer_test test.cpp)
+#target_link_libraries(renderer_test cuda_renderer)
 
 
 install(DIRECTORY include/${PROJECT_NAME}/

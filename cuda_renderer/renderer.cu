@@ -3,7 +3,9 @@
 #include "cuda_renderer/compute_point_clouds.cuh"
 #include "cuda_renderer/compute_costs.cuh"
 #include "cuda_renderer/renderer.h"
+#include "cuda_renderer/utils.cuh"
 #include <fast_gicp/cuda/brute_force_knn.cuh>
+#include <fast_gicp/cuda/fast_gicp_cuda.cuh>
 
 // #include <math.h> 
 #include "cuda_fp16.h"
@@ -78,25 +80,7 @@ namespace cuda_renderer {
 
     template class device_vector_holder<int>;
 
-    double print_cuda_memory_usage(){
-        // show memory usage of GPU
-
-        size_t free_byte ;
-        size_t total_byte ;
-        auto cuda_status = cudaMemGetInfo( &free_byte, &total_byte ) ;
-
-        if ( cudaSuccess != cuda_status ){
-            printf("Error: cudaMemGetInfo fails, %s \n", cudaGetErrorString(cuda_status) );
-            exit(1);
-        }
-
-        double free_db = (double)free_byte ;
-        double total_db = (double)total_byte ;
-        double used_db = total_db - free_db ;
-        printf("GPU memory usage: used = %f, free = %f MB, total = %f MB\n",
-            used_db/1024.0/1024.0, free_db/1024.0/1024.0, total_db/1024.0/1024.0);
-        return used_db/1024.0/1024.0;
-    }
+    
 
     struct max2zero_functor{
 
@@ -1397,6 +1381,24 @@ namespace cuda_renderer {
         printf("---------------------------------------\n");
 
     }
+    struct concatenate_transforms{
+
+        concatenate_transforms(){}
+
+        __host__ __device__
+        Model::mat4x4 operator()(Model::mat4x4& transform_a_mat, Eigen::Isometry3f& transform_b) const
+        {
+            // printf("Before icp : \n");
+            // transform_a_mat.print_device();
+            Eigen::Matrix4f transform_a = transform_a_mat.to_eigen(100);
+            Eigen::Matrix4f transform_new = transform_b.matrix() * transform_a;
+            Model::mat4x4 transform_new_mat;
+            transform_new_mat.init_from_eigen(transform_new.cast<double>(), 100);
+            // printf("After icp : \n");
+            // transform_new_mat.print_device();
+            return transform_new_mat;
+        }
+    };
 
     void render_cuda_multi_unified(
         const std::string stage,
@@ -1429,6 +1431,7 @@ namespace cuda_renderer {
         float sensor_resolution,
         float color_distance_threshold,
         float occlusion_threshold,
+        bool do_icp,
         std::vector<int32_t>& result_depth, 
         std::vector<std::vector<uint8_t>>& result_color,
         float* &result_cloud,
@@ -1436,16 +1439,18 @@ namespace cuda_renderer {
         int& result_cloud_point_num,
         int* &result_cloud_pose_map,
         int* &result_dc_index,
+        std::vector<Model::mat4x4>& adjusted_poses,
         float* &rendered_cost,
         float* &observed_cost,
         float* &points_diff_cost,
-        double &peak_memory_usage) {
+        gpu_stats& stats) {
         /*
          * - @source_mask_label - Label for every pixel in source image, used for segmentation specific occlusion checking
          * - Currently doesnt support pose occlusion or pose occlusion other
          */
         
         // std::string stage = "DEBUG";
+        // gpu_stats stats;
         printf("---------------------------------------\n");
         printf("Stage : %s\n", stage.c_str());
         printf("USE_CLUTTER : %d\n", USE_CLUTTER);
@@ -1529,13 +1534,14 @@ namespace cuda_renderer {
                     device_depth_int,
                     device_red_int,
                     device_green_int,
-                    device_blue_int);
-        int* device_pose_occluded_vec = thrust::raw_pointer_cast(device_pose_occluded.data());
-        int32_t* depth_image_vec = thrust::raw_pointer_cast(device_depth_int.data());
-        uint8_t* red_image_vec = thrust::raw_pointer_cast(device_red_int.data());
-        uint8_t* green_image_vec = thrust::raw_pointer_cast(device_green_int.data());
-        uint8_t* blue_image_vec = thrust::raw_pointer_cast(device_blue_int.data());
-        int* device_pose_segmentation_label_vec = thrust::raw_pointer_cast(device_pose_segmentation_label.data());
+                    device_blue_int,
+                    stats);
+        // int* device_pose_occluded_vec = thrust::raw_pointer_cast(device_pose_occluded.data());
+        // int32_t* depth_image_vec = thrust::raw_pointer_cast(device_depth_int.data());
+        // uint8_t* red_image_vec = thrust::raw_pointer_cast(device_red_int.data());
+        // uint8_t* green_image_vec = thrust::raw_pointer_cast(device_green_int.data());
+        // uint8_t* blue_image_vec = thrust::raw_pointer_cast(device_blue_int.data());
+        // int* device_pose_segmentation_label_vec = thrust::raw_pointer_cast(device_pose_segmentation_label.data());
         if (USE_CLUTTER) {
             thrust::copy(device_pose_clutter_points.begin(), device_pose_clutter_points.end(), clutter_cost.begin());
         }
@@ -1601,16 +1607,142 @@ namespace cuda_renderer {
             result_cloud_point_num,
             rendered_dc_index,
             rendered_cloud_pose_map,
-            dummy_vec
+            dummy_vec,
+            stats
         );
-        uint8_t* cuda_cloud_color = thrust::raw_pointer_cast(rendered_point_cloud_color.data());
-        int* cuda_cloud_pose_map = thrust::raw_pointer_cast(rendered_cloud_pose_map.data());
-        size_t query_pitch = query_pitch_in_bytes / size_of_float;
         int k = 1;
         printf("************Point clouds created*************\n");
         end_2 = std::chrono::system_clock::now();
         elapsed_seconds = end_2-end_1;
         printf("************Cloud contruction time : %f************\n", elapsed_seconds.count());
+        
+        // Copy observed stuff from CPU
+        thrust::device_vector<int> observed_cloud_label(result_observed_cloud_label, result_observed_cloud_label + observed_point_num);
+        thrust::device_vector<Eigen::Vector3f> observed_cloud_eigen(observed_depth_eigen, observed_depth_eigen + observed_point_num);
+        printf("observed_cloud_eigen() size : %d\n", observed_cloud_eigen.size());
+
+        // ///////////////////////////////////////////////////////////////
+        // // Testing ICP
+        end_3a = end_2;
+        if (do_icp)
+        {
+            thrust::device_vector<int> observed_cloud_label_subtracted(observed_cloud_label.size());
+            thrust::device_vector<int> device_pose_segmentation_label_subtracted(device_pose_segmentation_label.size());
+            if (device_pose_segmentation_label.size() > 0)
+            {
+                printf("Subtracting 1 from segmentation labels for ICP\n");
+                // Make segmentation labes start from 0
+                thrust::device_vector<int> minus_vec(observed_cloud_label.size(), 1);
+                thrust::transform(
+                    observed_cloud_label.begin(), observed_cloud_label.end(), 
+                    minus_vec.begin(), observed_cloud_label_subtracted.begin(), 
+                    thrust::minus<float>()
+                );
+
+                minus_vec.resize(device_pose_segmentation_label.size(), 1);
+                thrust::transform(
+                    device_pose_segmentation_label.begin(), device_pose_segmentation_label.end(), 
+                    minus_vec.begin(), device_pose_segmentation_label_subtracted.begin(), 
+                    thrust::minus<float>()
+                );
+            }
+
+
+            std::vector<Eigen::Isometry3f> estimated;
+            thrust::device_vector<Eigen::Isometry3f> d_estimated;
+            std::unique_ptr<fast_gicp::FastGICPCudaCore> vgicp_cuda;
+            int max_iterations_ = 150;
+            int k_correspondences_ = 10;
+            float rotation_epsilon_ = 2e-3;
+            float transformation_epsilon_ = 5e-4;
+                
+            vgicp_cuda.reset(new fast_gicp::FastGICPCudaCore());
+            vgicp_cuda->set_max_iterations(max_iterations_);
+            vgicp_cuda->set_rotation_epsilon(rotation_epsilon_);
+            vgicp_cuda->set_transformation_epsilon(transformation_epsilon_);
+            vgicp_cuda->set_correspondence_randomness(k_correspondences_);
+            vgicp_cuda->set_input(result_cloud_eigen,
+                                observed_cloud_eigen,
+                                rendered_cloud_pose_map,
+                                observed_cloud_label_subtracted,
+                                device_pose_segmentation_label_subtracted,
+                                num_images);
+            vgicp_cuda->optimize_multi(estimated);
+            d_estimated = estimated;
+            thrust::device_vector<Model::mat4x4> device_poses_adjusted(device_poses.size());
+            thrust::host_vector<Model::mat4x4> host_poses_adjusted(device_poses.size());
+            thrust::transform(
+                device_poses.begin(), device_poses.end(), d_estimated.begin(), device_poses_adjusted.begin(),
+                concatenate_transforms()
+            );
+            adjusted_poses.resize(num_images);
+            thrust::copy(device_poses_adjusted.begin(), device_poses_adjusted.end(), adjusted_poses.begin());
+            // host_poses_adjusted = device_poses_adjusted;
+            // for (int i = 0; i < host_poses_adjusted.size(); i++)
+            // {
+            //     host_poses_adjusted[i].print();
+            // }
+            printf("*************ICPs computed**********\n");
+            end_3a = std::chrono::system_clock::now();
+            elapsed_seconds = end_3a-end_2;
+            printf("*************ICP time : %f************\n", elapsed_seconds.count());
+            stats.icp_runtime = std::max(stats.icp_runtime, (float) elapsed_seconds.count());
+
+            image_render(device_tris,
+                device_poses_adjusted,
+                device_pose_model_map,
+                device_tris_model_count_low,
+                device_source_depth,
+                device_source_color_red,
+                device_source_color_green,
+                device_source_color_blue,
+                device_source_mask_label,
+                device_pose_segmentation_label,
+                num_images,
+                width,
+                height,
+                proj_mat,
+                occlusion_threshold,
+                single_result_image,
+                device_pose_occluded,
+                device_pose_occluded_other,
+                device_pose_clutter_points,
+                device_pose_total_points,
+                device_depth_int,
+                device_red_int,
+                device_green_int,
+                device_blue_int,
+                stats);
+
+            compute_point_clouds(
+                device_depth_int,
+                device_red_int,
+                device_green_int,
+                device_blue_int,
+                num_images,
+                width,
+                height,
+                kCameraCX,
+                kCameraCY,
+                kCameraFX,
+                kCameraFY,
+                depth_factor,
+                stride,
+                device_pose_occluded,
+                cuda_cloud,
+                query_pitch_in_bytes,
+                result_cloud_eigen,
+                rendered_point_cloud,
+                rendered_point_cloud_color,
+                result_cloud_point_num,
+                rendered_dc_index,
+                rendered_cloud_pose_map,
+                dummy_vec,
+                stats
+            );
+        }
+        
+        ///////////////////////////////////////////////////////////////
 
         if (stage.compare("DEBUG") == 0 || stage.find("CLOUD") != std::string::npos)
         {
@@ -1625,9 +1757,9 @@ namespace cuda_renderer {
             cudaMemcpy2D(
                 result_cloud,  result_cloud_point_num * size_of_float, cuda_cloud,  query_pitch_in_bytes,  result_cloud_point_num * size_of_float, point_dim, cudaMemcpyDeviceToHost);
             // cudaMemcpy(result_cloud, cuda_cloud, point_dim * result_cloud_point_num * sizeof(float), cudaMemcpyDeviceToHost);
-            cudaMemcpy(result_cloud_color, cuda_cloud_color, point_dim * result_cloud_point_num * sizeof(uint8_t), cudaMemcpyDeviceToHost);
+            cudaMemcpy(result_cloud_color, thrust::raw_pointer_cast(rendered_point_cloud_color.data()), point_dim * result_cloud_point_num * sizeof(uint8_t), cudaMemcpyDeviceToHost);
             cudaMemcpy(result_dc_index, thrust::raw_pointer_cast(rendered_dc_index.data()), num_images * width * height * sizeof(int), cudaMemcpyDeviceToHost);
-            cudaMemcpy(result_cloud_pose_map, cuda_cloud_pose_map, result_cloud_point_num * sizeof(int), cudaMemcpyDeviceToHost);
+            cudaMemcpy(result_cloud_pose_map, thrust::raw_pointer_cast(rendered_cloud_pose_map.data()), result_cloud_point_num * sizeof(int), cudaMemcpyDeviceToHost);
             
             /// Exit here if only point clouds are needed - for e.g. before ICP
             /// Free copied stuff
@@ -1641,9 +1773,8 @@ namespace cuda_renderer {
         }
         rendered_dc_index.clear(); rendered_dc_index.shrink_to_fit();
         ///////////////////////////////////////////////////////////////
+        
         thrust::device_vector<thrust::pair<float, int>> k_neighbors;
-        thrust::device_vector<Eigen::Vector3f> observed_cloud_eigen(observed_depth_eigen, observed_depth_eigen + observed_point_num);
-        printf("observed_cloud_eigen() size : %d\n", observed_cloud_eigen.size());
         fast_gicp::brute_force_knn_search(result_cloud_eigen, 
                                         observed_cloud_eigen, 
                                         1, 
@@ -1657,7 +1788,7 @@ namespace cuda_renderer {
                                         //mask_pose_icp);
         printf("*************KNN distances computed**********\n");
         end_3 = std::chrono::system_clock::now();
-        elapsed_seconds = end_3-end_2;
+        elapsed_seconds = end_3-end_3a;
         printf("*************KNN time : %f************\n", elapsed_seconds.count());
         sensor_resolution = sensor_resolution * sensor_resolution;
                
@@ -1669,7 +1800,6 @@ namespace cuda_renderer {
 
         // Testing new cost compute interface
         thrust::device_vector<uint8_t> observed_cloud_color(observed_color, observed_color + point_dim * observed_point_num);
-        thrust::device_vector<int> observed_cloud_label(result_observed_cloud_label, result_observed_cloud_label + observed_point_num);
 
         thrust::device_vector<float> rendered_poses_observed_points_total = pose_observed_points_total;
         thrust::device_vector<float> cuda_rendered_cost_v;
@@ -1693,7 +1823,8 @@ namespace cuda_renderer {
             k_indices,
             cuda_rendered_cost_v,
             cuda_observed_cost_v,
-            cuda_pose_points_diff_cost_vec                        
+            cuda_pose_points_diff_cost_vec,
+            stats                        
         );
         if (stage.compare("DEBUG") == 0 || stage.find("COST") != std::string::npos)
         {
@@ -1784,6 +1915,7 @@ namespace cuda_renderer {
 
         float* result_2d_point_cloud;
         size_t result_2d_pitch_in_bytes;
+        gpu_stats stats;
         compute_point_clouds(
             d_depth_data,
             d_red_in,
@@ -1808,6 +1940,7 @@ namespace cuda_renderer {
             result_dc_index,
             result_cloud_pose_map,
             result_cloud_label,
+            stats,
             d_camera_transform,
             d_label_mask_data,
             d_observed_cloud_bounds

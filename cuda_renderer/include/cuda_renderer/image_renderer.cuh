@@ -6,6 +6,7 @@
 #include <thrust/copy.h>
 
 #include "cuda_renderer/model.h"
+#include "cuda_renderer/utils.cuh"
 
 namespace cuda_renderer {
 namespace image_renderer {
@@ -354,7 +355,8 @@ void image_render(const thrust::device_vector<Model::Triangle>& device_tris,
                     thrust::device_vector<int32_t>& device_depth_int,
                     thrust::device_vector<uint8_t>& device_red_int,
                     thrust::device_vector<uint8_t>& device_green_int,
-                    thrust::device_vector<uint8_t>& device_blue_int) {
+                    thrust::device_vector<uint8_t>& device_blue_int,
+                    gpu_stats& stats) {
         
         printf("image_render()\n");
         /*
@@ -385,6 +387,10 @@ void image_render(const thrust::device_vector<Model::Triangle>& device_tris,
         device_pose_total_points.resize(num_images, 0);
 
         thrust::device_vector<int32_t> device_lock_int(num_images*width*height, 0);
+        device_depth_int.clear();
+        device_red_int.clear();
+        device_green_int.clear();
+        device_blue_int.clear();
         device_depth_int.resize(num_images*width*height, INT_MAX);
         device_red_int.resize(num_images*width*height, 0);
         device_green_int.resize(num_images*width*height, 0);
@@ -432,6 +438,7 @@ void image_render(const thrust::device_vector<Model::Triangle>& device_tris,
         uint8_t* green_image_vec = thrust::raw_pointer_cast(device_green_int.data());
         uint8_t* blue_image_vec = thrust::raw_pointer_cast(device_blue_int.data());
 
+        stats.peak_memory_usage = std::max(print_cuda_memory_usage(), stats.peak_memory_usage);
 
         dim3 numBlocks((device_tris.size() + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK, num_images);
         image_renderer::render_triangle_multi<<<numBlocks, THREADS_PER_BLOCK>>>(device_tris_ptr, device_tris.size(),
