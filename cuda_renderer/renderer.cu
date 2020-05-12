@@ -1786,16 +1786,18 @@ namespace cuda_renderer {
                                         //*source_pose_map,
                                         //adjusted_x0s,
                                         //mask_pose_icp);
-        printf("*************KNN distances computed**********\n");
-        end_3 = std::chrono::system_clock::now();
-        elapsed_seconds = end_3-end_3a;
-        printf("*************KNN time : %f************\n", elapsed_seconds.count());
-        sensor_resolution = sensor_resolution * sensor_resolution;
+
                
         thrust::device_vector<float> k_distances(k_neighbors.size());
         thrust::device_vector<int> k_indices(k_neighbors.size());
         thrust::transform(k_neighbors.begin(), k_neighbors.end(), k_indices.begin(), fast_gicp::untie_pair_second());
         thrust::transform(k_neighbors.begin(), k_neighbors.end(), k_distances.begin(), fast_gicp::untie_pair_first());
+        printf("*************KNN distances computed**********\n");
+        end_3 = std::chrono::system_clock::now();
+        elapsed_seconds = end_3-end_3a;
+        printf("*************KNN time : %f************\n", elapsed_seconds.count());
+        // Square the threshold because KNN distances are actually squares
+        sensor_resolution = sensor_resolution * sensor_resolution;
         //////////////////////////////////////////////////////////////
 
         // Testing new cost compute interface
