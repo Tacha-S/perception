@@ -159,9 +159,10 @@ namespace image_renderer {
                     }
                     // 1.0 is 1cm occlusion threshold
                     int32_t& new_depth = depth_entry[x_to_write+y_to_write*real_width];
+                    // pose segmentation labels start from 0, but source mask have label starting from 1
                     if ((use_segmentation_label == false && abs(new_depth - source_depth) > occlusion_threshold) ||
                         (use_segmentation_label == true && 
-                        *pose_segmentation_label_entry != source_label && abs(new_depth - source_depth) > 0.5))
+                        *pose_segmentation_label_entry != source_label-1 && abs(new_depth - source_depth) > 0.5))
                     {
                         // printf("%d, %d\n", *pose_segmentation_label_entry, source_label);
                         // printf("%d, %d\n", source_depth, curr_depth);
@@ -387,10 +388,10 @@ void image_render(const thrust::device_vector<Model::Triangle>& device_tris,
         device_pose_total_points.resize(num_images, 0);
 
         thrust::device_vector<int32_t> device_lock_int(num_images*width*height, 0);
-        device_depth_int.clear();
-        device_red_int.clear();
-        device_green_int.clear();
-        device_blue_int.clear();
+        // device_depth_int.clear();
+        // device_red_int.clear();
+        // device_green_int.clear();
+        // device_blue_int.clear();
         device_depth_int.resize(num_images*width*height, INT_MAX);
         device_red_int.resize(num_images*width*height, 0);
         device_green_int.resize(num_images*width*height, 0);

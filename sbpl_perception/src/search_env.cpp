@@ -1619,7 +1619,8 @@ void EnvObjectRecognition::GetStateImagesUnifiedGPU(const string stage,
     {
       int required_object_id = objects[i].segmentation_label_id() - 1; 
       // For every pose, a mapping to its segmentation label
-      pose_segmen_label.push_back(objects[i].segmentation_label_id());
+      // pose_segmen_label.push_back(objects[i].segmentation_label_id());
+      pose_segmen_label.push_back(required_object_id);
       pose_obs_points_total.push_back(segmented_observed_point_count[required_object_id]);
     }
     else 
@@ -1746,7 +1747,7 @@ void EnvObjectRecognition::GetStateImagesUnifiedGPU(const string stage,
                           points_diff_cost,
                           stats);
   env_stats_.peak_gpu_mem = std::max(env_stats_.peak_gpu_mem, stats.peak_memory_usage);
-  env_stats_.icp_time = std::max(env_stats_.icp_time, (double) stats.icp_runtime);
+  env_stats_.icp_time += (double) stats.icp_runtime;
 }
 void EnvObjectRecognition::PrintStateGPU(GraphState state)
 {
@@ -1930,7 +1931,7 @@ void EnvObjectRecognition::ComputeGreedyCostsInParallelGPU(const std::vector<int
     if (perch_params_.vis_expanded_states) {
       PrintGPUImages(
         result_depth, result_color, num_poses, 
-        "succ_" + std::to_string(source_id), adjusted_poses_occluded,
+        "succ_" + std::to_string(source_id) + "_batch_" + std::to_string(batch_index), adjusted_poses_occluded,
         total_cost);
     }
 
@@ -2074,7 +2075,7 @@ void EnvObjectRecognition::ComputeGreedyCostsInParallelGPU(const std::vector<int
 void EnvObjectRecognition::ComputeCostsInParallelGPU(std::vector<CostComputationInput> &input,
                                                   std::vector<CostComputationOutput> *output,
                                                   bool lazy) {
-  /*
+  /* Deprecated
    * Compute Costs using GPU for different levels of scene tree
    */
   std::cout << "Computing costs in parallel GPU" << endl;
@@ -6166,8 +6167,8 @@ void EnvObjectRecognition::SetInput(const RecognitionInput &input) {
       {
         // printf("Label for point %d, %d\n", i, result_observed_cloud_label[i]);
         // Ignore points without segmentation label (ideally there shouldnt be any)
-        if (result_observed_cloud_label[i] == 0
-          && env_params_.use_external_pose_list == 1) continue;
+        // if (result_observed_cloud_label[i] == 0
+        //   && env_params_.use_external_pose_list == 1) continue;
 
         int label_mask_i = result_observed_cloud_label[i];
         pcl::PointXYZRGB point;
@@ -6183,8 +6184,10 @@ void EnvObjectRecognition::SetInput(const RecognitionInput &input) {
         depth_img_cloud->points.push_back(point);
         if (env_params_.use_external_pose_list == 1) 
         {
-          segmented_object_clouds[label_mask_i-1]->points.push_back(point);
-          segmented_observed_point_count[label_mask_i-1] += 1;
+          // segmented_object_clouds[label_mask_i-1]->points.push_back(point);
+          // segmented_observed_point_count[label_mask_i-1] += 1;
+          segmented_object_clouds[label_mask_i]->points.push_back(point);
+          segmented_observed_point_count[label_mask_i] += 1;
         }
       }
       if (env_params_.use_external_pose_list == 1) 

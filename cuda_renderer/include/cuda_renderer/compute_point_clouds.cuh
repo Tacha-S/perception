@@ -99,7 +99,7 @@ namespace image_to_cloud {
         uint8_t* cloud_color, int cloud_rendered_cloud_point_num, int* mask, int width, int height, 
         float kCameraCX, float kCameraCY, float kCameraFX, float kCameraFY, float depth_factor,
         int stride, int num_poses, int* cloud_pose_map, const uint8_t* label_mask_data,  int* cloud_mask_label,
-        const double* observed_cloud_bounds, const Eigen::Matrix4f* camera_transform)
+        const double* observed_cloud_bounds, const Eigen::Matrix4f* camera_transform, const int* pose_segmentation_label_ptr)
     {
         /**
          * Creates a point cloud by combining a mask corresponding to valid depth pixels and depth data using the camera params
@@ -167,10 +167,17 @@ namespace image_to_cloud {
         cloud_pose_map[cloud_idx] = n;
         if (label_mask_data != NULL)
         {
-            cloud_mask_label[cloud_idx] = label_mask_data[idx_depth];
+            // Creating label from image mask - for observed point cloud
+            // Do -1 to make it start from 0
+            cloud_mask_label[cloud_idx] = label_mask_data[idx_depth] - 1;
         }
-        // printf("cloud_idx:%d\n", label_mask_data[idx_depth]);
-    
+        else if (pose_segmentation_label_ptr != NULL)
+        {
+            // Creating label from pose data - for rendered point cloud
+            cloud_mask_label[cloud_idx] = pose_segmentation_label_ptr[n];
+        }
+        
+        // printf("cloud_idx:%d\n", pose_segmentation_label_ptr[n]);    
         // cloud[3*cloud_idx + 0] = x_pcd;
         // cloud[3*cloud_idx + 1] = y_pcd;
         // cloud[3*cloud_idx + 2] = z_pcd;
@@ -204,7 +211,8 @@ void compute_point_clouds(const thrust::device_vector<int32_t>& device_depth_int
                           gpu_stats& stats,
                           const Eigen::Matrix4f* camera_transform = NULL,
                           const thrust::device_vector<uint8_t>&  device_image_label   = thrust::device_vector<uint8_t>(0),
-                          const thrust::device_vector<double>&   device_observed_cloud_bounds = thrust::device_vector<double>(0)
+                          const thrust::device_vector<double>&   device_observed_cloud_bounds = thrust::device_vector<double>(0),
+                          const thrust::device_vector<int>&      pose_segmentation_label = thrust::device_vector<int>(0)
                           ) {
     
     printf("compute_point_clouds()\n");
@@ -220,6 +228,7 @@ void compute_point_clouds(const thrust::device_vector<int32_t>& device_depth_int
     const int* poses_occluded            = thrust::raw_pointer_cast(device_pose_occluded.data());
     const uint8_t* image_label           = device_image_label.empty() ? NULL : thrust::raw_pointer_cast(device_image_label.data());
     const double*  observed_cloud_bounds = device_observed_cloud_bounds.empty() ? NULL : thrust::raw_pointer_cast(device_observed_cloud_bounds.data());
+    const int* pose_segmentation_label_ptr = pose_segmentation_label.empty() ? NULL : thrust::raw_pointer_cast(pose_segmentation_label.data());
     
     // thrust::copy(
     //     device_red_int.begin(),
@@ -254,7 +263,7 @@ void compute_point_clouds(const thrust::device_vector<int32_t>& device_depth_int
     // //     cudaMemcpy(camera_transform_cuda, camera_transform, sizeof(Eigen::Matrix4f), cudaMemcpyHostToDevice);
     // }
     // thrust::device_vector<int> mask(width*height*num_poses, 0);
-    result_dc_index.clear();
+    // result_dc_index.clear();
     result_dc_index.resize(width*height*num_poses, 0);
     int* mask_ptr = thrust::raw_pointer_cast(result_dc_index.data());
 
@@ -285,10 +294,10 @@ void compute_point_clouds(const thrust::device_vector<int32_t>& device_depth_int
 
     cudaMallocPitch(&result_2d_point_cloud,   &query_pitch_in_bytes,   result_cloud_point_count * sizeof(float), POINT_DIM);
     
-    result_cloud_eigen.clear();
-    result_point_cloud.clear();
-    result_point_cloud_color.clear();
-    result_cloud_pose_map.clear();
+    // result_cloud_eigen.clear();
+    // result_point_cloud.clear();
+    // result_point_cloud_color.clear();
+    // result_cloud_pose_map.clear();
 
     result_cloud_eigen.resize(result_cloud_point_count, Eigen::Vector3f::Constant(0));
     result_point_cloud.resize(POINT_DIM * result_cloud_point_count, 0);
@@ -302,8 +311,9 @@ void compute_point_clouds(const thrust::device_vector<int32_t>& device_depth_int
 
     // Assign output cloud segmentation label if needed
     int* cloud_mask_label = NULL;
-    if (!device_image_label.empty())
+    if (!device_image_label.empty() || !pose_segmentation_label.empty())
     {
+        // result_cloud_label.clear();
         result_cloud_label.resize(result_cloud_point_count, 0);
         cloud_mask_label = thrust::raw_pointer_cast(result_cloud_label.data());
     }
@@ -332,7 +342,8 @@ void compute_point_clouds(const thrust::device_vector<int32_t>& device_depth_int
                                                       image_label, 
                                                       cloud_mask_label, 
                                                       observed_cloud_bounds, 
-                                                      camera_transform);
+                                                      camera_transform,
+                                                      pose_segmentation_label_ptr);
     // result_point_cloud.assign(cuda_cloud, cuda_cloud + POINT_DIM * result_cloud_point_count);
     // thrust::copy(
     //     result_point_cloud.begin(),

@@ -5,6 +5,7 @@
 #include "cuda_renderer/renderer.h"
 #include "cuda_renderer/utils.cuh"
 #include <fast_gicp/cuda/brute_force_knn.cuh>
+#include <fast_gicp/cuda/create_eigen_cloud.cuh>
 #include <fast_gicp/cuda/fast_gicp_cuda.cuh>
 
 // #include <math.h> 
@@ -1471,17 +1472,17 @@ namespace cuda_renderer {
         // int* device_single_result_image;
         // cudaMalloc((void**)&device_single_result_image, sizeof(int));
         // cudaMemcpy(device_single_result_image, &single_result_image, sizeof(int), cudaMemcpyHostToDevice);
-        int num_images;
-        if (single_result_image)
-        {
-            num_images = 1;
-        }
-        else
-        {
-            num_images = poses.size();
-        }
+        int num_images = poses.size();
+        // if (single_result_image)
+        // {
+        //     num_images = 1;
+        // }
+        // else
+        // {
+        //     num_images = poses.size();
+        // }
         // const Model::ROI roi= {0, 0, 0, 0};
-        const size_t threadsPerBlock = 256;
+        // const size_t threadsPerBlock = 256;
         // std::cout <<tris[0].color.v1;
         thrust::device_vector<Model::Triangle> device_tris = tris;
         thrust::device_vector<Model::mat4x4> device_poses = poses;
@@ -1582,6 +1583,7 @@ namespace cuda_renderer {
         thrust::device_vector<uint8_t> rendered_point_cloud_color;
         thrust::device_vector<int>     rendered_dc_index;
         thrust::device_vector<int>     rendered_cloud_pose_map;
+        thrust::device_vector<int>     rendered_cloud_label;
         thrust::device_vector<int>     dummy_vec;
         thrust::device_vector<Eigen::Vector3f> result_cloud_eigen;
         compute_point_clouds(
@@ -1607,8 +1609,12 @@ namespace cuda_renderer {
             result_cloud_point_num,
             rendered_dc_index,
             rendered_cloud_pose_map,
-            dummy_vec,
-            stats
+            rendered_cloud_label,
+            stats,
+            NULL,
+            thrust::device_vector<uint8_t>(0),
+            thrust::device_vector<double>(0),
+            device_pose_segmentation_label
         );
         int k = 1;
         printf("************Point clouds created*************\n");
@@ -1624,29 +1630,45 @@ namespace cuda_renderer {
         // ///////////////////////////////////////////////////////////////
         // // Testing ICP
         end_3a = end_2;
+        printf("Sorting observed cloud based on label\n");
+        thrust::sort_by_key(observed_cloud_label.begin(), observed_cloud_label.end(), observed_cloud_eigen.begin());
+        // thrust::device_vector<int> observed_cloud_label_subtracted(observed_cloud_label.size());
+        // thrust::device_vector<int> device_pose_segmentation_label_subtracted(device_pose_segmentation_label.size());
+        // thrust::device_vector<int> rendered_cloud_label_subtracted(rendered_cloud_label.size());
+        // if (device_pose_segmentation_label.size() > 0)
+        // {
+        // printf("Subtracting 1 from segmentation labels for ICP\n");
+        // Make segmentation labes start from 0
+        // thrust::device_vector<int> minus_vec(observed_cloud_label.size(), 1);
+        // thrust::transform(
+        //     observed_cloud_label.begin(), observed_cloud_label.end(), 
+        //     minus_vec.begin(), observed_cloud_label_subtracted.begin(), 
+        //     thrust::minus<float>()
+        // );
+
+        // minus_vec.resize(device_pose_segmentation_label.size(), 1);
+        // thrust::transform(
+        //     device_pose_segmentation_label.begin(), device_pose_segmentation_label.end(), 
+        //     minus_vec.begin(), device_pose_segmentation_label_subtracted.begin(), 
+        //     thrust::minus<float>()
+        // );
+
+        // minus_vec.resize(rendered_cloud_label.size(), 1);
+        // thrust::transform(
+        //     rendered_cloud_label.begin(), rendered_cloud_label.end(), 
+        //     minus_vec.begin(), rendered_cloud_label_subtracted.begin(), 
+        //     thrust::minus<float>()
+        // );
+        thrust::device_vector<int> observed_label_indices;
+        int dummy_int;
+        // fast_gicp::extract_pose_indices(observed_cloud_label_subtracted, observed_point_num, num_images, observed_label_indices, dummy_int);    
+        fast_gicp::extract_pose_indices(observed_cloud_label, observed_point_num, num_images, observed_label_indices, dummy_int);    
+        // }
+
         if (do_icp)
         {
-            thrust::device_vector<int> observed_cloud_label_subtracted(observed_cloud_label.size());
-            thrust::device_vector<int> device_pose_segmentation_label_subtracted(device_pose_segmentation_label.size());
-            if (device_pose_segmentation_label.size() > 0)
-            {
-                printf("Subtracting 1 from segmentation labels for ICP\n");
-                // Make segmentation labes start from 0
-                thrust::device_vector<int> minus_vec(observed_cloud_label.size(), 1);
-                thrust::transform(
-                    observed_cloud_label.begin(), observed_cloud_label.end(), 
-                    minus_vec.begin(), observed_cloud_label_subtracted.begin(), 
-                    thrust::minus<float>()
-                );
 
-                minus_vec.resize(device_pose_segmentation_label.size(), 1);
-                thrust::transform(
-                    device_pose_segmentation_label.begin(), device_pose_segmentation_label.end(), 
-                    minus_vec.begin(), device_pose_segmentation_label_subtracted.begin(), 
-                    thrust::minus<float>()
-                );
-            }
-
+            // thrust::device_vector<Eigen::Vector3f> observed_cloud_eigen_copy = observed_cloud_eigen;
 
             std::vector<Eigen::Isometry3f> estimated;
             thrust::device_vector<Eigen::Isometry3f> d_estimated;
@@ -1661,13 +1683,37 @@ namespace cuda_renderer {
             vgicp_cuda->set_rotation_epsilon(rotation_epsilon_);
             vgicp_cuda->set_transformation_epsilon(transformation_epsilon_);
             vgicp_cuda->set_correspondence_randomness(k_correspondences_);
+            // printf("icp target cloud\n");
+            // thrust::copy(
+            //     observed_cloud_eigen.begin(),
+            //     observed_cloud_eigen.end(), 
+            //     std::ostream_iterator<Eigen::Vector3f>(std::cout, " ")
+            // );
+            // thrust::copy(
+            //     rendered_cloud_label_subtracted.begin(),
+            //     rendered_cloud_label_subtracted.end(), 
+            //     std::ostream_iterator<int>(std::cout, " ")
+            // );
+            stats.peak_memory_usage = std::max(print_cuda_memory_usage(), stats.peak_memory_usage);
             vgicp_cuda->set_input(result_cloud_eigen,
-                                observed_cloud_eigen,
-                                rendered_cloud_pose_map,
-                                observed_cloud_label_subtracted,
-                                device_pose_segmentation_label_subtracted,
-                                num_images);
+                                  observed_cloud_eigen,
+                                  rendered_cloud_pose_map,
+                                  observed_cloud_label,
+                                  device_pose_segmentation_label,
+                                  rendered_cloud_label,
+                                  // observed_cloud_label_subtracted,
+                                  // device_pose_segmentation_label_subtracted,
+                                  // rendered_cloud_label_subtracted,
+                                  observed_label_indices,
+                                  num_images);
+            // printf("\n");
+            // thrust::copy(
+            //     observed_cloud_eigen.begin(),
+            //     observed_cloud_eigen.end(), 
+            //     std::ostream_iterator<Eigen::Vector3f>(std::cout, " ")
+            // );
             vgicp_cuda->optimize_multi(estimated);
+            // Apply ICP poses
             d_estimated = estimated;
             thrust::device_vector<Model::mat4x4> device_poses_adjusted(device_poses.size());
             thrust::host_vector<Model::mat4x4> host_poses_adjusted(device_poses.size());
@@ -1687,6 +1733,22 @@ namespace cuda_renderer {
             elapsed_seconds = end_3a-end_2;
             printf("*************ICP time : %f************\n", elapsed_seconds.count());
             stats.icp_runtime = std::max(stats.icp_runtime, (float) elapsed_seconds.count());
+            printf("*******************Rerendering after ICP****************\n");
+
+            // Clear everything thats the output of rendering to give max gpu space for rendering
+            device_depth_int.clear(); device_depth_int.shrink_to_fit();
+            device_red_int.clear(); device_red_int.shrink_to_fit();
+            device_green_int.clear(); device_green_int.shrink_to_fit();
+            device_blue_int.clear(); device_blue_int.shrink_to_fit();
+
+            rendered_dc_index.clear(); rendered_dc_index.shrink_to_fit();
+            result_cloud_eigen.clear(); result_cloud_eigen.shrink_to_fit();
+            rendered_point_cloud.clear(); rendered_point_cloud.shrink_to_fit();
+            rendered_point_cloud_color.clear(); rendered_point_cloud_color.shrink_to_fit();
+            rendered_cloud_pose_map.clear(); rendered_cloud_pose_map.shrink_to_fit();
+            rendered_cloud_label.clear(); rendered_cloud_label.shrink_to_fit();
+            cudaFree(cuda_cloud);
+            vgicp_cuda.reset();
 
             image_render(device_tris,
                 device_poses_adjusted,
@@ -1729,6 +1791,7 @@ namespace cuda_renderer {
                 depth_factor,
                 stride,
                 device_pose_occluded,
+                // Output
                 cuda_cloud,
                 query_pitch_in_bytes,
                 result_cloud_eigen,
@@ -1737,9 +1800,23 @@ namespace cuda_renderer {
                 result_cloud_point_num,
                 rendered_dc_index,
                 rendered_cloud_pose_map,
-                dummy_vec,
-                stats
+                rendered_cloud_label,
+                stats,
+                NULL,
+                thrust::device_vector<uint8_t>(0),
+                thrust::device_vector<double>(0),
+                device_pose_segmentation_label
             );
+            // minus_vec.clear();
+            // rendered_cloud_label_subtracted.clear();
+            // rendered_cloud_label_subtracted.resize(rendered_cloud_label.size());
+            // minus_vec.resize(rendered_cloud_label.size(), 1);
+            // thrust::transform(
+            //     rendered_cloud_label.begin(), rendered_cloud_label.end(), 
+            //     minus_vec.begin(), rendered_cloud_label_subtracted.begin(), 
+            //     thrust::minus<float>()
+            // );
+            printf("*******************Rerendering after ICP done****************\n");
         }
         
         ///////////////////////////////////////////////////////////////
@@ -1778,14 +1855,16 @@ namespace cuda_renderer {
         fast_gicp::brute_force_knn_search(result_cloud_eigen, 
                                         observed_cloud_eigen, 
                                         1, 
-                                        k_neighbors);
+                                        k_neighbors,
                                         //// thrust::device_vector<int>(0), // NN will not be segmentation specific
                                         //// thrust::device_vector<int>(0), // NN will not be segmentation specific
-                                        //*source_label_map,
-                                        //*target_label_indices,
+                                        // rendered_cloud_label_subtracted,
+                                        rendered_cloud_label,
+                                        observed_label_indices
                                         //*source_pose_map,
                                         //adjusted_x0s,
                                         //mask_pose_icp);
+                                        );              
 
                
         thrust::device_vector<float> k_distances(k_neighbors.size());

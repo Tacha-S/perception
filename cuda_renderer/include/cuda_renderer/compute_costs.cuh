@@ -238,13 +238,13 @@ namespace cost_computation {
                 else if (type == 2) {
                     // printf("pose_segmentation_label :%d, result_observed_cloud_label %d\n", 
                     //     pose_segmentation_label[pose_index], result_observed_cloud_label[o_point_index]);
-                    if (pose_segmentation_label[pose_index] != result_observed_cloud_label[o_point_index])
-                    {
-                        // the euclidean distance is fine, but segmentation labels dont match
-                        atomicAdd(&cuda_rendered_cost[pose_index], cost);
-                    }
-                    else
-                    {
+                    // if (pose_segmentation_label[pose_index] != result_observed_cloud_label[o_point_index])
+                    // {
+                    //     // the euclidean distance is fine, but segmentation labels dont match
+                    //     atomicAdd(&cuda_rendered_cost[pose_index], cost);
+                    // }
+                    // else
+                    // {
                         // the point is explained, so mark corresponding observed point explained
                         // atomicOr(cuda_observed_explained[o_point_index], 1);
                         // float lab2[3];
@@ -258,7 +258,7 @@ namespace cost_computation {
                         //     atomicAdd(&cuda_rendered_cost[pose_index], cost);
                         // else
                         cuda_observed_explained[o_point_index + pose_index * observed_cloud_point_num] = 1;
-                    }
+                    // }
                 }
             }
         }

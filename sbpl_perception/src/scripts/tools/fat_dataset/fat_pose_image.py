@@ -3217,27 +3217,27 @@ def run_ycb_6d(dataset_cfg=None):
     # required_objects = ['019_pitcher_base','005_tomato_soup_can','004_sugar_box' ,'007_tuna_fish_can', '010_potted_meat_can', '024_bowl', '002_master_chef_can', '025_mug', '003_cracker_box', '006_mustard_bottle']
     # required_objects = fat_image.category_names
     required_objects = [
-    #    "002_master_chef_can",
+       "002_master_chef_can",
        "003_cracker_box",
-    #    "004_sugar_box",
-    #    "005_tomato_soup_can",
-    #    "006_mustard_bottle",
-    #    "007_tuna_fish_can",
-    #    "008_pudding_box",
-    #    "009_gelatin_box",
-    #    "010_potted_meat_can",
-    #    "011_banana",
-    #    "019_pitcher_base",
-    #    "021_bleach_cleanser",
-    #    "024_bowl",
-    #    "025_mug",
-    #    "035_power_drill",
-    #    "036_wood_block",
-    #    "037_scissors",
-    #    "040_large_marker",
-    #    "051_large_clamp",
-    #    "052_extra_large_clamp",
-    #    "061_foam_brick"
+       "004_sugar_box",
+       "005_tomato_soup_can",
+       "006_mustard_bottle",
+       "007_tuna_fish_can",
+       "008_pudding_box",
+       "009_gelatin_box",
+       "010_potted_meat_can",
+       "011_banana",
+       "019_pitcher_base",
+       "021_bleach_cleanser",
+       "024_bowl",
+       "025_mug",
+       "035_power_drill",
+       "036_wood_block",
+       "037_scissors",
+       "040_large_marker",
+       "051_large_clamp",
+       "052_extra_large_clamp",
+       "061_foam_brick"
     ]
     filter_objects = required_objects
 
@@ -3268,10 +3268,10 @@ def run_ycb_6d(dataset_cfg=None):
     # Trying 80 for sugar
     # do small clamp all upto 200 from 48 to 60
     IMG_LIST = np.loadtxt(os.path.join(image_directory, 'image_sets/keyframe.txt'), dtype=str).tolist()
-    for scene_i in range(50, 60):
+    for scene_i in range(48, 60):
     # for scene_i in [55, 54, 51, 57]:
-        for img_i in (range(1, 2500)):
-        # for img_i in (range(1, 2500)):
+        # for img_i in (range(1399, 1400)):
+        for img_i in (range(1, 2)):
         # for img_i in IMG_LIST:
         # for img_i in tuna_list:
         # for img_i in drill_list:
