@@ -6167,8 +6167,10 @@ void EnvObjectRecognition::SetInput(const RecognitionInput &input) {
       {
         // printf("Label for point %d, %d\n", i, result_observed_cloud_label[i]);
         // Ignore points without segmentation label (ideally there shouldnt be any)
-        // if (result_observed_cloud_label[i] == 0
-        //   && env_params_.use_external_pose_list == 1) continue;
+        if (result_observed_cloud_label[i] == -1
+          && env_params_.use_external_pose_list == 1) {
+            printf("ERROR : invalid label points in observed cloud after filter\n");
+        }
 
         int label_mask_i = result_observed_cloud_label[i];
         pcl::PointXYZRGB point;
