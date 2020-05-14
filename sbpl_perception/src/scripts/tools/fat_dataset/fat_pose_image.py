@@ -1992,9 +1992,10 @@ class FATImage:
             # annotation_1 = annotation_1[0]
             # print(annotation_1)
             if len(annotation_1) == 0:
-                # Possible in DOPE where wrong object may be detected
-                print("Wrong object, no matching object to ground truth found in detection")
-                return None, None
+                # Possible in DOPE/Mask-RCNN where wrong object may be detected
+                print("False positive detection, no matching object to ground truth found in scene")
+                # print(annotation_2)
+                continue
 
             # There might two occurences of same category, take ground truth closer to prediction - For 6D version
             # TODO think of better ways
@@ -3226,14 +3227,14 @@ def run_ycb_6d(dataset_cfg=None):
     #    "008_pudding_box",
     #    "009_gelatin_box",
     #    "010_potted_meat_can",
-    #    "011_banana",
+       "011_banana",
     #    "019_pitcher_base",
     #    "021_bleach_cleanser",
-       "024_bowl",
+    #    "024_bowl",
     #    "025_mug",
     #    "035_power_drill",
     #    "036_wood_block",
-    #    "037_scissors",
+       "037_scissors",
     #    "040_large_marker",
     #    "051_large_clamp",
     #    "052_extra_large_clamp",
@@ -3273,7 +3274,7 @@ def run_ycb_6d(dataset_cfg=None):
         # for img_i in (range(1399, 1400)):
         # for img_i in (range(237, 2500)):
         # for img_i in (range(334, 2500)):
-        for img_i in (range(1, 2500)):
+        for img_i in (range(1, 1412)):
         # for img_i in IMG_LIST:
         # for img_i in tuna_list:
         # for img_i in drill_list:
