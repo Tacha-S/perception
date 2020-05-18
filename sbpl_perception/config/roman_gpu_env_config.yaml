@@ -12,7 +12,7 @@ perch_params:
   use_adaptive_resolution: false
   use_rcnn_heuristic: false
   use_model_specific_search_resolution: false
-  icp_type: 0
+  icp_type: 3
 
   footprint_tolerance: 0.25
 
@@ -42,7 +42,7 @@ perch_params:
 
   ## GPU stuff
   use_gpu: true
-  gpu_batch_size: 600
+  gpu_batch_size: 1100
   # gpu_batch_size: 2500
   gpu_stride: 24
   use_cylinder_observed: false

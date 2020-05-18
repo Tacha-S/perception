@@ -1623,47 +1623,52 @@ namespace cuda_renderer {
         printf("************Cloud contruction time : %f************\n", elapsed_seconds.count());
         
         // Copy observed stuff from CPU
-        thrust::device_vector<int> observed_cloud_label(result_observed_cloud_label, result_observed_cloud_label + observed_point_num);
         thrust::device_vector<Eigen::Vector3f> observed_cloud_eigen(observed_depth_eigen, observed_depth_eigen + observed_point_num);
         printf("observed_cloud_eigen() size : %d\n", observed_cloud_eigen.size());
 
-        // ///////////////////////////////////////////////////////////////
-        // // Testing ICP
-        end_3a = end_2;
-        printf("Sorting observed cloud based on label\n");
-        thrust::sort_by_key(observed_cloud_label.begin(), observed_cloud_label.end(), observed_cloud_eigen.begin());
-        // thrust::device_vector<int> observed_cloud_label_subtracted(observed_cloud_label.size());
-        // thrust::device_vector<int> device_pose_segmentation_label_subtracted(device_pose_segmentation_label.size());
-        // thrust::device_vector<int> rendered_cloud_label_subtracted(rendered_cloud_label.size());
-        // if (device_pose_segmentation_label.size() > 0)
-        // {
-        // printf("Subtracting 1 from segmentation labels for ICP\n");
-        // Make segmentation labes start from 0
-        // thrust::device_vector<int> minus_vec(observed_cloud_label.size(), 1);
-        // thrust::transform(
-        //     observed_cloud_label.begin(), observed_cloud_label.end(), 
-        //     minus_vec.begin(), observed_cloud_label_subtracted.begin(), 
-        //     thrust::minus<float>()
-        // );
-
-        // minus_vec.resize(device_pose_segmentation_label.size(), 1);
-        // thrust::transform(
-        //     device_pose_segmentation_label.begin(), device_pose_segmentation_label.end(), 
-        //     minus_vec.begin(), device_pose_segmentation_label_subtracted.begin(), 
-        //     thrust::minus<float>()
-        // );
-
-        // minus_vec.resize(rendered_cloud_label.size(), 1);
-        // thrust::transform(
-        //     rendered_cloud_label.begin(), rendered_cloud_label.end(), 
-        //     minus_vec.begin(), rendered_cloud_label_subtracted.begin(), 
-        //     thrust::minus<float>()
-        // );
+        thrust::device_vector<int> observed_cloud_label;
         thrust::device_vector<int> observed_label_indices;
-        int dummy_int;
-        // fast_gicp::extract_pose_indices(observed_cloud_label_subtracted, observed_point_num, num_images, observed_label_indices, dummy_int);    
-        fast_gicp::extract_pose_indices(observed_cloud_label, observed_point_num, num_images, observed_label_indices, dummy_int);    
-        // }
+
+        if (device_pose_segmentation_label.size() > 0)
+        {
+            observed_cloud_label.assign(result_observed_cloud_label, result_observed_cloud_label + observed_point_num);
+            // ///////////////////////////////////////////////////////////////
+            // // Testing ICP
+            end_3a = end_2;
+            printf("Sorting observed cloud based on label\n");
+            thrust::sort_by_key(observed_cloud_label.begin(), observed_cloud_label.end(), observed_cloud_eigen.begin());
+            // thrust::device_vector<int> observed_cloud_label_subtracted(observed_cloud_label.size());
+            // thrust::device_vector<int> device_pose_segmentation_label_subtracted(device_pose_segmentation_label.size());
+            // thrust::device_vector<int> rendered_cloud_label_subtracted(rendered_cloud_label.size());
+            // if (device_pose_segmentation_label.size() > 0)
+            // {
+            // printf("Subtracting 1 from segmentation labels for ICP\n");
+            // Make segmentation labes start from 0
+            // thrust::device_vector<int> minus_vec(observed_cloud_label.size(), 1);
+            // thrust::transform(
+            //     observed_cloud_label.begin(), observed_cloud_label.end(), 
+            //     minus_vec.begin(), observed_cloud_label_subtracted.begin(), 
+            //     thrust::minus<float>()
+            // );
+
+            // minus_vec.resize(device_pose_segmentation_label.size(), 1);
+            // thrust::transform(
+            //     device_pose_segmentation_label.begin(), device_pose_segmentation_label.end(), 
+            //     minus_vec.begin(), device_pose_segmentation_label_subtracted.begin(), 
+            //     thrust::minus<float>()
+            // );
+
+            // minus_vec.resize(rendered_cloud_label.size(), 1);
+            // thrust::transform(
+            //     rendered_cloud_label.begin(), rendered_cloud_label.end(), 
+            //     minus_vec.begin(), rendered_cloud_label_subtracted.begin(), 
+            //     thrust::minus<float>()
+            // );
+            int dummy_int;
+            // fast_gicp::extract_pose_indices(observed_cloud_label_subtracted, observed_point_num, num_images, observed_label_indices, dummy_int);    
+            fast_gicp::extract_pose_indices(observed_cloud_label, observed_point_num, num_images, observed_label_indices, dummy_int);    
+            // }
+        }
 
         if (do_icp)
         {

@@ -421,7 +421,8 @@ class FATImage:
         from PIL import Image
         depth_image = cv2.imread(depth_img_path, cv2.IMREAD_ANYDEPTH)
         K_inv = np.linalg.inv(self.camera_intrinsic_matrix)
-        points_3d = np.zeros((depth_image.shape[0]*depth_image.shape[1], 4), dtype=np.float32)
+        # points_3d = np.zeros((depth_image.shape[0]*depth_image.shape[1], 4), dtype=np.float32)
+        points_3d = []
         count = 0
         cloud = pcl.PointCloud_PointXYZRGB()
         depth_image_pil = np.asarray(Image.open(depth_img_path), dtype=np.float16)
@@ -437,11 +438,18 @@ class FATImage:
                 #                         [255 << 16 | 255 << 8 | 255]
 
                 point = np.array([x,y,depth_image[y,x]/self.depth_factor])
+                
                 w_point = self.get_world_point(point)
-                points_3d[count, :] = w_point.tolist() + \
-                                        [255 << 16 | 255 << 8 | 255]
+                # Table cant be above camera
+                if w_point[1] < 0.0:
+                    continue
+                points_3d.append(w_point.tolist() + \
+                                        [255 << 16 | 255 << 8 | 255])
+                # points_3d[count, :] = w_point.tolist() + \
+                #                         [255 << 16 | 255 << 8 | 255]
                 count += 1
 
+        points_3d = np.array(points_3d).astype(np.float32)
         cloud.from_array(points_3d)
         seg = cloud.make_segmenter()
         # Optional
@@ -466,6 +474,8 @@ class FATImage:
 
         # projection on x,y axis to get yaw
         yaw = np.arctan(model[1]/model[0])
+        # Add pi for jenga clutter cam 2 to rotate the table pose
+        # yaw = np.arctan(model[1]/model[0]) + np.pi
         # pitch = np.arcsin(model[2]/np.linalg.norm(model[:3]))
 
         # projection on z,y axis to get pitch
@@ -720,8 +730,8 @@ class FATImage:
 
                 rotation_angles = RT_transform.quat2euler(get_wxyz_quaternion(quat), 'rxyz')
                 if ros_publish:
-                    print("Location for {} : {}".format(class_name, location))
-                    print("Rotation Eulers for {} : {}".format(class_name, rotation_angles))
+                    # print("Location for {} : {}".format(class_name, location))
+                    # print("Rotation Eulers for {} : {}".format(class_name, rotation_angles))
                     # print("ROS Pose for {} : {}".format(class_name, object_pose_ros))
                     # print("Rotation Quaternion for {} : {}\n".format(class_name, quat))
                     try:
@@ -2570,8 +2580,11 @@ def run_roman_crate_gpu(dataset_cfg=None):
         dataset_type=dataset_cfg["type"]
     )
 
-    f_runtime = open('runtime.txt', "w", 1)
-    f_accuracy = open('accuracy.txt', "w", 1)
+    # f_runtime = open('runtime.txt', "w", 1)
+    # f_accuracy = open('accuracy.txt', "w", 1)
+    ts = calendar.timegm(time.gmtime())
+    f_accuracy = open('{}/accuracy_{}.txt'.format(fat_image.python_debug_dir, ts), "w", 1)
+    f_runtime = open('{}/runtime_{}.txt'.format(fat_image.python_debug_dir, ts), "w", 1)
     f_runtime.write("{} {} {} {} {}\n".format('name', 'expands', 'runtime', 'icp_runtime', 'peak_gpu_mem'))
 
     required_objects = ['crate_test']
@@ -2581,7 +2594,7 @@ def run_roman_crate_gpu(dataset_cfg=None):
     f_accuracy.write("\n")
 
 
-    for img_i in range(0, 25):
+    for img_i in range(0, 26):
     # for img_i in [16, 17, 19, 22]:
 
         # required_objects = ['coke']
@@ -2603,7 +2616,7 @@ def run_roman_crate_gpu(dataset_cfg=None):
         yaw_only_objects, max_min_dict, transformed_annotations, _ = \
             fat_image.visualize_pose_ros(
                 image_data, annotations, frame='table', camera_optical_frame=False,
-                input_camera_pose=camera_pose, ros_publish=False
+                input_camera_pose=camera_pose, ros_publish=True
             )
 
         max_min_dict['ymax'] = 0.85
@@ -3045,7 +3058,7 @@ def run_sameshape_gpu(dataset_cfg=None):
                 # use_external_render=0, required_object=['coke', 'sprite', 'pepsi'],
                 # use_external_render=0, required_object=['sprite', 'coke', 'pepsi'],
                 camera_optical_frame=False, use_external_pose_list=0, gt_annotations=transformed_annotations,
-                num_cores=0, input_camera_pose=camera_pose_table
+                num_cores=0, input_camera_pose=camera_pose_table, table_height=0.006
             )
         else:
             output_dir_name = os.path.join("final_comp", "color_lazy_histogram", fat_image.get_clean_name(image_data['file_name']))
@@ -3166,6 +3179,7 @@ def run_ycb_6d(dataset_cfg=None):
     image_directory = dataset_cfg['image_dir']
     # annotation_file = image_directory + 'instances_keyframe_pose.json'
     annotation_file = image_directory + 'instances_keyframe_bbox_pose_bkp.json'
+    # annotation_file = image_directory + 'instances_train_bbox_pose_bkp.json'
     model_dir = dataset_cfg['model_dir']
 
     fat_image = FATImage(
@@ -3200,7 +3214,7 @@ def run_ycb_6d(dataset_cfg=None):
     f_runtime.write("{} {} {} {} {}\n".format('name', 'expands', 'runtime', 'icp_runtime', 'peak_gpu_mem'))
 
     # filter_objects = ['004_sugar_box']
-    required_objects = ['003_cracker_box']
+    # required_objects = ['003_cracker_box']
     # required_objects = ['025_mug', '007_tuna_fish_can', '002_master_chef_can']
     # required_objects = fat_image.category_names
     # required_objects = ['002_master_chef_can', '025_mug', '007_tuna_fish_can']
@@ -3219,7 +3233,7 @@ def run_ycb_6d(dataset_cfg=None):
     # required_objects = fat_image.category_names
     required_objects = [
     #    "002_master_chef_can",
-    #    "003_cracker_box",
+       "003_cracker_box",
     #    "004_sugar_box",
     #    "005_tomato_soup_can",
     #    "006_mustard_bottle",
@@ -3227,14 +3241,14 @@ def run_ycb_6d(dataset_cfg=None):
     #    "008_pudding_box",
     #    "009_gelatin_box",
     #    "010_potted_meat_can",
-       "011_banana",
+    #    "011_banana",
     #    "019_pitcher_base",
     #    "021_bleach_cleanser",
     #    "024_bowl",
     #    "025_mug",
     #    "035_power_drill",
     #    "036_wood_block",
-       "037_scissors",
+    #    "037_scissors",
     #    "040_large_marker",
     #    "051_large_clamp",
     #    "052_extra_large_clamp",
@@ -3269,12 +3283,13 @@ def run_ycb_6d(dataset_cfg=None):
     # Trying 80 for sugar
     # do small clamp all upto 200 from 48 to 60
     IMG_LIST = np.loadtxt(os.path.join(image_directory, 'image_sets/keyframe.txt'), dtype=str).tolist()
+    # for scene_i in range(0, 92):
     for scene_i in range(48, 60):
     # for scene_i in [55, 54, 51, 57]:
         # for img_i in (range(1399, 1400)):
         # for img_i in (range(237, 2500)):
         # for img_i in (range(334, 2500)):
-        for img_i in (range(1, 1412)):
+        for img_i in (range(1, 200)):
         # for img_i in IMG_LIST:
         # for img_i in tuna_list:
         # for img_i in drill_list:
@@ -3283,7 +3298,7 @@ def run_ycb_6d(dataset_cfg=None):
             # if "0050" not in img_i:
             #     continue
             # Get Image
-            image_name = 'data/00{}/00{}-color.png'.format(str(scene_i), str(img_i).zfill(4))
+            image_name = 'data/{}/00{}-color.png'.format(str(scene_i).zfill(4), str(img_i).zfill(4))
             # image_name = '{}'.format(img_i)
             # if image_name in skip_list:
             #     continue
@@ -3518,8 +3533,8 @@ def run_on_jenga_image(dataset_cfg=None):
         sys.path.remove('/opt/ros/kinetic/lib/python2.7/dist-packages')
         import cv2
     image_directory = dataset_cfg['image_dir']
-    # annotation_file = image_directory + '/instances_jenga_clutter_pose.json'
-    annotation_file = image_directory + '/instances_jenga_tower_pose.json'
+    annotation_file = image_directory + '/instances_jenga_clutter_pose.json'
+    # annotation_file = image_directory + '/instances_jenga_tower_pose.json'
     model_dir = dataset_cfg['model_dir']
 
     f_runtime = open('runtime.txt', "w", 1)
@@ -3570,7 +3585,10 @@ def run_on_jenga_image(dataset_cfg=None):
         image_data, annotations = fat_image.get_random_image(
             name=image_name, required_objects=None
         )
-
+        if image_data is None or annotations is None:
+            continue
+        elif len(annotations) == 0:
+            continue
         # dope_annotations, runtime = fat_image.visualize_dope_output(image_data)
         # color_img_path = os.path.join(fat_image.coco_image_directory, image_data['file_name'])
         # depth_img_path = fat_image.get_depth_img_path(color_img_path)

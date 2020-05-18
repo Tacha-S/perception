@@ -27,7 +27,7 @@ endif()
 
 
 set(CMAKE_BUILD_TYPE Debug)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -fopenmp")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11  -fext-numeric-literals -fopenmp")
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # set(CMAKE_COLOR_MAKEFILE ON)
 # set(ROS_COMPILE_FLAGS "-W -Wno-reorder")
@@ -128,6 +128,21 @@ endif()
 include_directories(${MPI_INCLUDE})
 #include_directories(${Pangolin_INCLUDE_DIRS})
 
+find_package(Sophus)
+include_directories(${Sophus_INCLUDE_DIRS})
+
+include(FetchContent)
+
+FetchContent_Declare(json
+  GIT_REPOSITORY https://github.com/nlohmann/json
+  GIT_TAG v3.7.3)
+
+FetchContent_GetProperties(json)
+if(NOT json_POPULATED)
+  FetchContent_Populate(json)
+  add_subdirectory(${json_SOURCE_DIR} ${json_BINARY_DIR} EXCLUDE_FROM_ALL)
+endif()
+
 
 include_directories(${catkin_INCLUDE_DIRS})
 
@@ -187,6 +202,8 @@ target_link_libraries(${PROJECT_NAME} ${Boost_LIBRARIES} ${catkin_LIBRARIES} ${Z
   #${PCL_LIBRARIES} ${OpenCV_LIBRARIES} /usr/lib/libvtkCommon.so.5.10 /usr/lib/libvtkFiltering.so.5.10 /usr/lib/libvtkRendering.so.5.10 /usr/lib/libvtkIO.so.5.10
   # ${MPI_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBRARIES} ${FCL_LIBRARIES} libvtkCommon.so libvtkFiltering.so libvtkRendering.so libvtkIO.so
   #/usr/lib/libvtkGraphics.so.5.10
+  nlohmann_json::nlohmann_json
+  ${Sophus_LIBRARIES} 
   )
 
 #add_executable(real_test src/experiments/experiments.cpp)

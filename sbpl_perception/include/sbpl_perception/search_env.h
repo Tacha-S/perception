@@ -70,6 +70,8 @@
 // #include <cuda_icp_custom/kdtree.hpp>
 // #include <cuda_icp_custom/pointcloud.h>
 #include <numeric>
+#include <nlohmann/json.hpp>
+#include <sophus/so3.hpp>
 
 int *difffilter(const cv::Mat& input,const cv::Mat& input1, cv::Mat& output);
 namespace sbpl_perception {

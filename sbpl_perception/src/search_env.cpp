@@ -2002,6 +2002,14 @@ void EnvObjectRecognition::ComputeGreedyCostsInParallelGPU(const std::vector<int
     // std::vector<CostComputationOutput> output_gpu;
     vector<unsigned short> source_depth_image;
     source_depth_image.push_back(1);
+    
+    Eigen::Isometry3d cam_z_front, cam_to_body;
+    cam_to_body.matrix() << 0, 0, 1, 0,
+                    -1, 0, 0, 0,
+                    0, -1, 0, 0,
+                    0, 0, 0, 1;
+    cam_z_front = cam_to_world_ * cam_to_body;
+    // Eigen::Matrix4d cam_matrix = cam_z_front.matrix().inverse();
 
     // cout << "batch i " << batch_index << endl;
     for(int i = 0; i < num_poses; i++){
@@ -2010,7 +2018,19 @@ void EnvObjectRecognition::ComputeGreedyCostsInParallelGPU(const std::vector<int
       if (perch_params_.icp_type != 3) {
         object_state = modified_last_object_states[i];
       } else {
+        // Geting ICP adjusted pose directly from GPU
         Eigen::Matrix4f transformation_new = gpu_icp_adjusted_poses[i].to_eigen(100);
+
+        if (env_params_.use_external_pose_list != 1)
+        {
+          // Get the pose back into the original frame (table) for 3dof
+          int model_id = last_object_states[i].id();
+          Eigen::Matrix4d preprocess_transform = 
+            obj_models_[model_id].preprocessing_transform().matrix().cast<double>();
+          transformation_new = cam_z_front.matrix().cast<float>() * transformation_new;
+          transformation_new = transformation_new * preprocess_transform.inverse().cast<float>();
+        }
+
         Quaternionf quaternion(transformation_new.block<3,3>(0,0));
         ContPose pose_out = ContPose(
           transformation_new(0, 3), transformation_new(1, 3), transformation_new(2, 3), 
@@ -2630,6 +2650,8 @@ void EnvObjectRecognition::ComputeCostsInParallelGPU(std::vector<CostComputation
 }
 
 GraphState EnvObjectRecognition::ComputeGreedyRenderPoses() {
+  nlohmann::json cost_dump;
+  cost_dump["poses"] =  nlohmann::json::array();
 
   chrono::time_point<chrono::system_clock> start, end;
   start = chrono::system_clock::now();
@@ -2708,6 +2730,7 @@ GraphState EnvObjectRecognition::ComputeGreedyRenderPoses() {
   vector<int> lowest_preicp_cost_state_id_per_object(env_params_.num_models, -1);
   printf("State number,     label     preicp_target_cost    preicp_source_cost     target_cost    source_cost    last_level_cost    preicp_candidate_costs    candidate_costs\n");
   for (size_t ii = 0; ii < candidate_succ_ids.size(); ++ii) {
+      nlohmann::json pose_dump;
       const auto &output_unit = cost_computation_output[ii];
       const auto &adjusted_state = cost_computation_output[ii].adjusted_state;
       const auto &adjusted_object_state = adjusted_state.object_states().back();
@@ -2763,6 +2786,28 @@ GraphState EnvObjectRecognition::ComputeGreedyRenderPoses() {
               output_unit.cost);
 
       }
+      
+      ObjectState object_state = 
+        output_unit.adjusted_state.object_states()[output_unit.adjusted_state.object_states().size() - 1];
+      auto pose = object_state.cont_pose();
+      const auto &obj_model = obj_models_[object_state.id()];
+      Eigen::Matrix4f pose_transform = obj_model.GetRawModelToSceneTransform(pose).matrix();
+      pose_dump["id"] = ii;
+      pose_dump["target_cost"] = output_unit.state_properties.target_cost;
+      pose_dump["source_cost"] = output_unit.state_properties.source_cost;
+      pose_dump["total_cost"] = output_unit.cost;
+      vector<float> vec(pose_transform.data(), pose_transform.data() + pose_transform.rows() * pose_transform.cols());
+      vector<float> trans = {pose.x(), pose.y(), pose.z()};
+      vector<float> quaternion = {pose.qx(), pose.qy(), pose.qz(), pose.qw()};
+      Eigen::Vector3f lie_rotation = Sophus::SO3f(obj_model.GetRawModelToSceneTransform(pose).linear()).log();
+      vector<float> lie(lie_rotation.data(), lie_rotation.data() + 3);
+      
+      pose_dump["transform"] = vec;
+      pose_dump["translation"] = trans;
+      pose_dump["quaternion"] = quaternion;
+      pose_dump["lie_rotation"] = lie;
+      cost_dump["poses"].push_back(pose_dump);
+
   }
   GraphState greedy_state;
   for (int model_id = 0; model_id < env_params_.num_models; model_id++)
@@ -2788,6 +2833,10 @@ GraphState EnvObjectRecognition::ComputeGreedyRenderPoses() {
   string cname = debug_dir_ + "color_greedy_state.png";
   // PrintState(greedy_state, fname, cname);
   PrintStateGPU(greedy_state);
+
+  string jname = debug_dir_ + "cost_dump.json";
+  std::ofstream jo(jname);
+  jo << std::setw(4) << cost_dump << std::endl;
   return greedy_state;
 }
 

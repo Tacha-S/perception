@@ -166,13 +166,13 @@ if False:
     ]
     OUTFILE_NAME = 'instances_conveyor_pose'
 
-if False:
+if True:
     ROOT_DIR = "/media/aditya/A69AFABA9AFA85D9/Datasets/Jenga_v2/"
     DATASET_TYPE = "jenga"
     SELECTED_OBJECTS = []
     OUTFILE_NAME = 'instances_jenga_clutter_pose'
 
-if True:
+if False:
     ROOT_DIR = "/media/aditya/A69AFABA9AFA85D9/Datasets/Jenga_tower/"
     DATASET_TYPE = "jenga_tower"
     SELECTED_OBJECTS = []
