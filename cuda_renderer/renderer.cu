@@ -1636,6 +1636,7 @@ namespace cuda_renderer {
             // // Testing ICP
             end_3a = end_2;
             printf("Sorting observed cloud based on label\n");
+            // Only needed in 6-Dof when labels are present
             thrust::sort_by_key(observed_cloud_label.begin(), observed_cloud_label.end(), observed_cloud_eigen.begin());
             // thrust::device_vector<int> observed_cloud_label_subtracted(observed_cloud_label.size());
             // thrust::device_vector<int> device_pose_segmentation_label_subtracted(device_pose_segmentation_label.size());

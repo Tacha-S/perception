@@ -871,7 +871,7 @@ class FATImage:
 
         return [cmin, rmin, cmax, rmax]
 
-    def render_pose(self, class_name, render_machine, rotation_angles, location):
+    def render_pose(self, class_name, rotation_angles, location):
         # Takes rotation and location in camera frame for object and renders and image for it
         # Expects location in cm
 
@@ -882,6 +882,13 @@ class FATImage:
         # object_world_transform[:,3] = location + [1]
 
         # total_transform = np.matmul(object_world_transform, fixed_transform)
+        if not hasattr(self, "render_machines"):
+            self.render_machines = {}
+
+        if class_name not in self.render_machines:
+            self.render_machines[class_name] = self.get_renderer(class_name)
+
+        render_machine = self.render_machines[class_name]
         total_transform = self.get_object_pose_with_fixed_transform(class_name, location, rotation_angles, 'rot')
         pose_rendered_q = RT_transform.mat2quat(total_transform[:3,:3]).tolist() + total_transform[:3,3].flatten().tolist()
 
@@ -1553,8 +1560,8 @@ class FATImage:
             max_depth = np.max(object_depth_mask[object_depth_mask > 0])/self.depth_factor
             print("Min depth :{} , Max depth : {} from mask".format(min_depth, max_depth))
 
-            if print_poses:
-                render_machine = self.render_machines[label]
+            # if print_poses:
+            #     render_machine = self.render_machines[label]
 
             cnt = 0
             object_rotation_list = []
@@ -1573,8 +1580,8 @@ class FATImage:
                 object_rotation_list.append(quaternion)
                 if print_poses:
                     rgb_gl, depth_gl = self.render_pose(
-                                        label, render_machine, xyz_rotation_angles, [0, 0, 1*self.distance_scale]
-                                    )
+                                            label, xyz_rotation_angles, [0, 0, 1*self.distance_scale]
+                                        )
                     render_bbox = self.get_bbox(rgb_gl)
                     render_centroid = [(render_bbox[0] + render_bbox[2])/2, (render_bbox[1] + render_bbox[3])/2]
                     translation = centroid - render_centroid
@@ -3178,8 +3185,8 @@ def run_ycb_6d(dataset_cfg=None):
     
     image_directory = dataset_cfg['image_dir']
     # annotation_file = image_directory + 'instances_keyframe_pose.json'
-    annotation_file = image_directory + 'instances_keyframe_bbox_pose_bkp.json'
-    # annotation_file = image_directory + 'instances_train_bbox_pose_bkp.json'
+    # annotation_file = image_directory + 'instances_keyframe_bbox_pose_bkp.json'
+    annotation_file = image_directory + 'instances_train_bbox_pose_bkp.json'
     model_dir = dataset_cfg['model_dir']
 
     fat_image = FATImage(
@@ -3233,8 +3240,8 @@ def run_ycb_6d(dataset_cfg=None):
     # required_objects = fat_image.category_names
     required_objects = [
     #    "002_master_chef_can",
-       "003_cracker_box",
-    #    "004_sugar_box",
+    #    "003_cracker_box",
+       "004_sugar_box",
     #    "005_tomato_soup_can",
     #    "006_mustard_bottle",
     #    "007_tuna_fish_can",
@@ -3283,13 +3290,13 @@ def run_ycb_6d(dataset_cfg=None):
     # Trying 80 for sugar
     # do small clamp all upto 200 from 48 to 60
     IMG_LIST = np.loadtxt(os.path.join(image_directory, 'image_sets/keyframe.txt'), dtype=str).tolist()
-    # for scene_i in range(0, 92):
-    for scene_i in range(48, 60):
+    for scene_i in range(0, 92):
+    # for scene_i in range(54, 55):
     # for scene_i in [55, 54, 51, 57]:
         # for img_i in (range(1399, 1400)):
         # for img_i in (range(237, 2500)):
         # for img_i in (range(334, 2500)):
-        for img_i in (range(1, 200)):
+        for img_i in (range(1, 500)):
         # for img_i in IMG_LIST:
         # for img_i in tuna_list:
         # for img_i in drill_list:
@@ -3915,11 +3922,11 @@ def run_on_conveyor(dataset_cfg=None):
     if dataset_cfg["device"] == "dope":            
         fat_image.init_dope_node()
 
-    for scene_name in ["mustard_1", "mustard_2", "mustard_3", "drill_1", "drill_2", "drill_3", "sugar_3", "sugar_1", "sugar_2"]:
+    # for scene_name in ["mustard_1", "mustard_2", "mustard_3", "drill_1", "drill_2", "drill_3", "sugar_3", "sugar_1", "sugar_2"]:
     # for scene_name in ["soup_1"]:
-    # for scene_name in ["drill_3", "drill_1", "drill_2"]:
+    for scene_name in ["drill_3", "drill_1", "drill_2"]:
     # for scene_name in ["sugar_3", "sugar_1", "sugar_2"]:
-        for img_i in range(100, 400):
+        for img_i in range(0, 400):
             if "mustard" in scene_name:
                 required_objects = ['006_mustard_bottle']
             elif "drill" in scene_name:
@@ -4026,6 +4033,7 @@ if __name__ == '__main__':
     ROS_PYTHON3_PKG_PATH = config['python3_paths'][0]
 
     print("Dataset name : {}".format(config['dataset']['name']))
+    print("Mode : {}".format(args.mode))
     if config['dataset']['name'] == "ycb":
         run_ycb_6d(dataset_cfg=config['dataset'])
     elif config['dataset']['name'] == "sameshape":

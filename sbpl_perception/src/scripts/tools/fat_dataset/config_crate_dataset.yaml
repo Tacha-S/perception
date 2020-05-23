@@ -27,6 +27,18 @@ analysis:
           - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/3dof_exp/crate/accuracy_gpu_full_psc_24_minn_65.txt'
         runtime :
           - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/3dof_exp/crate/runtime_gpu_full_psc_24_minn_65.txt'
+    # gpu:
+    #   result_files:
+    #     accuracy :
+    #       - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/3dof_exp/crate/gicp_cuda/accuracy_pcl_icp.txt'
+    #     runtime :
+    #       - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/3dof_exp/crate/gicp_cuda/runtime_pcl_icp_runtime.txt'
+    gpu_gicp:
+      result_files:
+        accuracy :
+          - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/3dof_exp/crate/gicp_cuda/accuracy_gicp_integrated.txt'
+        runtime :
+          - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/3dof_exp/crate/gicp_cuda/runtime_gicp_integrated.txt'
     cpu:
       result_files:
         accuracy :

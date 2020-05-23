@@ -166,7 +166,7 @@ if False:
     ]
     OUTFILE_NAME = 'instances_conveyor_pose'
 
-if True:
+if False:
     ROOT_DIR = "/media/aditya/A69AFABA9AFA85D9/Datasets/Jenga_v2/"
     DATASET_TYPE = "jenga"
     SELECTED_OBJECTS = []
@@ -177,6 +177,31 @@ if False:
     DATASET_TYPE = "jenga_tower"
     SELECTED_OBJECTS = []
     OUTFILE_NAME = 'instances_jenga_tower_pose'
+
+
+if True:
+    DATASET_TYPE = "ycb_sampler"
+    ROOT_DIR = '/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset'
+    SELECTED_OBJECTS = [
+        "004_sugar_box"
+    ]
+    POSE_SAMPLER_ROOT = "/media/aditya/A69AFABA9AFA85D9/Cruzr/code/DOPE/catkin_ws/src/perception/docker/sampler_training_data/"
+    # SCENES = []
+    # IMAGE_DIR_LIST = ['data']
+    # IMG_LIST = np.loadtxt('/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset/image_sets/keyframe.txt', dtype=str).tolist()
+    IMG_LIST = np.loadtxt('/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset/image_sets/train.txt', dtype=str).tolist()
+    # IMG_LIST = np.loadtxt('/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset/image_sets/val.txt', dtype=str).tolist()
+    # IMG_LIST = []
+    # for img_dir in keyframes:
+    #     path = img_dir.split('/')
+    #     # SCENES.append(path[0])
+    #     SCENES.append(path[0])
+    #     IMG_LIST.append(path[1])
+    object_settings_file = Path(os.path.join(ROOT_DIR, "image_sets/classes.txt"))
+    # OUTFILE_NAME = 'instances_keyframe_bbox_pose'
+    OUTFILE_NAME = 'instances_train_bbox_pose_sampler'
+    # OUTFILE_NAME = 'instances_val_bbox_pose'
+    IMG_SUBFOLDER = "data"
 
 ng = 642
 print ( '' )
@@ -1250,6 +1275,182 @@ def load_jenga_dataset():
     with open('{}/{}.json'.format(ROOT_DIR, OUTFILE_NAME), 'w') as output_json_file:
         json.dump(coco_output, output_json_file)
 
+
+def get_clean_name(name):
+    return name.replace('.jpg', '').replace('.png', '').replace('/', '_').replace('.', '_')
+
+def load_ycb_bbox_sampler_dataset():
+
+    ng = 80
+    print ( '' )
+    print ( '  Number of points NG = %d' % ( ng ) )
+
+    viewpoints_xyz = sphere_fibonacci_grid_points(ng)
+    inplane_rot_angles = np.linspace(0, 2 * math.pi, 5)
+
+    CATEGORIES, FIXED_TRANSFORMS, CAMERA_INTRINSICS = pre_load_ycb_dataset()
+
+    VIEWPOINTS = [viewpoints_xyz[i].tolist() for i in range(0, len(viewpoints_xyz))]
+
+    INPLANE_ROTATIONS = [inplane_rot_angles[i] for i in range(0, len(inplane_rot_angles))]
+
+    coco_output = {
+        "info": INFO,
+        "licenses": LICENSES,
+        "categories": CATEGORIES,
+        "viewpoints" : VIEWPOINTS,
+        "inplane_rotations" : INPLANE_ROTATIONS,
+        "camera_intrinsic_settings": CAMERA_INTRINSICS,
+        "fixed_transforms": FIXED_TRANSFORMS,
+        "images": [],
+        "annotations": []
+    }
+
+    image_global_id = 1
+    segmentation_global_id = 1
+
+    # filter for jpeg images
+    for ii in trange(len(IMG_LIST)):
+        IMG = IMG_LIST[ii]
+        image_filename = os.path.join(IMG_SUBFOLDER, IMG + '-color.png')
+        
+        # Need pose samples        
+        pose_samples_filename = os.path.join(POSE_SAMPLER_ROOT, get_clean_name(image_filename), "cost_dump.json")
+        if os.path.exists(pose_samples_filename) == False:
+            continue
+        # print(pose_samples_filename)
+        with open(pose_samples_filename) as f:
+            pose_samples =  json.load(f)
+
+        
+        img_size = (640, 480)
+        image_info = pycococreatortools.create_image_info(
+            image_global_id, image_filename, img_size
+        )
+
+        label_filename = os.path.join(ROOT_DIR, IMG_SUBFOLDER, IMG + '-bbox-meta.mat')
+        try:
+            label_data = scipy.io.loadmat(label_filename)['object']
+        except:
+            print("Couldnt read MAT file")
+            continue
+
+        boxes = []
+        labels = []
+        segmentation_ids = []
+
+
+        segmentation_image_file =  os.path.join(ROOT_DIR, IMG_SUBFOLDER, IMG + '-label.png')
+        segmentation_image = skimage.io.imread(segmentation_image_file)
+
+        class_indexes = label_data['cls_indexes'][0][0].flatten().tolist()
+        camera_pose = {}
+        if 'rotation_translation_matrix' in label_data:
+            # Not present in data_syn
+            camera_pose_matrix = label_data['rotation_translation_matrix']
+            camera_pose_matrix = np.vstack((camera_pose_matrix, np.array([0,0,0,1])))
+            camera_pose['location_worldframe'] = RT_transform.translation_from_matrix(camera_pose_matrix).tolist()
+            camera_pose['quaternion_xyzw_worldframe'] = get_xyzw_quaternion(RT_transform.quaternion_from_matrix(camera_pose_matrix).tolist())
+        camera_intrinsics = label_data['intrinsic_matrix'][0][0].tolist()
+        # print(label_data['poses'][0][0].shape)
+
+        ## Iterate over every object in annotation
+        for i in range(0, len(class_indexes)):
+            ## Label starts from 1 in the annotation, need from 0 for indexing but 1 for segmentation image label
+            class_label = int(class_indexes[i]) - 1
+            class_name = CATEGORIES[class_label]['name']
+            class_poses = label_data['poses'][0][0]
+            bboxes = label_data['bboxes'][0][0]
+            pose_matrix = class_poses[:,:,i]
+            pose_matrix = np.vstack((pose_matrix, np.array([0,0,0,1])))
+
+            if len(SELECTED_OBJECTS) > 0:
+                if class_name not in SELECTED_OBJECTS:
+                    continue
+
+            # print(class_name)
+            # print(pose_matrix)
+            # [xmin, ymin, xmax, ymax]
+            class_bbox_coord = bboxes[:,:, i].flatten()
+            # [xmin, ymin, width, height]
+            class_bbbox = np.array([class_bbox_coord[0],
+                           class_bbox_coord[1],
+                           class_bbox_coord[2] - class_bbox_coord[0],
+                           class_bbox_coord[3] - class_bbox_coord[1]])
+            # print(class_bbbox)
+            quat = get_xyzw_quaternion(RT_transform.mat2quat(pose_matrix[:3,:3]).tolist())
+            loc = RT_transform.translation_from_matrix(pose_matrix)
+            
+
+            # Create binary masks from segmentation image for every object
+            binary_mask = np.copy(segmentation_image)
+            binary_mask[binary_mask != class_label + 1] = 0
+            binary_mask[binary_mask == class_label + 1] = 1
+            # skimage.io.imshow(binary_mask, cmap=plt.cm.gray)
+            # plt.show()
+
+            category_info = {'id': class_label, 'is_crowd': 0}
+
+            annotation_info = pycococreatortools.create_annotation_info(
+                segmentation_global_id, image_global_id, category_info, binary_mask,
+                img_size, tolerance=2, bounding_box=class_bbbox)
+            
+            pose_scores = np.zeros((viewpoints_xyz.shape[0], inplane_rot_angles.shape[0]))
+            # print(pose_scores.shape)
+            for p_i in pose_samples["poses"]:
+                pose_quat = p_i['quaternion']
+                angles = RT_transform.quat2euler(get_wxyz_quaternion(pose_quat))
+                # angles = RT_transform.quat2euler(get_wxyz_quaternion(quat), 'syxz')
+                # angles = apply_angle_symmetry(angles, SYMMETRY_INFO[class_name])
+                # This function gives angles with this convention of euler - https://en.wikipedia.org/wiki/Euler_angles#Signs_and_ranges (geometric definition)
+
+                # if np.isclose(angles[1], 0):
+                #     print("Test")
+                theta, phi = euler2sphere(angles[1], angles[0])
+                actual_angles = np.array([1, theta, phi])
+                xyz_coord = sphere2cart(1, theta, phi)
+                
+                viewpoint_id = find_viewpoint_id(viewpoints_xyz, xyz_coord)
+                r_xyz = get_viewpoint_from_id(viewpoints_xyz, viewpoint_id)
+                recovered_angles = np.array(cart2sphere(r_xyz[0], r_xyz[1], r_xyz[2]))
+                inplane_rotation_id = find_inplane_rotation_id(inplane_rot_angles, angles[2])
+                # print(viewpoint_id, inplane_rotation_id)
+                pose_cost = (200.0 - p_i["total_cost"])/200.0
+                pose_scores[viewpoint_id, inplane_rotation_id] = max(pose_scores[viewpoint_id, inplane_rotation_id], pose_cost)
+                # if np.all(np.isclose(actual_angles, recovered_angles, atol=0.4)) == False:
+                #     print("Mismatch in : {}".format(label_filename))
+                #     print("sphere2cart angles : {}".format(actual_angles))
+                #     print("cart2sphere angles : {}".format(recovered_angles))
+            pose_scores = pose_scores/np.max(pose_scores)
+            pose_scores = pose_scores.flatten()
+            # print(len(pose_samples["poses"]))
+            # print(pose_scores)
+
+            if annotation_info is not None:
+                # annotation_info['viewpoint_id'] = int(viewpoint_id)
+                # annotation_info['inplane_rotation_id'] = int(inplane_rotation_id)
+                annotation_info['camera_pose'] = camera_pose
+                annotation_info['camera_intrinsics'] = camera_intrinsics
+                annotation_info['location'] = loc.tolist()
+                annotation_info['quaternion_xyzw'] = quat
+                annotation_info['pose_scores'] = pose_scores.tolist()
+                # annotation_info['depth_image_filename'] = depth_image_filename
+                # print(annotation_info)
+                coco_output["annotations"].append(annotation_info)
+                coco_output["images"].append(image_info)
+            else:
+
+                tqdm.write("File {} doesn't have boxes or labels in json file for {}".format(image_filename, class_name))
+            segmentation_global_id = segmentation_global_id + 1
+        # else:
+        #     tqdm.write("File %s doesn't have a label file" % image_filename)
+                
+
+        image_global_id = image_global_id + 1
+
+    with open('{}/{}.json'.format(ROOT_DIR, OUTFILE_NAME), 'w') as output_json_file:
+        json.dump(coco_output, output_json_file)
+
 if __name__ == "__main__":
     if DATASET_TYPE == "fat":
         load_fat_dataset()
@@ -1260,3 +1461,5 @@ if __name__ == "__main__":
         load_conveyor_dataset()
     elif DATASET_TYPE == "jenga" or DATASET_TYPE == "jenga_tower":
         load_jenga_dataset()
+    elif DATASET_TYPE == "ycb_sampler":
+        load_ycb_bbox_sampler_dataset()
