@@ -2,7 +2,7 @@
 
 Overview
 --------
-This library provides implementations for single and multi-object pose estimation from RGB-D sensor (MS Kinect, ASUS Xtion etc.) data. It renders 1000s of poses in parallel on a GPU in order to find the pose that best explains the observed scene using CUDA. Each pose is refined in parallel through CUDA GICP. PERCH 2.0 also works in conjunction with an instance segmentation CNN for 6-Dof pose estimation,
+This library provides implementations for single and multi-object pose estimation from RGB-D sensor (MS Kinect, ASUS Xtion etc.) data. It renders 1000s of poses in parallel on a GPU in order to find the pose that best explains the observed scene using CUDA. Each pose is refined in parallel through CUDA GICP. PERCH 2.0 also works in conjunction with an instance segmentation CNN for 6-Dof pose estimation.
 
 Features
 ------------
