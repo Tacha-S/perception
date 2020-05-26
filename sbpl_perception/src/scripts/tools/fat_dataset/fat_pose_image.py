@@ -3540,7 +3540,8 @@ def run_on_jenga_image(dataset_cfg=None):
         sys.path.remove('/opt/ros/kinetic/lib/python2.7/dist-packages')
         import cv2
     image_directory = dataset_cfg['image_dir']
-    annotation_file = image_directory + '/instances_jenga_clutter_pose.json'
+    annotation_file = dataset_cfg['image_dir']
+    annotation_file = dataset_cfg['coco_annotation_file']
     # annotation_file = image_directory + '/instances_jenga_tower_pose.json'
     model_dir = dataset_cfg['model_dir']
 
@@ -3588,7 +3589,7 @@ def run_on_jenga_image(dataset_cfg=None):
     )
 
     for img_i in np.arange(1, 26, 1):
-        image_name = "clutter/{}/{}_color_crop.jpg".format(img_i, str(0).zfill(4))
+        image_name = "clutter/{}/{}_color_crop.jpg".format(img_i, str(2).zfill(4))
         image_data, annotations = fat_image.get_random_image(
             name=image_name, required_objects=None
         )

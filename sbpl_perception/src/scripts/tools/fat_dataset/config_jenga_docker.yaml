@@ -3,6 +3,7 @@ dataset :
     type : "jenga"
     model_dir : "/data/Jenga/models"
     image_dir : "/data/Jenga"
+    coco_annotation_file : "/data/Jenga/instances_jenga_clutter_pose.json"
     maskrcnn_config : "/maskrcnn-benchmark/configs/ycb_mask/e2e_mask_rcnn_R_101_FPN_1x_test_cocostyle.yaml"
     maskrcnn_model_path : "/data/models/model_0037500.pth"
     perch_debug_dir : "/data/perch_output"

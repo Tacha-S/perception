@@ -170,26 +170,39 @@ if False:
     ROOT_DIR = "/media/aditya/A69AFABA9AFA85D9/Datasets/Jenga_v2/"
     DATASET_TYPE = "jenga"
     SELECTED_OBJECTS = []
+    MASK_DIR = "Masks"
     OUTFILE_NAME = 'instances_jenga_clutter_pose'
-
-if False:
-    ROOT_DIR = "/media/aditya/A69AFABA9AFA85D9/Datasets/Jenga_tower/"
-    DATASET_TYPE = "jenga_tower"
-    SELECTED_OBJECTS = []
-    OUTFILE_NAME = 'instances_jenga_tower_pose'
+    CROP_X = 500 #width
+    CROP_Y = 350 #height 
 
 
 if True:
+    ROOT_DIR = "/media/aditya/A69AFABA9AFA85D9/Datasets/Jenga_tower_v2/"
+    DATASET_TYPE = "jenga_tower"
+    SELECTED_OBJECTS = []
+    MASK_DIR = "NewMasks"
+    # OUTFILE_NAME = 'instances_jenga_tower_pose_cam_0'
+    # CROP_X = 500 #width
+    # CROP_Y = 300 #height 
+    # OUTFILE_NAME = 'instances_jenga_tower_pose_cam_1'
+    # CROP_X = 500 #width
+    # CROP_Y = 350 #height 
+    OUTFILE_NAME = 'instances_jenga_tower_pose_cam_2'
+    CROP_X = 500 #width
+    CROP_Y = 300 #height 
+
+if False:
     DATASET_TYPE = "ycb_sampler"
     ROOT_DIR = '/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset'
     SELECTED_OBJECTS = [
         "004_sugar_box"
     ]
-    POSE_SAMPLER_ROOT = "/media/aditya/A69AFABA9AFA85D9/Cruzr/code/DOPE/catkin_ws/src/perception/docker/sampler_training_data/"
+    # POSE_SAMPLER_ROOT = "/media/aditya/A69AFABA9AFA85D9/Cruzr/code/DOPE/catkin_ws/src/perception/docker/sampler_training_data/sugar/train"
+    POSE_SAMPLER_ROOT = "/media/aditya/A69AFABA9AFA85D9/Cruzr/code/DOPE/catkin_ws/src/perception/docker/sampler_training_data/sugar/test"
     # SCENES = []
     # IMAGE_DIR_LIST = ['data']
-    # IMG_LIST = np.loadtxt('/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset/image_sets/keyframe.txt', dtype=str).tolist()
-    IMG_LIST = np.loadtxt('/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset/image_sets/train.txt', dtype=str).tolist()
+    IMG_LIST = np.loadtxt('/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset/image_sets/keyframe.txt', dtype=str).tolist()
+    # IMG_LIST = np.loadtxt('/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset/image_sets/train.txt', dtype=str).tolist()
     # IMG_LIST = np.loadtxt('/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset/image_sets/val.txt', dtype=str).tolist()
     # IMG_LIST = []
     # for img_dir in keyframes:
@@ -198,9 +211,8 @@ if True:
     #     SCENES.append(path[0])
     #     IMG_LIST.append(path[1])
     object_settings_file = Path(os.path.join(ROOT_DIR, "image_sets/classes.txt"))
-    # OUTFILE_NAME = 'instances_keyframe_bbox_pose'
-    OUTFILE_NAME = 'instances_train_bbox_pose_sampler'
-    # OUTFILE_NAME = 'instances_val_bbox_pose'
+    OUTFILE_NAME = 'instances_keyframe_bbox_pose_sampler'
+    # OUTFILE_NAME = 'instances_train_bbox_pose_sampler'
     IMG_SUBFOLDER = "data"
 
 ng = 642
@@ -1167,12 +1179,12 @@ def load_jenga_dataset():
         camera_config = yaml.load(f)
     camera_intrinsics = np.array(camera_config['cameraMatrix']['data']).reshape(3,3)
     print(camera_intrinsics)
-    crop_x = 500 #width
-    crop_y = 350 #height
-    camera_intrinsics[0,2] -= crop_x
-    camera_intrinsics[1,2] -= crop_y
+    # crop_x = 500 #width
+    # crop_y = 350 #height
+    camera_intrinsics[0,2] -= CROP_X
+    camera_intrinsics[1,2] -= CROP_Y
     crop_height = 360
-    crop_width = 640
+    crop_width = 640 #needs to be same aspect ratio as input image
 
     coco_output = {
         "info": INFO,
@@ -1200,12 +1212,12 @@ def load_jenga_dataset():
             depth_image_cropped_filename = os.path.join("clutter", scene_dir, str(ii).zfill(4) + '_depth_crop.png')
             
             image_cropped = Image.open(os.path.join(ROOT_DIR, image_filename))
-            image_cropped = image_cropped.crop((crop_x, crop_y, crop_x + crop_width, crop_y + crop_height))
+            image_cropped = image_cropped.crop((CROP_X, CROP_Y, CROP_X + crop_width, CROP_Y + crop_height))
             image_cropped.save(os.path.join(ROOT_DIR, image_cropped_filename))
 
             if os.path.exists(os.path.join(ROOT_DIR, depth_image_filename)):
                 image_cropped = Image.open(os.path.join(ROOT_DIR, depth_image_filename))
-                image_cropped = image_cropped.crop((crop_x, crop_y, crop_x + crop_width, crop_y + crop_height))
+                image_cropped = image_cropped.crop((CROP_X, CROP_Y, CROP_X + crop_width, CROP_Y + crop_height))
                 image_cropped.save(os.path.join(ROOT_DIR, depth_image_cropped_filename))
 
             img_size = (crop_width, crop_height)
@@ -1218,11 +1230,13 @@ def load_jenga_dataset():
             for seg_i in range(len(CLASSES)):
                 class_name = "color_block_{}".format(seg_i)
                 segmentation_image_file =  os.path.join(
-                    image_dir, "Masks", str(ii).zfill(4) + '_color_class_{}.png'.format(seg_i))
+                    image_dir, MASK_DIR, str(ii).zfill(4) + '_color_class_{}.png'.format(seg_i))
                 if not os.path.exists(segmentation_image_file):
+                    # print("no segmentation file")
                     continue
+                print("Reading segmenation file : {}".format(segmentation_image_file))
                 segmentation_cropped_image_file =  os.path.join(
-                    image_dir, "Masks", str(ii).zfill(4) + '_color_class_crop{}.png'.format(seg_i))
+                    image_dir, MASK_DIR, str(ii).zfill(4) + '_color_class_crop{}.png'.format(seg_i))
 
                 # plt.figure()
                 # full_image_file =  os.path.join(ROOT_DIR, image_filename)
@@ -1236,7 +1250,7 @@ def load_jenga_dataset():
                 # binary_mask = skimage.io.imread(segmentation_image_file)
 
                 image_cropped = Image.open(os.path.join(ROOT_DIR, "clutter", segmentation_image_file))
-                image_cropped = image_cropped.crop((crop_x, crop_y, crop_x + crop_width, crop_y + crop_height))
+                image_cropped = image_cropped.crop((CROP_X, CROP_Y, CROP_X + crop_width, CROP_Y + crop_height))
                 image_cropped.save(os.path.join(ROOT_DIR, "clutter", segmentation_cropped_image_file))
 
                 binary_mask = skimage.io.imread(segmentation_cropped_image_file)
