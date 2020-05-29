@@ -3184,9 +3184,9 @@ def run_ycb_6d(dataset_cfg=None):
     from bad_images import cracker_list, wood_list, drill_list
     
     image_directory = dataset_cfg['image_dir']
-    # annotation_file = image_directory + 'instances_keyframe_pose.json'
     # annotation_file = image_directory + 'instances_keyframe_bbox_pose_bkp.json'
-    annotation_file = image_directory + 'instances_train_bbox_pose_bkp.json'
+    # annotation_file = image_directory + 'instances_train_bbox_pose_bkp.json'
+    annotation_file = dataset_cfg['coco_annotation_file']
     model_dir = dataset_cfg['model_dir']
 
     fat_image = FATImage(

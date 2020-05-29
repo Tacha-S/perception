@@ -50,7 +50,7 @@ ENV PATH=$CONDA_PREFIX/bin:$PATH
 ENV CONDA_AUTO_UPDATE_CONDA=false
 
 RUN conda install -y ipython
-RUN pip install ninja yacs cython matplotlib opencv-python tqdm tensorboardX pandas
+RUN pip install ninja yacs cython matplotlib opencv-python tqdm tensorboardX
 
 
 # Install PyTorch 1.0 Nightly
@@ -202,11 +202,21 @@ RUN git clone https://github.com/eigenteam/eigen-git-mirror.git \
 
 RUN wget -qO- "https://cmake.org/files/v3.17/cmake-3.17.0-Linux-x86_64.tar.gz" | tar --strip-components=1 -xz -C /usr/local
 
+RUN pip install pandas glfw
+
+# From https://stackoverflow.com/questions/54483960/pyopengl-headless-rendering for PyOpenGL
+RUN mkdir /glfw \
+    && git clone https://github.com/glfw/glfw.git /glfw \
+    && cd /glfw \
+    && cmake -DBUILD_SHARED_LIBS=ON . \
+    && make
+ENV PYGLFW_LIBRARY=/glfw/src/libglfw.so
+
 ### Debug Version below, code not cloned inside docker ###
 RUN cd /ros_python3_ws/src \
     && git clone https://github.com/SBPL-Cruz/improved-mha-planner -b renamed \
     && git clone https://github.com/SBPL-Cruz/sbpl_utils.git -b renamed 
 
-RUN /bin/bash -c 'Xvfb :5 -screen 0 800x600x24 & export DISPLAY=:5; \
-                        . /opt/ros/kinetic/setup.bash; \
-                        cd /ros_python3_ws/;'
+# RUN /bin/bash -c 'Xvfb :5 -screen 0 800x600x24 & export DISPLAY=:5; \
+#                         . /opt/ros/kinetic/setup.bash; \
+#                         cd /ros_python3_ws/;'

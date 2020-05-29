@@ -32,6 +32,7 @@ from lib.utils.mkdir_if_missing import mkdir_if_missing
 import scipy.io
 import sys
 import yaml
+import skimage.io
 
 if False:
     DATASET_TYPE = "fat"
@@ -176,7 +177,7 @@ if False:
     CROP_Y = 350 #height 
 
 
-if True:
+if False:
     ROOT_DIR = "/media/aditya/A69AFABA9AFA85D9/Datasets/Jenga_tower_v2/"
     DATASET_TYPE = "jenga_tower"
     SELECTED_OBJECTS = []
@@ -191,28 +192,26 @@ if True:
     CROP_X = 500 #width
     CROP_Y = 300 #height 
 
-if False:
+if True:
     DATASET_TYPE = "ycb_sampler"
-    ROOT_DIR = '/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset'
+    # ROOT_DIR = '/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset'
+    ROOT_DIR = '/data/YCB_Video_Dataset'
     SELECTED_OBJECTS = [
         "004_sugar_box"
     ]
-    # POSE_SAMPLER_ROOT = "/media/aditya/A69AFABA9AFA85D9/Cruzr/code/DOPE/catkin_ws/src/perception/docker/sampler_training_data/sugar/train"
-    POSE_SAMPLER_ROOT = "/media/aditya/A69AFABA9AFA85D9/Cruzr/code/DOPE/catkin_ws/src/perception/docker/sampler_training_data/sugar/test"
-    # SCENES = []
-    # IMAGE_DIR_LIST = ['data']
-    IMG_LIST = np.loadtxt('/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset/image_sets/keyframe.txt', dtype=str).tolist()
-    # IMG_LIST = np.loadtxt('/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset/image_sets/train.txt', dtype=str).tolist()
-    # IMG_LIST = np.loadtxt('/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset/image_sets/val.txt', dtype=str).tolist()
-    # IMG_LIST = []
-    # for img_dir in keyframes:
-    #     path = img_dir.split('/')
-    #     # SCENES.append(path[0])
-    #     SCENES.append(path[0])
-    #     IMG_LIST.append(path[1])
-    object_settings_file = Path(os.path.join(ROOT_DIR, "image_sets/classes.txt"))
+    # POSE_SAMPLER_ROOT = "/media/aditya/A69AFABA9AFA85D9/Cruzr/code/DOPE/catkin_ws/src/perception/docker/sampler_training_data/sugar/test"
+    
+    # For testing data
+    POSE_SAMPLER_ROOT = "/data/pose_sampler_data/sugar/test"
     OUTFILE_NAME = 'instances_keyframe_bbox_pose_sampler'
+    IMG_LIST = np.loadtxt(os.path.join(ROOT_DIR, 'image_sets/keyframe.txt'), dtype=str).tolist()
+
+    # For training data
+    # POSE_SAMPLER_ROOT = "/data/pose_sampler_data/sugar/train" 
     # OUTFILE_NAME = 'instances_train_bbox_pose_sampler'
+    # IMG_LIST = np.loadtxt(os.path.join(ROOT_DIR, 'image_sets/train.txt'), dtype=str).tolist()
+
+    object_settings_file = Path(os.path.join(ROOT_DIR, "image_sets/classes.txt"))
     IMG_SUBFOLDER = "data"
 
 ng = 642
@@ -1332,7 +1331,6 @@ def load_ycb_bbox_sampler_dataset():
         pose_samples_filename = os.path.join(POSE_SAMPLER_ROOT, get_clean_name(image_filename), "cost_dump.json")
         if os.path.exists(pose_samples_filename) == False:
             continue
-        # print(pose_samples_filename)
         with open(pose_samples_filename) as f:
             pose_samples =  json.load(f)
 
