@@ -171,6 +171,7 @@ catkin_package(
   INCLUDE_DIRS
     include
     ${MPI_INCLUDE}
+    ${CUDA_INCLUDE_DIRS}
   LIBRARIES
     ${PROJECT_NAME}
   )
@@ -217,7 +218,8 @@ target_link_libraries(${PROJECT_NAME} ${Boost_LIBRARIES} ${catkin_LIBRARIES} ${Z
 include(CMakeForceCompiler)
   #CMAKE_FORCE_CXX_COMPILER(mpicxx ${CMAKE_CXX_COMPILER_ID})
 
-CMAKE_FORCE_CXX_COMPILER(${CXX_PATH} ${CMAKE_CXX_COMPILER_ID})
+# CMAKE_FORCE_CXX_COMPILER(${CXX_PATH} ${CMAKE_CXX_COMPILER_ID})
+set(CMAKE_CXX_COMPILER ${CXX_PATH})
 
 #catkin_add_gtest(${PROJECT_NAME}_states_test tests/states_test.cpp)
 #target_link_libraries(${PROJECT_NAME}_states_test ${PROJECT_NAME})

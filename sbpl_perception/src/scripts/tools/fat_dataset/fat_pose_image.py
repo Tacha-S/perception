@@ -1357,7 +1357,8 @@ class FATImage:
                         # boxes_all.append([int(x) for x in box])
                         # X (along width), Y
                         # centroids_2d_all.append(np.array([(box[0]+box[2])/2, (box[1]+box[3])/2]))
-                        rmin, rmax, cmin, cmax = box[1], box[3], box[0], box[2]
+                        rmin, rmax, cmin, cmax = box[1], box[1] + box[3], box[0], box[0] + box[2]
+                        # rmin, rmax, cmin, cmax = box[1], box[3], box[0], box[2]
                         break
             
             if rmin is None:
@@ -1371,7 +1372,7 @@ class FATImage:
         # print(boxes)
         return labels, masks, boxes, centroids_2d 
 
-    def get_jenga_mask(self, image_data, annotations, mask_image_id=None, class_ids=None):
+    def get_gt_mask(self, image_data, annotations, mask_image_id=None, centroid_type="mask"):
         '''
             Uses posecnn mask and computes centroid using different methods for rendering shift
         '''
@@ -1395,10 +1396,15 @@ class FATImage:
             masks.append(mask)
 
             # rmin is min of row in np 2d array, #cmin is min of column in 2d np array
-            rmin, rmax, cmin, cmax = None, None, None, None
-            mask_args = np.argwhere(mask > 0)
-            rmin, rmax, cmin, cmax = np.min(mask_args[:,0]), np.max(mask_args[:,0]), np.min(mask_args[:,1]), np.max(mask_args[:,1])
-            
+            if centroid_type == "mask":
+                rmin, rmax, cmin, cmax = None, None, None, None
+                mask_args = np.argwhere(mask > 0)
+                rmin, rmax, cmin, cmax = np.min(mask_args[:,0]), np.max(mask_args[:,0]), np.min(mask_args[:,1]), np.max(mask_args[:,1])
+            elif centroid_type == "box_gt":
+                box = ann['bbox']
+                # X min (along width), Y min, width, height
+                rmin, rmax, cmin, cmax = box[1], box[1] + box[3], box[0], box[0] + box[2]
+
             boxes.append([cmin, rmin, cmax, rmax])
             centroids_2d.append(np.array([(cmin+cmax)/2, (rmin+rmax)/2]))
 
@@ -1453,6 +1459,7 @@ class FATImage:
             sys.path.remove('/opt/ros/kinetic/lib/python2.7/dist-packages')
         import cv2
 
+        print("Mask type : {}".format(mask_type))
         # Load GT mask
         color_img_path = os.path.join(self.coco_image_directory, image_data['file_name'])
         color_img = cv2.imread(color_img_path)
@@ -1478,7 +1485,7 @@ class FATImage:
             
         elif mask_type == "posecnn":
             predicted_mask_path = os.path.join(os.path.dirname(depth_img_path), os.path.splitext(os.path.basename(color_img_path))[0] + '.predicted_mask_posecnn.png')
-            labels_all, mask_list_all, boxes_all, centroids_2d_all = self.get_posecnn_mask(mask_image_id, centroid_type="roi")
+            labels_all, mask_list_all, boxes_all, centroids_2d_all = self.get_posecnn_mask(mask_image_id, centroid_type="mask")
             composite = self.overlay_masks(color_img, boxes_all, mask_list_all, labels_all, centroids_2d_all)
             composite_image_path = '{}/mask_posecnn.png'.format(rotation_output_dir)
             # composite_image_path = '{}/mask.png'.format(rotation_output_dir)
@@ -1506,9 +1513,16 @@ class FATImage:
 
         elif mask_type == "jenga":
             predicted_mask_path = os.path.join(os.path.dirname(depth_img_path), os.path.splitext(os.path.basename(color_img_path))[0] + '.jenga_mask.png')
-            labels_all, mask_list_all, boxes_all, centroids_2d_all = self.get_jenga_mask(image_data, annotations, mask_image_id=mask_image_id, class_ids=[0,1,2,3])
+            labels_all, mask_list_all, boxes_all, centroids_2d_all = self.get_gt_mask(image_data, annotations, mask_image_id=mask_image_id, centroid_type="mask")
             composite = self.overlay_masks(color_img, boxes_all, mask_list_all, labels_all, centroids_2d_all)
             composite_image_path = '{}/mask_posecnn_jenga_bbox.png'.format(rotation_output_dir)
+
+        elif mask_type == "gt":
+            predicted_mask_path = os.path.join(os.path.dirname(depth_img_path), os.path.splitext(os.path.basename(color_img_path))[0] + '.gt_mask.png')
+            labels_all, mask_list_all, boxes_all, centroids_2d_all = self.get_gt_mask(image_data, annotations, mask_image_id=mask_image_id, centroid_type="box_gt")
+            composite = self.overlay_masks(color_img, boxes_all, mask_list_all, labels_all, centroids_2d_all)
+            composite_image_path = '{}/mask_bbox_gt.png'.format(rotation_output_dir)
+
 
         cv2.imwrite(composite_image_path, composite)
         # return None, None, None, None
@@ -3208,9 +3222,10 @@ def run_ycb_6d(dataset_cfg=None):
     # fat_image.analyze_maskrcnn_results('/media/aditya/A69AFABA9AFA85D9/Cruzr/code/fb_mask_rcnn/maskrcnn-benchmark/inference/ycb_test_bbox_cocostyle/coco_results.pth')
     # return 
 
+    mask_type = dataset_cfg['mask_type']
     # mask_type = 'posecnn'
     # mask_type = 'posecnn_gt_bbox'
-    mask_type = 'mask_rcnn'
+    # mask_type = 'mask_rcnn'
     print_poses = False
     # Running on model and PERCH
     cfg_file = dataset_cfg['maskrcnn_config']
@@ -3241,7 +3256,7 @@ def run_ycb_6d(dataset_cfg=None):
     required_objects = [
     #    "002_master_chef_can",
     #    "003_cracker_box",
-       "004_sugar_box",
+    #    "004_sugar_box",
     #    "005_tomato_soup_can",
     #    "006_mustard_bottle",
     #    "007_tuna_fish_can",
@@ -3257,8 +3272,8 @@ def run_ycb_6d(dataset_cfg=None):
     #    "036_wood_block",
     #    "037_scissors",
     #    "040_large_marker",
-    #    "051_large_clamp",
-    #    "052_extra_large_clamp",
+       "051_large_clamp",
+       "052_extra_large_clamp",
     #    "061_foam_brick"
     ]
     filter_objects = required_objects
@@ -3290,13 +3305,13 @@ def run_ycb_6d(dataset_cfg=None):
     # Trying 80 for sugar
     # do small clamp all upto 200 from 48 to 60
     IMG_LIST = np.loadtxt(os.path.join(image_directory, 'image_sets/keyframe.txt'), dtype=str).tolist()
-    for scene_i in range(0, 92):
+    for scene_i in range(48, 60):
     # for scene_i in range(54, 55):
     # for scene_i in [55, 54, 51, 57]:
         # for img_i in (range(1399, 1400)):
         # for img_i in (range(237, 2500)):
-        # for img_i in (range(334, 2500)):
-        for img_i in (range(1, 500)):
+        for img_i in (range(1, 2500)):
+        # for img_i in (range(1, 500)):
         # for img_i in IMG_LIST:
         # for img_i in tuna_list:
         # for img_i in drill_list:

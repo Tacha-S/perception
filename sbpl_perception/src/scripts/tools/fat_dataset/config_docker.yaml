@@ -4,8 +4,11 @@ dataset :
     image_dir : "/data/YCB_Video_Dataset/"
     maskrcnn_config : "/maskrcnn-benchmark/configs/ycb_mask/e2e_mask_rcnn_R_101_FPN_1x_test_cocostyle.yaml"
     maskrcnn_model_path : "/data/models/model_0037500.pth"
-    coco_annotation_file : "/data/YCB_Video_Dataset/instances_train_bbox_pose_bkp.json" # Train annotation file
-    # coco_annotation_file : "/data/YCB_Video_Dataset/instances_keyframe_bbox_pose_bkp.json" # Test annotation file
+    mask_type : "gt"
+    # mask_type : "mask_rcnn"
+    # mask_type : "posecnn"
+    # coco_annotation_file : "/data/YCB_Video_Dataset/instances_train_bbox_pose.json" # Train annotation file
+    coco_annotation_file : "/data/YCB_Video_Dataset/instances_keyframe_bbox_pose.json" # Test annotation file
     perch_debug_dir : "/data/perch_output"
     python_debug_dir : "/data/model_outputs"
 python2_paths :

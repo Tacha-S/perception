@@ -8,8 +8,8 @@ project(object_recognition_node)
 #  RelWithDebInfo : w/ debug symbols, w/ optimization
 #  MinSizeRel     : w/o debug symbols, w/ optimization, stripped binaries
 #set(ROS_BUILD_TYPE RelWithDebInfo)
-set(CMAKE_BUILD_TYPE Debug)
-set(CMAKE_CXX_FLAGS "-std=c++11 -pthread")
+# set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_CXX_FLAGS "-std=c++11 -pthread -fext-numeric-literals ")
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(SPECIAL_OS_LIBS "pthread" "X11" "z")
 
@@ -20,14 +20,15 @@ set (MPI_ROOT /usr/include/openmpi/)
 include_directories(${MPI_ROOT})
 
 #set (MPI_ROOT /media/aditya/A69AFABA9AFA85D9/Cruzr/code/openmpi-4.0.0/install)
-include(CMakeForceCompiler)
+#include(CMakeForceCompiler)
 #CMAKE_FORCE_CXX_COMPILER(${MPI_ROOT}/bin/mpicxx ${CMAKE_CXX_COMPILER_ID})
-CMAKE_FORCE_CXX_COMPILER(/usr/bin/mpicxx ${CMAKE_CXX_COMPILER_ID})
+#CMAKE_FORCE_CXX_COMPILER(/usr/bin/mpicxx ${CMAKE_CXX_COMPILER_ID})
 #include_directories(${MPI_ROOT}/include)
+#set(CMAKE_CXX_COMPILER /usr/bin/mpicxx)
 
 option(USE_CUDA "use cuda or not" ON)
 if(USE_CUDA)
-set(CUDA_TOOLKIT_ROOT_DIR /usr/local/cuda-8.0)
+set(CUDA_TOOLKIT_ROOT_DIR /usr/local/cuda-10.2)
 add_definitions(-DCUDA_ON)
 endif()
 if(USE_CUDA)
@@ -51,11 +52,9 @@ find_package(catkin
   roscpp sensor_msgs perception_utils
   tf tf_conversions eigen_conversions sbpl_perception
 )
-find_package(Threads REQUIRED)
-set(THREADS_PREFER_PTHREAD_FLAG ON)
-if(THREADS_HAVE_PTHREAD_ARG)
-  target_compile_options(${PROJECT_NAME} PUBLIC "-pthread")
-endif()
+# find_package(Threads REQUIRED)
+# set(THREADS_PREFER_PTHREAD_FLAG ON)
+
 
 #find_package(Boost COMPONENTS mpi REQUIRED)
 #find_package(MPI REQUIRED)
@@ -73,7 +72,7 @@ include_directories(${Boost_INCLUDE_DIRS})
 #        ${BOOST_LIBRARYDIR}/libboost_serialization.so
 #        ${BOOST_LIBRARYDIR}/libboost_mpi.so)
 
-find_package(Boost 1.58.0 REQUIRED thread mpi serialization system)
+# find_package(Boost 1.58.0 REQUIRED thread mpi serialization system)
 find_package(ZLIB)
 
 find_package(Boost 1.58.0 REQUIRED mpi serialization system)
@@ -85,6 +84,11 @@ add_service_files(FILES LocalizeObjects.srv)
 include_directories(${PROJECT_SOURCE_DIR}/include ${catkin_INCLUDE_DIRS}
   ${Boost_INCLUDE_DIRS} ${PCL_INCLUDE_DIRS})
 #include_directories(MPI_INCLUDE_PATH)
+
+set (MPI_INCLUDE /usr/include/openmpi/)
+set (CXX_PATH /usr/bin/mpicxx)
+include_directories(${MPI_INCLUDE})
+set(CMAKE_CXX_COMPILER /usr/bin/mpicxx)
 
 generate_messages(
   DEPENDENCIES
@@ -106,8 +110,28 @@ catkin_package(
 
 add_library(${PROJECT_NAME}
   src/perception_interface.cpp)
-target_link_libraries(${PROJECT_NAME} ${MPI_LIBRARIES} ${catkin_LIBRARIES} ${PCL_LIBRARIES}
-  ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${ZLIB_LIBRARIES} ${CUDA_LIBRARIES})
+# if(THREADS_HAVE_PTHREAD_ARG)
+#   target_compile_options(${PROJECT_NAME} PUBLIC "-pthread")
+# endif()
+
+include(FetchContent)
+
+FetchContent_Declare(json
+  GIT_REPOSITORY https://github.com/nlohmann/json
+  GIT_TAG v3.7.3)
+
+FetchContent_GetProperties(json)
+if(NOT json_POPULATED)
+  FetchContent_Populate(json)
+  add_subdirectory(${json_SOURCE_DIR} ${json_BINARY_DIR} EXCLUDE_FROM_ALL)
+endif()
+
+target_link_libraries(${PROJECT_NAME} 
+  # ${MPI_LIBRARIES} 
+  ${catkin_LIBRARIES} ${PCL_LIBRARIES}
+  ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${ZLIB_LIBRARIES} ${CUDA_LIBRARIES}
+  nlohmann_json::nlohmann_json
+  )
 
 
 add_executable(obj_rec_node src/object_recognition_node.cpp)
