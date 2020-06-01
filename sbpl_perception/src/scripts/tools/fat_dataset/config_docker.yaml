@@ -16,3 +16,57 @@ python2_paths :
   - '/usr/local/lib/python2.7/dist-packages/'
 python3_paths :
   - '/ros_python3_ws/devel/lib/python3/dist-packages'
+analysis:
+  output_dir : "./6dof_analysis_output"
+  result_root_dir : '/data/results/6dof_exp/'
+  config :
+    gicp_cuda_integrated_posecnn:
+      result_files:
+        accuracy :
+          - 'fast_gicp_cuda_integrated_posecnn/file_1.txt'
+          - 'fast_gicp_cuda_integrated_posecnn/file_2.txt'
+          - 'fast_gicp_cuda_integrated_posecnn/file_3.txt'
+          - 'fast_gicp_cuda_integrated_posecnn/file_4.txt'
+          - 'fast_gicp_cuda_integrated_posecnn/file_5.txt'
+          - 'fast_gicp_cuda_integrated_posecnn/file_6.txt'
+          - 'fast_gicp_cuda_integrated_posecnn/file_7.txt'
+          - 'fast_gicp_cuda_integrated_posecnn/file_8.txt'
+          - 'fast_gicp_cuda_integrated_posecnn/file_9.txt'
+    gicp_cuda_integrated_maskrcnn:
+      result_files:
+        accuracy :
+          - 'fast_gicp_cuda_integrated/cracker.txt'
+          - 'fast_gicp_cuda_integrated/drill.txt'
+          - 'fast_gicp_cuda_integrated/mustard_pitcher.txt'
+          - 'fast_gicp_cuda_integrated/sugar.txt'
+          - 'fast_gicp_cuda_integrated/bleach.txt'
+          - 'fast_gicp_cuda_integrated/bowl.txt'
+          - 'fast_gicp_cuda_integrated/mug_foam.txt'
+          - 'fast_gicp_cuda_integrated/scissors_banana.txt'
+          - 'fast_gicp_cuda_integrated/wood.txt'
+          - 'fast_gicp_cuda_integrated/soup.txt'
+          - 'fast_gicp_cuda_integrated/chef_gelatin.txt'
+          - 'fast_gicp_cuda_integrated/marker.txt'
+          - 'fast_gicp_cuda_integrated/clamps.txt'
+          - 'fast_gicp_cuda_integrated/pudding.txt'
+          - 'fast_gicp_cuda_integrated/meat.txt'
+          - 'fast_gicp_cuda_integrated/tuna.txt'
+        runtime :
+          # Single object runtime
+          - 'fast_gicp_cuda_integrated/cracker_runtime_ideacenter.txt'
+          - 'fast_gicp_cuda_integrated/drill_runtime_psc.txt'
+          - 'fast_gicp_cuda_integrated/mustard_pitcher_runtime_psc.txt'
+          - 'fast_gicp_cuda_integrated/sugar_runtime_psc.txt'
+          - 'fast_gicp_cuda_integrated/bleach_runtime_psc.txt'
+          - 'fast_gicp_cuda_integrated/bowl_runtime_ideacenter.txt'
+          - 'fast_gicp_cuda_integrated/mug_foam_runtime_psc.txt'
+          - 'fast_gicp_cuda_integrated/scissors_banana_runtime_ideacenter.txt'
+          - 'fast_gicp_cuda_integrated/wood_runtime_ideacenter.txt'
+          - 'fast_gicp_cuda_integrated/soup_runtime_ideacenter.txt'
+          - 'fast_gicp_cuda_integrated/chef_gelatin_runtime_psc.txt'
+          - 'fast_gicp_cuda_integrated/marker_runtime_ideacenter.txt'
+          - 'fast_gicp_cuda_integrated/clamps_runtime_psc.txt'
+          - 'fast_gicp_cuda_integrated/pudding_runtime_ideacenter.txt'
+          - 'fast_gicp_cuda_integrated/meat_runtime_psc.txt'
+          - 'fast_gicp_cuda_integrated/tuna_runtime_ideacenter.txt'
+

@@ -17,24 +17,24 @@ analysis:
     icp:
       result_files:
         accuracy :
-          - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/3dof_exp/crate/accuracy_icp.txt'
+          - '/data/results/3dof_exp/crate/accuracy_icp.txt'
         runtime :
-          - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/3dof_exp/crate/runtime_icp.txt'
-    # gpu:
-    #   result_files:
-    #     accuracy :
-    #       - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/3dof_exp/crate/accuracy_gpu_full_psc_24_minn_65.txt'
-    #     runtime :
-    #       - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/3dof_exp/crate/runtime_gpu_full_psc_24_minn_65.txt'
-    gpu:
+          - '/data/results/3dof_exp/crate/runtime_icp.txt'
+    gpu_pcl_icp:
       result_files:
         accuracy :
-          - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/3dof_exp/crate/gicp_cuda/accuracy_pcl_icp.txt'
+          - '/data/results/3dof_exp/crate/accuracy_gpu_full_psc_24_minn_65.txt'
         runtime :
-          - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/3dof_exp/crate/gicp_cuda/runtime_pcl_icp_runtime.txt'
+          - '/data/results/3dof_exp/crate/runtime_gpu_full_psc_24_minn_65.txt'
+    gpu_gicp_cuda:
+      result_files:
+        accuracy :
+          - '/data/results/3dof_exp/crate/gicp_cuda/accuracy_gicp_integrated.txt'
+        runtime :
+          - '/data/results/3dof_exp/crate/gicp_cuda/runtime_gicp_integrated.txt'
     cpu:
       result_files:
         accuracy :
-          - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/3dof_exp/crate/accuracy_cpu_full_minn_75.txt'
+          - '/data/results/3dof_exp/crate/accuracy_cpu_full_minn_75.txt'
         runtime :
-          - '/media/aditya/A69AFABA9AFA85D9/Cruzr/code/YCB_Video_toolbox/3dof_exp/crate/runtime_cpu_full_minn_75.txt'
+          - '/data/results/3dof_exp/crate/runtime_cpu_full_minn_75.txt'

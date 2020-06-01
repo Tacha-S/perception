@@ -3194,6 +3194,102 @@ def run_ycb_gpu():
     f_accuracy.close()
 
 
+def analyze_ycb_6d_results(config=None):
+    import pandas as pd
+
+    dataset_cfg = config['dataset']
+
+    for device, analysis_cfg in config['analysis']['config'].items():
+        overall_stats_dict = {}
+        # Object wise metrics
+        print("\n### Object Wise AUC ###")
+        li = []
+        if 'accuracy' in analysis_cfg['result_files']:
+            for accuracy_file in analysis_cfg['result_files']['accuracy']:
+                # Read file for every object
+                print("Accuracy file : {}".format(accuracy_file))
+                accuracy_file_path = os.path.join(config['analysis']['result_root_dir'], accuracy_file)
+                df = pd.read_csv(accuracy_file_path, 
+                                # header=None, 
+                                index_col=None, 
+                                skiprows=0,
+                                sep=",") 
+                # print(df)
+                # df = df.drop(columns=["add", "blank"])
+                df = df.set_index('name')
+                # 
+                for col_name in list(df):
+                    # print(col_name)
+                    if '-adds' in col_name:
+                        object_name = col_name.split("-")[0]
+                        # Remove empty values
+                        df_valid = df[df[col_name] != ' ']
+                        # print(df_valid[col_name])
+                        add_s = np.copy(df_valid[col_name].to_numpy()).astype(np.float32)
+                        # Remove blanks
+                        add_s = add_s[~np.isnan(add_s)]
+                        # print(add_s)
+                        stats = compute_pose_metrics(np.copy(add_s))
+                        # print("Object : {}, AUC : {:.2f}, Pose Percentage : {:.2f}, Mean ADD-S : {:.4f}".format(
+                        #         object_name, stats['auc'], stats['pose_error_less_perc'], stats['mean_pose_error']))
+                        li += add_s.tolist()
+                        overall_stats_dict[object_name] = stats
+
+
+            # Overall Metrics
+            print("\n### Overall AUC ###")
+            li = np.array(li)
+            stats = compute_pose_metrics(li)
+            print("Type : {}, AUC : {}, Pose Percentage : {}, Mean ADD-S : {}".format(
+                    device, stats['auc'], stats['pose_error_less_perc'], stats['mean_pose_error']))
+
+            overall_stats_dict["Mean"] = stats
+            print("\n### Compiled Stats ###")
+            df_overall_stats = \
+                    pd.DataFrame.from_dict(overall_stats_dict, orient='index')
+            df_overall_stats = df_overall_stats.sort_index()
+            df_overall_stats['auc'] = df_overall_stats['auc'].round(2)
+            df_overall_stats['pose_error_less_perc'] = df_overall_stats['pose_error_less_perc'].round(2)
+            df_overall_stats['mean_pose_error'] = df_overall_stats['mean_pose_error'].round(4)
+            print(df_overall_stats)
+            # df_overall_stats.to_csv(
+            #         os.path.join(fat_image.analysis_output_dir, "compiled_stats.csv"),
+            #         float_format='%.4f')
+
+        if 'runtime' in analysis_cfg['result_files']:
+            ## Runtime
+            print("\n### Object Wise Runtimes ###")
+            li = []
+            for runtime_file in analysis_cfg['result_files']['runtime']:
+                # Read file for every object
+                runtime_file_path = os.path.join(config['analysis']['result_root_dir'], runtime_file)
+                print("Runtime file : {}".format(runtime_file))
+                df = pd.read_csv(runtime_file_path, 
+                                header=0, 
+                                index_col=None, 
+                                #  names=["filename", "runtime", "icp-runtime"],
+                                #  skiprows=1,
+                                delim_whitespace=True) 
+                # print(df)
+                df = df.set_index('name')
+                mean_runtime = df['runtime'].mean()
+                mean_rendered = df['expands'].mean()
+                print("Average runtime : {}, Average Rendered : {}".format(mean_runtime, mean_rendered))
+                li.append(df)
+                # object_name = get_filename_from_path(runtime_file).replace('_runtime', '')
+                # overall_stats_dict[object_name]["runtime"] = mean_runtime
+                # overall_stats_dict[object_name]["rendered"] = mean_rendered
+
+            
+            print("\n### Overall Runtime ###")
+            df_runtime = pd.concat(li, axis=0, ignore_index=False)
+            mean_runtime = df_runtime['runtime'].mean()
+            mean_rendered = df_runtime['expands'].mean()
+            print("Overall average runtime : {}".format(mean_runtime))
+            print("Overall average rendered : {}".format(mean_rendered))
+
+
+
 def run_ycb_6d(dataset_cfg=None):
     from bad_images import cracker_list, wood_list, drill_list
     
@@ -3255,7 +3351,7 @@ def run_ycb_6d(dataset_cfg=None):
     # required_objects = fat_image.category_names
     required_objects = [
     #    "002_master_chef_can",
-    #    "003_cracker_box",
+       "003_cracker_box",
     #    "004_sugar_box",
     #    "005_tomato_soup_can",
     #    "006_mustard_bottle",
@@ -3264,16 +3360,16 @@ def run_ycb_6d(dataset_cfg=None):
     #    "009_gelatin_box",
     #    "010_potted_meat_can",
     #    "011_banana",
-    #    "019_pitcher_base",
+       "019_pitcher_base",
     #    "021_bleach_cleanser",
-    #    "024_bowl",
+       "024_bowl",
     #    "025_mug",
     #    "035_power_drill",
-    #    "036_wood_block",
-    #    "037_scissors",
+       "036_wood_block",
+       "037_scissors",
     #    "040_large_marker",
-       "051_large_clamp",
-       "052_extra_large_clamp",
+    #    "051_large_clamp",
+    #    "052_extra_large_clamp",
     #    "061_foam_brick"
     ]
     filter_objects = required_objects
@@ -3682,6 +3778,7 @@ def run_on_jenga_image(dataset_cfg=None):
 def compute_pose_metrics(rec, max_auc_dist = 0.1, max_pose_dist = 0.02):
     # TODO : this should be in utils.py
     '''
+    Follows plot_accuracy_keyframe.m from YCB_Video_toolbox
         @rec - np.array - add-s values in sorted order
         @prec - accuracy number
     '''
@@ -3692,6 +3789,8 @@ def compute_pose_metrics(rec, max_auc_dist = 0.1, max_pose_dist = 0.02):
     rec[rec > max_auc_dist] = np.inf
     rec = np.sort(rec)
     prec = np.arange(0, rec.shape[0], 1)/rec.shape[0]
+    # Remove first 0 and add 1 at the end (denotes 100 percent of poses)
+    prec = np.array(prec[1:].tolist() + [1])
 
     index = np.isfinite(rec)
     # Actual pose error
@@ -3699,8 +3798,9 @@ def compute_pose_metrics(rec, max_auc_dist = 0.1, max_pose_dist = 0.02):
     # Percentage of poses with that error
     prec = prec[index]
 
+    # Append end point values
     mrec = np.array([0] + rec.tolist() + [0.1])
-    mpre = np.array(prec.tolist() + [1, 1])
+    mpre = np.array([0] + prec.tolist() + [prec[-1]])
 
     # Indexes where value is not equal to previous value
     args = np.where(mrec[:-1] != mrec[1:])[0]
@@ -4051,7 +4151,10 @@ if __name__ == '__main__':
     print("Dataset name : {}".format(config['dataset']['name']))
     print("Mode : {}".format(args.mode))
     if config['dataset']['name'] == "ycb":
-        run_ycb_6d(dataset_cfg=config['dataset'])
+        if args.mode == "algo":
+            run_ycb_6d(dataset_cfg=config['dataset'])
+        elif args.mode == "analysis":
+            analyze_ycb_6d_results(config=config)
     elif config['dataset']['name'] == "sameshape":
         run_sameshape_gpu(dataset_cfg=config['dataset'])
     elif config['dataset']['name'] == "crate":
