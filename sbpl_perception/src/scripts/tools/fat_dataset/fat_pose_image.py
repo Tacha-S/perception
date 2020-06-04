@@ -1388,8 +1388,12 @@ class FATImage:
             
             # overall_mask = np.array(Image.open(mask_path))
             overall_mask = self.example_coco.annToMask(ann)
-            # print((overall_mask[overall_mask != 0]))
             label = self.category_id_to_names[ann['category_id']]['name']
+            # print(label)
+            # print(np.count_nonzero(overall_mask))
+            # if np.count_nonzero(overall_mask) == 0:
+            #     continue
+            # print((overall_mask[overall_mask != 0]))
             labels.append(label)
             
             mask = np.copy(overall_mask)
@@ -1546,7 +1550,11 @@ class FATImage:
                     mask_i = labels_all.index(label)
                     # print(str(mask_i) + " found")
                     filter_mask = mask_list_all[mask_i]
-                    # print(mask_label_i)
+
+                    object_depth_mask = np.copy(depth_image)
+                    object_depth_mask[filter_mask == 0] = 0
+                    if np.count_nonzero(object_depth_mask) == 0:
+                        continue
                     # Use binary mask to assign label in overall mask
                     overall_binary_mask[filter_mask > 0] = mask_label_i
                     labels.append(label)
@@ -3201,9 +3209,10 @@ def analyze_ycb_6d_results(config=None):
 
     for device, analysis_cfg in config['analysis']['config'].items():
         overall_stats_dict = {}
+        overall_adds_dict = {}
         # Object wise metrics
         print("\n### Object Wise AUC ###")
-        li = []
+        # li = []
         if 'accuracy' in analysis_cfg['result_files']:
             for accuracy_file in analysis_cfg['result_files']['accuracy']:
                 # Read file for every object
@@ -3232,14 +3241,19 @@ def analyze_ycb_6d_results(config=None):
                         stats = compute_pose_metrics(np.copy(add_s))
                         # print("Object : {}, AUC : {:.2f}, Pose Percentage : {:.2f}, Mean ADD-S : {:.4f}".format(
                         #         object_name, stats['auc'], stats['pose_error_less_perc'], stats['mean_pose_error']))
-                        li += add_s.tolist()
+                        # li += add_s.tolist()
                         overall_stats_dict[object_name] = stats
+                        overall_adds_dict[object_name] = add_s.tolist()
 
+            # Need to do this so that duplicate object names are not counted twice
+            add_s = []
+            for key, values in overall_adds_dict.items():
+                add_s += values
 
             # Overall Metrics
             print("\n### Overall AUC ###")
-            li = np.array(li)
-            stats = compute_pose_metrics(li)
+            add_s = np.array(add_s)
+            stats = compute_pose_metrics(add_s)
             print("Type : {}, AUC : {}, Pose Percentage : {}, Mean ADD-S : {}".format(
                     device, stats['auc'], stats['pose_error_less_perc'], stats['mean_pose_error']))
 
@@ -3351,22 +3365,22 @@ def run_ycb_6d(dataset_cfg=None):
     # required_objects = fat_image.category_names
     required_objects = [
     #    "002_master_chef_can",
-       "003_cracker_box",
-    #    "004_sugar_box",
-    #    "005_tomato_soup_can",
-    #    "006_mustard_bottle",
+    #    "003_cracker_box",
+       "004_sugar_box",
+       "005_tomato_soup_can",
+       "006_mustard_bottle",
     #    "007_tuna_fish_can",
     #    "008_pudding_box",
     #    "009_gelatin_box",
     #    "010_potted_meat_can",
     #    "011_banana",
-       "019_pitcher_base",
+    #    "019_pitcher_base",
     #    "021_bleach_cleanser",
-       "024_bowl",
+    #    "024_bowl",
     #    "025_mug",
     #    "035_power_drill",
-       "036_wood_block",
-       "037_scissors",
+    #    "036_wood_block",
+    #    "037_scissors",
     #    "040_large_marker",
     #    "051_large_clamp",
     #    "052_extra_large_clamp",
@@ -3401,7 +3415,7 @@ def run_ycb_6d(dataset_cfg=None):
     # Trying 80 for sugar
     # do small clamp all upto 200 from 48 to 60
     IMG_LIST = np.loadtxt(os.path.join(image_directory, 'image_sets/keyframe.txt'), dtype=str).tolist()
-    for scene_i in range(48, 60):
+    for scene_i in range(50, 60):
     # for scene_i in range(54, 55):
     # for scene_i in [55, 54, 51, 57]:
         # for img_i in (range(1399, 1400)):
