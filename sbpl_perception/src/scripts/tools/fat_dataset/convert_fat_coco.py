@@ -194,26 +194,33 @@ if False:
 
 if True:
     DATASET_TYPE = "ycb_sampler"
-    # ROOT_DIR = '/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset'
     ROOT_DIR = '/data/YCB_Video_Dataset'
+    YCB_ROOT_DIR = '/data/YCB_Video_Dataset'
     SELECTED_OBJECTS = [
         "004_sugar_box"
     ]
-    # POSE_SAMPLER_ROOT = "/media/aditya/A69AFABA9AFA85D9/Cruzr/code/DOPE/catkin_ws/src/perception/docker/sampler_training_data/sugar/test"
     
     # For testing data
-    POSE_SAMPLER_ROOT = "/data/pose_sampler_data/sugar/test"
-    OUTFILE_NAME = 'instances_keyframe_bbox_pose_sampler'
-    IMG_LIST = np.loadtxt(os.path.join(ROOT_DIR, 'image_sets/keyframe.txt'), dtype=str).tolist()
+    # POSE_SAMPLER_ROOT = "/data/pose_sampler_data/sugar/test"
+    # OUTFILE_NAME = 'instances_keyframe_bbox_pose_sampler_200'
+    # IMG_LIST = np.loadtxt(os.path.join(ROOT_DIR, 'image_sets/keyframe.txt'), dtype=str).tolist()
 
     # For training data
-    # POSE_SAMPLER_ROOT = "/data/pose_sampler_data/sugar/train" 
-    # OUTFILE_NAME = 'instances_train_bbox_pose_sampler'
-    # IMG_LIST = np.loadtxt(os.path.join(ROOT_DIR, 'image_sets/train.txt'), dtype=str).tolist()
+    POSE_SAMPLER_ROOT = "/data/pose_sampler_data/sugar/train" 
+    OUTFILE_NAME = 'instances_train_bbox_pose_sampler_80'
+    IMG_LIST = np.loadtxt(os.path.join(ROOT_DIR, 'image_sets/train.txt'), dtype=str).tolist()
 
     object_settings_file = Path(os.path.join(ROOT_DIR, "image_sets/classes.txt"))
     IMG_SUBFOLDER = "data"
 
+if False:
+    DATASET_TYPE = "clutter_ycb"
+    ROOT_DIR = '/data/Clutter_YCB'
+    YCB_ROOT_DIR = '/data/YCB_Video_Dataset'
+    SELECTED_OBJECTS = []
+    OUTFILE_NAME = 'instances_test_bbox_pose'
+    object_settings_file = Path(os.path.join("/data/YCB_Video_Dataset", "image_sets/classes.txt"))
+    
 ng = 642
 print ( '' )
 print ( '  Number of points NG = %d' % ( ng ) )
@@ -492,7 +499,33 @@ def pre_load_ycb_dataset():
             'supercategory': 'shape',
         } for i in range(0,len(CLASSES))]
     
-    return CATEGORIES, None, None
+    model_points = {}
+    for class_name in CLASSES:
+        input_file ='{0}/models/{1}/points.xyz'.format(YCB_ROOT_DIR, class_name)
+        model_points[class_name] = np.loadtxt(input_file, dtype=np.float32)
+    # class_file = open(object_settings_file)
+
+    # class_id = 1
+    # self.cld = {}
+    # while 1:
+    #     class_input = class_file.readline()
+    #     if not class_input:
+    #         break
+
+    #     input_file = open('{0}/models/{1}/points.xyz'.format(self.root, class_input[:-1]))
+    #     self.cld[class_id] = []
+    #     while 1:
+    #         input_line = input_file.readline()
+    #         if not input_line:
+    #             break
+    #         input_line = input_line[:-1].split(' ')
+    #         self.cld[class_id].append([float(input_line[0]), float(input_line[1]), float(input_line[2])])
+    #     self.cld[class_id] = np.array(self.cld[class_id])
+    #     input_file.close()
+        
+    #     class_id += 1
+
+    return CATEGORIES, None, None, model_points
 
 def load_fat_dataset():
 
@@ -661,7 +694,7 @@ def load_ycb_dataset():
     #     sys.path.append(ROS_PYTHON3_PKG_PATH)
     # import tf.transformations
 
-    CATEGORIES, FIXED_TRANSFORMS, CAMERA_INTRINSICS = pre_load_ycb_dataset()
+    CATEGORIES, FIXED_TRANSFORMS, CAMERA_INTRINSICS, _ = pre_load_ycb_dataset()
 
     VIEWPOINTS = [viewpoints_xyz[i].tolist() for i in range(0, len(viewpoints_xyz))]
 
@@ -829,7 +862,7 @@ def load_ycb_bbox_dataset():
     #     sys.path.append(ROS_PYTHON3_PKG_PATH)
     # import tf.transformations
 
-    CATEGORIES, FIXED_TRANSFORMS, CAMERA_INTRINSICS = pre_load_ycb_dataset()
+    CATEGORIES, FIXED_TRANSFORMS, CAMERA_INTRINSICS, _ = pre_load_ycb_dataset()
 
     # VIEWPOINTS = [viewpoints_xyz[i].tolist() for i in range(0, len(viewpoints_xyz))]
 
@@ -1295,13 +1328,14 @@ def get_clean_name(name):
 def load_ycb_bbox_sampler_dataset():
 
     ng = 80
+    # ng = 200
     print ( '' )
     print ( '  Number of points NG = %d' % ( ng ) )
 
     viewpoints_xyz = sphere_fibonacci_grid_points(ng)
     inplane_rot_angles = np.linspace(0, 2 * math.pi, 5)
 
-    CATEGORIES, FIXED_TRANSFORMS, CAMERA_INTRINSICS = pre_load_ycb_dataset()
+    CATEGORIES, FIXED_TRANSFORMS, CAMERA_INTRINSICS, _ = pre_load_ycb_dataset()
 
     VIEWPOINTS = [viewpoints_xyz[i].tolist() for i in range(0, len(viewpoints_xyz))]
 
@@ -1407,34 +1441,63 @@ def load_ycb_bbox_sampler_dataset():
                 segmentation_global_id, image_global_id, category_info, binary_mask,
                 img_size, tolerance=2, bounding_box=class_bbbox)
             
-            pose_scores = np.zeros((viewpoints_xyz.shape[0], inplane_rot_angles.shape[0]))
-            # print(pose_scores.shape)
-            for p_i in pose_samples["poses"]:
-                pose_quat = p_i['quaternion']
-                angles = RT_transform.quat2euler(get_wxyz_quaternion(pose_quat))
-                # angles = RT_transform.quat2euler(get_wxyz_quaternion(quat), 'syxz')
-                # angles = apply_angle_symmetry(angles, SYMMETRY_INFO[class_name])
-                # This function gives angles with this convention of euler - https://en.wikipedia.org/wiki/Euler_angles#Signs_and_ranges (geometric definition)
+            if False:
+                pose_scores = np.zeros((viewpoints_xyz.shape[0], inplane_rot_angles.shape[0]))
+                # print(pose_scores.shape)
+                for p_i in pose_samples["poses"]:
+                    pose_quat = p_i['quaternion']
+                    angles = RT_transform.quat2euler(get_wxyz_quaternion(pose_quat))
+                    # angles = RT_transform.quat2euler(get_wxyz_quaternion(quat), 'syxz')
+                    # angles = apply_angle_symmetry(angles, SYMMETRY_INFO[class_name])
+                    # This function gives angles with this convention of euler - https://en.wikipedia.org/wiki/Euler_angles#Signs_and_ranges (geometric definition)
 
-                # if np.isclose(angles[1], 0):
-                #     print("Test")
-                theta, phi = euler2sphere(angles[1], angles[0])
-                actual_angles = np.array([1, theta, phi])
-                xyz_coord = sphere2cart(1, theta, phi)
+                    # if np.isclose(angles[1], 0):
+                    #     print("Test")
+                    theta, phi = euler2sphere(angles[1], angles[0])
+                    actual_angles = np.array([1, theta, phi])
+                    xyz_coord = sphere2cart(1, theta, phi)
+                    
+                    viewpoint_id = find_viewpoint_id(viewpoints_xyz, xyz_coord)
+                    r_xyz = get_viewpoint_from_id(viewpoints_xyz, viewpoint_id)
+                    recovered_angles = np.array(cart2sphere(r_xyz[0], r_xyz[1], r_xyz[2]))
+                    inplane_rotation_id = find_inplane_rotation_id(inplane_rot_angles, angles[2])
+                    # print(viewpoint_id, inplane_rotation_id)
+                    pose_cost = (200.0 - p_i["total_cost"])/200.0
+                    pose_scores[viewpoint_id, inplane_rotation_id] = max(pose_scores[viewpoint_id, inplane_rotation_id], pose_cost)
+                    # if np.all(np.isclose(actual_angles, recovered_angles, atol=0.4)) == False:
+                    #     print("Mismatch in : {}".format(label_filename))
+                    #     print("sphere2cart angles : {}".format(actual_angles))
+                    #     print("cart2sphere angles : {}".format(recovered_angles))
+                pose_scores = pose_scores/np.max(pose_scores)
+                pose_scores = pose_scores.flatten()
+            if True:
+                pose_scores = np.zeros((viewpoints_xyz.shape[0]))
+                for p_i in pose_samples["poses"]:
+                    pose_quat = p_i['quaternion']
+                    angles = RT_transform.quat2euler(get_wxyz_quaternion(pose_quat))
+                    actual_angles = np.array([1, angles[1], angles[0]])
+
+                    # Conver to spherical angles from euler
+                    theta, phi = euler2sphere(angles[1], angles[0])
+                    # actual_angles = np.array([1, theta, phi])
+                    xyz_coord = sphere2cart(1, theta, phi)
+                    
+                    viewpoint_id = find_viewpoint_id(viewpoints_xyz, xyz_coord)
+                    # r_xyz = get_viewpoint_from_id(viewpoints_xyz, viewpoint_id)
+                    # recovered_angles = np.array(cart2sphere(r_xyz[0], r_xyz[1], r_xyz[2]))
+
+                    theta, phi = get_viewpoint_rotations_from_id(viewpoints_xyz, viewpoint_id)
+                    recovered_angles = [1, theta, phi]
+
+                    pose_cost = (200.0 - p_i["total_cost"])/200.0
+                    pose_scores[viewpoint_id] = max(pose_scores[viewpoint_id], pose_cost)
+                    # print("sphere2cart angles : {}".format(actual_angles))
+                    # print("cart2sphere angles : {}".format(recovered_angles))
+                    # if np.all(np.isclose(actual_angles, recovered_angles, atol=0.4)) == False:
+                    #     print("Mismatch in : {}".format(label_filename))
+                    #     print("sphere2cart angles : {}".format(actual_angles))
+                    #     print("cart2sphere angles : {}".format(recovered_angles))
                 
-                viewpoint_id = find_viewpoint_id(viewpoints_xyz, xyz_coord)
-                r_xyz = get_viewpoint_from_id(viewpoints_xyz, viewpoint_id)
-                recovered_angles = np.array(cart2sphere(r_xyz[0], r_xyz[1], r_xyz[2]))
-                inplane_rotation_id = find_inplane_rotation_id(inplane_rot_angles, angles[2])
-                # print(viewpoint_id, inplane_rotation_id)
-                pose_cost = (200.0 - p_i["total_cost"])/200.0
-                pose_scores[viewpoint_id, inplane_rotation_id] = max(pose_scores[viewpoint_id, inplane_rotation_id], pose_cost)
-                # if np.all(np.isclose(actual_angles, recovered_angles, atol=0.4)) == False:
-                #     print("Mismatch in : {}".format(label_filename))
-                #     print("sphere2cart angles : {}".format(actual_angles))
-                #     print("cart2sphere angles : {}".format(recovered_angles))
-            pose_scores = pose_scores/np.max(pose_scores)
-            pose_scores = pose_scores.flatten()
             # print(len(pose_samples["poses"]))
             # print(pose_scores)
 
@@ -1463,6 +1526,177 @@ def load_ycb_bbox_sampler_dataset():
     with open('{}/{}.json'.format(ROOT_DIR, OUTFILE_NAME), 'w') as output_json_file:
         json.dump(coco_output, output_json_file)
 
+
+def load_clutter_ycb_bbox_dataset():
+    CATEGORIES, FIXED_TRANSFORMS, CAMERA_INTRINSICS, model_points = pre_load_ycb_dataset()
+    coco_output = {
+        "info": INFO,
+        "licenses": LICENSES,
+        "categories": CATEGORIES,
+        "camera_intrinsic_settings": CAMERA_INTRINSICS,
+        "fixed_transforms": FIXED_TRANSFORMS,
+        "images": [],
+        "annotations": []
+    }
+    # print(coco_output)
+    image_global_id = 1
+    segmentation_global_id = 1
+
+    # filter for jpeg images
+    for ii in trange(1000, 1201):
+        for scene_i in range(0, 15):
+            scene_path = os.path.join(ROOT_DIR, str(ii).zfill(8), str(scene_i).zfill(8)+".npz")
+            scene_data = np.load(scene_path)
+            # print(scene_data)
+
+            rgb_image = scene_data["rgb"]
+            rgb_output_path = os.path.join(ROOT_DIR, str(ii).zfill(8), str(scene_i).zfill(8)+"-color.png")
+            skimage.io.imsave(rgb_output_path, rgb_image)
+
+            depth_image = scene_data["depth"] * 10000
+            depth_image = Image.fromarray(depth_image.astype(np.int16))
+            depth_output_path = os.path.join(ROOT_DIR, str(ii).zfill(8), str(scene_i).zfill(8)+"-depth.png")
+            depth_image.save(depth_output_path)
+
+            instance_label = scene_data["instance_label"]
+            class_ids = scene_data["class_ids"]
+            class_label = scene_data["class_label"]
+            instance_ids = scene_data["instance_ids"]
+            
+            image_filename = os.path.join(str(ii).zfill(8), str(scene_i).zfill(8)+"-color.png")
+            # print(class_ids)
+            # continue
+            # image_filename = os.path.join(IMG_SUBFOLDER, IMG + '-color.png')
+            # depth_image_filename = os.path.join(IMG_SUBFOLDER, IMG + '-depth.png')
+            # print(image_filename)
+            
+            img_size = (640, 480)
+            image_info = pycococreatortools.create_image_info(
+                image_global_id, image_filename, img_size
+            )
+            # continue
+            # plt.figure()
+            # full_image_file =  os.path.join(ROOT_DIR, image_filename)
+            # skimage.io.imshow(skimage.io.imread(full_image_file))
+            # plt.show()
+            
+            # label_filename = os.path.join(ROOT_DIR, IMG_SUBFOLDER, IMG + '-bbox-meta.mat')
+            # try:
+            #     label_data = scipy.io.loadmat(label_filename)['object']
+            # except:
+            #     print("Couldnt read MAT file")
+            #     continue
+            # print(label_data)
+
+            boxes = []
+            labels = []
+            segmentation_ids = []
+            
+            
+            # segmentation_image_file =  os.path.join(ROOT_DIR, IMG_SUBFOLDER, IMG + '-label.png')
+            # segmentation_image = skimage.io.imread(segmentation_image_file)
+            segmentation_image = scene_data["class_label"]
+            # print(segmentation_image)
+            # print("File %d - %s"% (image_global_id, segmentation_image_files[0]))
+
+            # class_indexes = label_data['cls_indexes'][0][0].flatten().tolist()
+            class_indexes = scene_data["class_ids"]
+            # print(scene_data["Ts_cad2cam"])
+            # continue
+            # print(class_indexes)
+            # camera_pose = {}
+            # if 'rotation_translation_matrix' in label_data:
+            #     # Not present in data_syn
+            #     camera_pose_matrix = label_data['rotation_translation_matrix']
+            #     camera_pose_matrix = np.vstack((camera_pose_matrix, np.array([0,0,0,1])))
+            #     camera_pose['location_worldframe'] = RT_transform.translation_from_matrix(camera_pose_matrix).tolist()
+            #     camera_pose['quaternion_xyzw_worldframe'] = get_xyzw_quaternion(RT_transform.quaternion_from_matrix(camera_pose_matrix).tolist())
+            # camera_intrinsics = label_data['intrinsic_matrix'][0][0].tolist()
+            # print(label_data['poses'][0][0].shape)
+            camera_intrinsics = scene_data["intrinsic_matrix"]
+            ## Iterate over every object in annotation
+            for i in range(0, len(class_indexes)):
+                ## Label starts from 1 in the annotation, need from 0 for indexing but 1 for segmentation image label
+                class_label = int(class_indexes[i]) - 1
+                class_name = CATEGORIES[class_label]['name']
+                pose_matrix = scene_data["Ts_cad2cam"][i]
+                # print(model_points[class_name])
+                pose_points = model_points[class_name]
+                # print(pose_points)
+
+                # Compute visible bounding box
+                pose_points = np.hstack((pose_points, np.ones((pose_points.shape[0], 1))))
+                pose_points = np.transpose(pose_points)
+                proj_mat = np.matmul(camera_intrinsics, pose_matrix[:3, :])
+                projected_points = np.transpose(np.matmul(proj_mat, pose_points))
+                projected_points[:, 0] /= projected_points[:, 2]
+                projected_points[:, 1] /= projected_points[:, 2]
+                # print(projected_points)
+                vmin = np.min(projected_points, axis=0)
+                vmax = np.max(projected_points, axis=0)
+                x1 = int(max(vmin[0], 0))
+                y1 = int(max(vmin[1], 0))
+                x2 = int(min(vmax[0], 640))
+                y2 = int(min(vmax[1], 480))
+                class_bbox_coord = [x1, y1, x2, y2]
+
+                if len(SELECTED_OBJECTS) > 0:
+                    if class_name not in SELECTED_OBJECTS:
+                        continue
+
+               
+                # [xmin, ymin, width, height]
+                class_bbbox = np.array([class_bbox_coord[0],
+                            class_bbox_coord[1],
+                            class_bbox_coord[2] - class_bbox_coord[0],
+                            class_bbox_coord[3] - class_bbox_coord[1]])
+                quat = get_xyzw_quaternion(RT_transform.mat2quat(pose_matrix[:3,:3]).tolist())
+                loc = RT_transform.translation_from_matrix(pose_matrix)
+
+                # Create binary masks from segmentation image for every object
+                binary_mask = np.copy(segmentation_image)
+                binary_mask[binary_mask != class_label + 1] = 0
+                binary_mask[binary_mask == class_label + 1] = 1
+                # print(np.count_nonzero(binary_mask))
+                if np.count_nonzero(binary_mask) < 10:
+                    tqdm.write("Mask is all zeros for {} in {}".format(class_name, image_filename))
+                    continue
+                # TODO : check if its actually a crowd in case of multiple instances of one object type
+                category_info = {'id': class_label, 'is_crowd': 0}
+                
+                annotation_info = pycococreatortools.create_annotation_info(
+                    segmentation_global_id, image_global_id, category_info, binary_mask,
+                    img_size, tolerance=2, bounding_box=class_bbbox)
+                
+                if annotation_info is not None:
+                    # annotation_info['camera_pose'] = camera_pose
+                    annotation_info['camera_intrinsics'] = camera_intrinsics.tolist()
+                    annotation_info['location'] = loc.tolist()
+                    annotation_info['quaternion_xyzw'] = quat
+                    coco_output["annotations"].append(annotation_info)
+                    coco_output["images"].append(image_info)
+                else:
+                    # print(label_data)
+                    # full_image_file =  os.path.join(ROOT_DIR, image_filename)
+                    # skimage.io.imshow(skimage.io.imread(full_image_file))
+                    # skimage.io.imshow(segmentation_image)
+                    # binary_mask = np.copy(segmentation_image)
+                    # binary_mask[binary_mask != class_label] = 0
+                    # binary_mask[binary_mask == class_label] = 1
+                    # skimage.io.imshow(binary_mask, cmap=plt.cm.gray)
+                    # plt.show()
+                    tqdm.write("File {} doesn't have boxes or labels in json file for {}".format(image_filename, class_name))
+                segmentation_global_id = segmentation_global_id + 1
+            # else:
+            #     tqdm.write("File %s doesn't have a label file" % image_filename)
+                    
+
+            image_global_id = image_global_id + 1
+    # print(coco_output)
+    with open('{}/{}.json'.format(ROOT_DIR, OUTFILE_NAME), 'w') as output_json_file:
+        json.dump(coco_output, output_json_file)
+
+
 if __name__ == "__main__":
     if DATASET_TYPE == "fat":
         load_fat_dataset()
@@ -1475,3 +1709,5 @@ if __name__ == "__main__":
         load_jenga_dataset()
     elif DATASET_TYPE == "ycb_sampler":
         load_ycb_bbox_sampler_dataset()
+    elif DATASET_TYPE == "clutter_ycb":
+        load_clutter_ycb_bbox_dataset()

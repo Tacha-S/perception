@@ -94,8 +94,11 @@ def render_pose(rendered_dir, count, class_name, fixed_transforms_dict, camera_i
 
 pose = False
 
-image_directory = "/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset"
-annotation_file = image_directory + '/instances_keyframe_pose.json'
+image_directory = "/data/Clutter_YCB"
+annotation_file = image_directory + '/instances_test_bbox_pose.json'
+
+# image_directory = "/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset"
+# annotation_file = image_directory + '/instances_keyframe_pose.json'
 # annotation_file = image_directory + '/instances_train_pose.json'
 # annotation_file = image_directory + '/instances_syn_bbox_pose.json'
 # annotation_file = image_directory + '/instances_val_bbox_pose.json'
@@ -131,9 +134,9 @@ directory = './output'
 
 plt.figure()
 plt.axis("off")
-plt.subplot(3,3,1)
+# plt.subplot(3,3,1)
 image = io.imread(image_directory + "/" + image_data['file_name'])
-# io.imsave(os.path.join(directory, 'original.png'), image)
+io.imsave(os.path.join(directory, 'original.png'), image)
 
 # plt.imshow(image); plt.axis('off')
 
