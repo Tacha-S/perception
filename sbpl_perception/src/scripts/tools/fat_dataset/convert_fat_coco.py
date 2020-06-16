@@ -201,14 +201,14 @@ if True:
     ]
     
     # For testing data
-    # POSE_SAMPLER_ROOT = "/data/pose_sampler_data/sugar/test"
-    # OUTFILE_NAME = 'instances_keyframe_bbox_pose_sampler_200'
-    # IMG_LIST = np.loadtxt(os.path.join(ROOT_DIR, 'image_sets/keyframe.txt'), dtype=str).tolist()
+    POSE_SAMPLER_ROOT = "/data/pose_sampler_data/sugar/test"
+    OUTFILE_NAME = 'instances_keyframe_bbox_pose_sampler_80'
+    IMG_LIST = np.loadtxt(os.path.join(ROOT_DIR, 'image_sets/keyframe.txt'), dtype=str).tolist()
 
     # For training data
-    POSE_SAMPLER_ROOT = "/data/pose_sampler_data/sugar/train" 
-    OUTFILE_NAME = 'instances_train_bbox_pose_sampler_80'
-    IMG_LIST = np.loadtxt(os.path.join(ROOT_DIR, 'image_sets/train.txt'), dtype=str).tolist()
+    # POSE_SAMPLER_ROOT = "/data/pose_sampler_data/sugar/train" 
+    # OUTFILE_NAME = 'instances_train_bbox_pose_sampler_80'
+    # IMG_LIST = np.loadtxt(os.path.join(ROOT_DIR, 'image_sets/train.txt'), dtype=str).tolist()
 
     object_settings_file = Path(os.path.join(ROOT_DIR, "image_sets/classes.txt"))
     IMG_SUBFOLDER = "data"
