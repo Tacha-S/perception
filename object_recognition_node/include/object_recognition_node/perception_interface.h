@@ -23,6 +23,7 @@
 #include <std_msgs/String.h>
 #include <tf/transform_listener.h>
 #include <image_transport/image_transport.h>
+#include <chrono>
 
 #include <memory>
 
@@ -46,6 +47,8 @@ class PerceptionInterface
   private:
     ros::NodeHandle nh_;
     ros::ServiceClient object_localization_client_;
+    ros::ServiceClient set_static_input_client_;
+    bool static_input_set = false;
     pcl::visualization::PCLVisualizer* viewer_;
     pcl::visualization::RangeImageVisualizer* range_image_viewer_;
 
@@ -75,6 +78,10 @@ class PerceptionInterface
     int use_input_images;
     bool capture_kinect_;
     int use_render_greedy;
+    bool use_continuous_detection;
+    int continuous_detection_frame_count;
+    bool camera_pose_set;
+    Eigen::Isometry3d camera_pose;
 
     // Cache results of the latest call to ObjectLocalizerService.
     std::vector<std::string> latest_requested_objects_;
@@ -101,6 +108,8 @@ class PerceptionInterface
 
     // Combine multiple organized point clouds into 1 by median filtering.
     PointCloudPtr IntegrateOrganizedClouds(const std::vector<PointCloud>& point_clouds) const;
+
+    Eigen::Isometry3d GetCameraPose();
 
     // TODO: Offer a ROS action lib service as well, in addition to having a simple
     // RequestedObjectCB based interface.

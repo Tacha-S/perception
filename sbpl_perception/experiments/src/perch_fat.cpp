@@ -182,6 +182,9 @@ int main(int argc, char **argv) {
   // vector<ContPose> detected_poses;
   // object_recognizer.LocalizeObjects(input, &detected_poses);
 
+  int type = 1;
+  object_recognizer.SetStaticInput(input_global);
+  // if (type == 0) {
   if (compute_type == 0) {
     detected_model_names = input_global.model_names;
     object_recognizer.LocalizeObjectsGreedyICP(

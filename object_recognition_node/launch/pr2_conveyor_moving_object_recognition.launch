@@ -22,7 +22,7 @@
   </node>
 
   <node pkg="object_recognition_node" type="obj_rec_node" name="obj_rec_node" output="screen" launch-prefix="$(arg launch_prefix)" respawn="false">
-    <remap from="input_cloud" to="/camera/depth_registered/points"/>
+    <remap from="input_cloud" to="/camera/depth/points"/>
     <remap from="input_color_image" to="/camera/rgb/image_color"/>
     <param name="pcl_visualization" value="false"/>
     <param name="use_external_render" value="0"/>
@@ -30,12 +30,13 @@
     <param name="use_icp" value="1"/>
     <param name="use_input_images" value="0"/>
     <param name="use_render_greedy" value="1"/>
+    <param name="use_continuous_detection" value="true"/>
 
-    <param name="table_height" value="0.715"/> <!--1.13-->
+    <param name="table_height" value="0.73"/> <!--1.13-->
     <param name="xmin" value="0.2"/> <!--1.13-->
     <param name="xmax" value="0.6"/> <!--1.13-->
-    <param name="ymin" value="-1.0"/> <!--1.13-->
-    <param name="ymax" value="1.0"/> <!--1.13-->
+    <param name="ymin" value="0.0"/> <!--1.13-->
+    <param name="ymax" value="1.6"/> <!--1.13-->
     <param name="reference_frame" value="/base_footprint"/>
     <!-- <param name="camera_frame" value="/camera_rgb_optical_frame"/> -->
     <param name="camera_optical_frame" value="/camera_rgb_optical_frame"/>

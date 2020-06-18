@@ -1,30 +1,30 @@
-# search_resolution_translation: 0.05 # m 0.04
-# search_resolution_yaw: 0.3926991 # rad
+search_resolution_translation: 0.07 # m 0.04
+# search_resolution_yaw: 0.2526991 # rad
+search_resolution_yaw: 0.4 # rad
 # use_external_render : 0
+# use_external_pose_list : 0
+# use_icp : 1
 # use_full_object_point_cloud: true
-# for 6D
 
 perch_params:
   min_points_for_constraint_cloud: 50
-  # max_icp_iterations: 200 #For fast_vgicp
-  max_icp_iterations: 150 #For fast_gicp
+  max_icp_iterations: 40
   icp_max_correspondence: 0.05 #m #0.075
   use_adaptive_resolution: false
   use_rcnn_heuristic: false
   use_model_specific_search_resolution: false
-  icp_type: 3 #GICP CUDA - 2, GICP CPU - 1, 3 - GICP CUDA integrated
 
   ## RGB
   use_color_cost: false
-  color_distance_threshold: 15.0
+  color_distance_threshold: 15
 
   ## With Downsampling
-  use_downsampling: false
-  # sensor_resolution_radius: 0.015 #m
-  sensor_resolution_radius: 0.01 #m gpu-stride : 5
+  use_downsampling: true
+  sensor_resolution_radius: 0.0075
+  # sensor_resolution_radius: 0.005 #m
   min_neighbor_points_for_valid_pose: 30 #50
-  # downsampling_leaf_size: 0.02
-  downsampling_leaf_size: 0.01
+  downsampling_leaf_size: 0.0075
+  # downsampling_leaf_size: 0.01
 
   ## Without Downsampling
   # sensor_resolution_radius: 0.003 #m
@@ -36,12 +36,11 @@ perch_params:
   clutter_regularizer: 0.1
 
   ## GPU stuff
-  use_gpu: true
+  use_gpu: false
   gpu_batch_size: 700
-  gpu_stride: 8
 
   ## Visualization and Debugging
   visualize_expanded_states: false
   visualize_successors: false
-  print_expanded_states: true
+  print_expanded_states: false
   debug_verbose: false # unused

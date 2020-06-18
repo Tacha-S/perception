@@ -122,7 +122,8 @@ if (${CUSTOM_BOOST_MPI})
   set (CXX_PATH /media/aditya/A69AFABA9AFA85D9/Cruzr/code/openmpi-4.0.0/install/bin/mpicxx)
 else()
   set (MPI_INCLUDE /usr/include/openmpi/)
-  set (CXX_PATH /usr/bin/mpicxx)
+  # set (CXX_PATH /usr/bin/mpicxx)
+  find_package(MPI REQUIRED)
 endif()
 
 include_directories(${MPI_INCLUDE})
@@ -164,7 +165,7 @@ catkin_package(
     visualization_msgs
   DEPENDS
     # OpenCV
-    #MPI
+    MPI
     OpenMP
     PCL
     #Boost
@@ -197,7 +198,12 @@ add_library(${PROJECT_NAME}
 #        ${MPI_ROOT}/lib/libmpi.so)
 #message(WARNING ${catkin_LIBRARIES})
 
-target_link_libraries(${PROJECT_NAME} ${Boost_LIBRARIES} ${catkin_LIBRARIES} ${ZLIB_LIBRARIES}
+target_link_libraries(
+  ${PROJECT_NAME} 
+  ${Boost_LIBRARIES} 
+  ${catkin_LIBRARIES} 
+  ${ZLIB_LIBRARIES}
+  ${MPI_LIBRARIES} 
   #${Pangolin_LIBRARIES}
   #${MPI_CXX_LIBRARIES} ${CUDA_LIBRARIES}
   #${PCL_LIBRARIES} ${OpenCV_LIBRARIES} /usr/lib/libvtkCommon.so.5.10 /usr/lib/libvtkFiltering.so.5.10 /usr/lib/libvtkRendering.so.5.10 /usr/lib/libvtkIO.so.5.10
@@ -205,7 +211,7 @@ target_link_libraries(${PROJECT_NAME} ${Boost_LIBRARIES} ${catkin_LIBRARIES} ${Z
   #/usr/lib/libvtkGraphics.so.5.10
   nlohmann_json::nlohmann_json
   ${Sophus_LIBRARIES} 
-  )
+)
 
 #add_executable(real_test src/experiments/experiments.cpp)
 #target_link_libraries(real_test ${PROJECT_NAME})
@@ -219,7 +225,7 @@ include(CMakeForceCompiler)
   #CMAKE_FORCE_CXX_COMPILER(mpicxx ${CMAKE_CXX_COMPILER_ID})
 
 # CMAKE_FORCE_CXX_COMPILER(${CXX_PATH} ${CMAKE_CXX_COMPILER_ID})
-set(CMAKE_CXX_COMPILER ${CXX_PATH})
+# set(CMAKE_CXX_COMPILER ${CXX_PATH})
 
 #catkin_add_gtest(${PROJECT_NAME}_states_test tests/states_test.cpp)
 #target_link_libraries(${PROJECT_NAME}_states_test ${PROJECT_NAME})

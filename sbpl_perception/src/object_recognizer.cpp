@@ -282,15 +282,19 @@ bool ObjectRecognizer::LocalizeObjectsGreedyICP(const RecognitionInput &input,
 
   return plan_success;
 }
+bool ObjectRecognizer::SetStaticInput(const RecognitionInput &input)
+{
+  env_obj_->SetStaticInput(input);
+}
 
 bool ObjectRecognizer::LocalizeObjectsGreedyRender(const RecognitionInput &input,
                                        std::vector<Eigen::Affine3f> *object_transforms,
                                        std::vector<Eigen::Affine3f> *preprocessing_object_transforms,
                                        std::vector<ContPose> *detected_poses,
                                        std::vector<std::string> *detected_model_names) const {
+  
   object_transforms->clear();
   preprocessing_object_transforms->clear();
-
   bool plan_success = true;
   env_obj_->SetInput(input);
   // chrono::time_point<chrono::system_clock> start, end;
@@ -354,6 +358,7 @@ bool ObjectRecognizer::LocalizeObjects(const RecognitionInput &input,
   RecognitionInput tweaked_input = input;
 
   bool plan_success = false;
+  env_obj_->SetStaticInput(tweaked_input);
   env_obj_->SetInput(tweaked_input);
   // Wait until all processes are ready for the planning phase.
   mpi_world_->barrier();

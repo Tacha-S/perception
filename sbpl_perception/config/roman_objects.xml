@@ -10,15 +10,15 @@
       flipped (up-side down in the images wrt to the model),
       symmetric (rotationally symmetric about Z-axis)]
       -->
-      [crate,
-      $(find sbpl_perception)/data/crate/crate_test.ply,
+      [crate_test,
+      /data/SameShape/roman/models/crate_test/textured.ply,
       false,
       false,
       1,
       0.06,
       1
       ],
-      [004_sugar_box,
+      <!-- [004_sugar_box,
       /media/sbpl/Data/Aditya/datasets/ycb/models/004_sugar_box/textured.ply,
       false,
       false,
@@ -49,7 +49,7 @@
       2,
       0.06,
       1
-      ]
+      ] -->
     ]
   </rosparam>
 </launch>

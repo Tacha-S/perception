@@ -1621,6 +1621,7 @@ namespace cuda_renderer {
         end_2 = std::chrono::system_clock::now();
         elapsed_seconds = end_2-end_1;
         printf("************Cloud contruction time : %f************\n", elapsed_seconds.count());
+        end_3a = std::chrono::system_clock::now();
         
         // Copy observed stuff from CPU
         thrust::device_vector<Eigen::Vector3f> observed_cloud_eigen(observed_depth_eigen, observed_depth_eigen + observed_point_num);

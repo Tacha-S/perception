@@ -1646,7 +1646,7 @@ void EnvObjectRecognition::GetStateImagesUnifiedGPU(const string stage,
                                                     validation_points,
                                                     sqr_dists, kNumPixels);
 
-        printf("validation_search_rad:%f, num_validation_neighbors:%d\n", validation_search_rad, num_validation_neighbors);
+        // printf("validation_search_rad:%f, num_validation_neighbors:%d\n", validation_search_rad, num_validation_neighbors);
         pose_obs_points_total.push_back(num_validation_neighbors);
       }
       else
@@ -6012,16 +6012,10 @@ cv::Mat equalizeIntensity(const cv::Mat& inputImage)
     return cv::Mat();
 }
 
-void EnvObjectRecognition::SetInput(const RecognitionInput &input) {
-  chrono::time_point<chrono::system_clock> start, end;
-  start = chrono::system_clock::now();
-
+void EnvObjectRecognition::SetStaticInput(const RecognitionInput &input)
+{
   ResetEnvironmentState();
 
-  SetBounds(input.x_min, input.x_max, input.y_min, input.y_max);
-  SetTableHeight(input.table_height);
-  SetCameraPose(input.camera_pose);
-  ResetEnvironmentState();
   *constraint_cloud_ = input.constraint_cloud;
   env_params_.use_external_render = input.use_external_render;
   env_params_.reference_frame_ = input.reference_frame_;
@@ -6031,10 +6025,12 @@ void EnvObjectRecognition::SetInput(const RecognitionInput &input) {
   env_params_.rendered_root_dir = input.rendered_root_dir; 
   LoadObjFiles(model_bank_, input.model_names);
 
+  // LoadObjFiles(model_bank_, input.model_names);
+  SetBounds(input.x_min, input.x_max, input.y_min, input.y_max);
+  SetTableHeight(input.table_height);
 
   printf("External Render : %d\n", env_params_.use_external_render);
   printf("External Pose List : %d\n", env_params_.use_external_pose_list);
-  printf("Depth Factor : %f\n", input.depth_factor);
   printf("ICP : %d\n", env_params_.use_icp);
   printf("Shift Pose Centroid : %d\n", env_params_.shift_pose_centroid);
   printf("Rendered Root Dir : %s\n", env_params_.rendered_root_dir.c_str());
@@ -6043,6 +6039,16 @@ void EnvObjectRecognition::SetInput(const RecognitionInput &input) {
   // if (input.model_repetitions.empty()) {
   //   input.model_repetitions.resize(input.model_names.size(), 1);
   // }
+
+}
+
+void EnvObjectRecognition::SetInput(const RecognitionInput &input) {
+  
+  chrono::time_point<chrono::system_clock> start, end;
+  start = chrono::system_clock::now();
+
+  SetCameraPose(input.camera_pose);
+  printf("Depth Factor : %f\n", input.depth_factor);
   PointCloudPtr depth_img_cloud(new PointCloud);
   vector<unsigned short> depth_image;
   vector<vector<uint8_t>> input_color_image_vec(3);
@@ -6277,6 +6283,7 @@ void EnvObjectRecognition::SetInput(const RecognitionInput &input) {
 
   }
   else {
+    // This is run when input images are not being used but cloud comes from robot or bag file
     *original_input_cloud_ = input.cloud;
     std::cout << "Set Input Camera Pose" << endl;
     Eigen::Affine3f cam_to_body;
@@ -6327,14 +6334,20 @@ void EnvObjectRecognition::SetInput(const RecognitionInput &input) {
   }
   if (perch_params_.use_gpu && !input.use_input_images)
   {
+    // Used when point cloud comes directly from robot or bag file and we need to use GPU code
+
     printf("Copying PCL cloud to array for GPU\n");
     // unfiltered_depth_data.assign(depth_image, depth_image + kCameraWidth * kCameraHeight-1);
-    result_observed_cloud = (float*) malloc(gpu_point_dim * env_params_.width*env_params_.height * sizeof(float));
-    result_observed_cloud_color = (uint8_t*) malloc(gpu_point_dim * env_params_.width*env_params_.height * sizeof(uint8_t));
     unfiltered_depth_data = (int*) malloc(kCameraHeight * kCameraWidth * sizeof(int));
 
     // observed_cloud_ is the downsampled input point cloud
     observed_point_num = observed_cloud_->points.size();
+    printf("Observed input cloud point count : %d\n", observed_point_num);
+
+    // assign variables that can be copied to GPU
+    result_observed_cloud = (float*) malloc(gpu_point_dim * observed_point_num * sizeof(float));
+    result_observed_cloud_eigen = (Eigen::Vector3f*) malloc(observed_point_num * sizeof(Eigen::Vector3f));
+    result_observed_cloud_color = (uint8_t*) malloc(gpu_point_dim * observed_point_num * sizeof(uint8_t));
     
     //// Need to transform back to camera frame for GPU version as KNN happens in cloud in camera frame
     Eigen::Isometry3d transform;
@@ -6350,15 +6363,22 @@ void EnvObjectRecognition::SetInput(const RecognitionInput &input) {
     for (int i = 0; i < observed_point_num; i++)
     {
       PointT point = transformed_cloud->points[i];
+      Eigen::Vector3f eig_point;
       uint32_t rgb = *reinterpret_cast<int*>(&point.rgb);
 
       result_observed_cloud[i + 0*observed_point_num] = point.x;
       result_observed_cloud[i + 1*observed_point_num] = point.y;
       result_observed_cloud[i + 2*observed_point_num] = point.z;
 
+      eig_point[0] = point.x;
+      eig_point[1] = point.y;
+      eig_point[2] = point.z;
+
       result_observed_cloud_color[i + 0*observed_point_num] = (rgb >> 16);
       result_observed_cloud_color[i + 1*observed_point_num] = (rgb >> 8);
       result_observed_cloud_color[i + 2*observed_point_num] = rgb;
+
+      result_observed_cloud_eigen[i] = eig_point;
     }
     input_depth_image_vec.resize(kCameraHeight*kCameraWidth, 0);
     for (int ii = 0; ii < kCameraHeight; ++ii) {

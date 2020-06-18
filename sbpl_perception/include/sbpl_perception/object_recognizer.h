@@ -23,7 +23,9 @@ class ObjectRecognizer {
   bool LocalizeObjectsGreedyICP(const RecognitionInput &input,
                       std::vector<Eigen::Affine3f> *object_transforms,
                       std::vector<Eigen::Affine3f> *preprocessing_object_transforms) const;
-  
+
+  bool SetStaticInput(const RecognitionInput &input);
+
   bool LocalizeObjectsGreedyRender(const RecognitionInput &input,
                       std::vector<Eigen::Affine3f> *object_transforms,
                       std::vector<Eigen::Affine3f> *preprocessing_object_transforms,

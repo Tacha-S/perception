@@ -11,8 +11,7 @@
       -->
       [ 
         004_sugar_box,
-        <!-- $(find sbpl_perception)/data/ycb_models/004_sugar_box_aligned.ply, -->
-        $(find sbpl_perception)/data/ycb_models/004_sugar_box/textured.ply,
+        /data/YCB_Video_Dataset/models/004_sugar_box/textured.ply,
         false,
         false,
         1,
@@ -21,7 +20,7 @@
       ],
       [ 
         005_tomato_soup_can,
-        $(find sbpl_perception)/data/ycb_models/005_tomato_soup_can/textured.ply,
+        /data/YCB_Video_Dataset/models/005_tomato_soup_can/textured.ply,
         false,
         false,
         2,
@@ -30,7 +29,7 @@
       ],
       [ 
         002_master_chef_can,
-        $(find sbpl_perception)/data/ycb_models/002_master_chef_can/textured.ply,
+        /data/YCB_Video_Dataset/models/002_master_chef_can/textured.ply,
         false,
         false,
         2,
@@ -39,7 +38,7 @@
       ],
       [
         010_potted_meat_can,
-        $(find sbpl_perception)/data/ycb_models/010_potted_meat_can/textured.ply,
+        /data/YCB_Video_Dataset/models/010_potted_meat_can/textured.ply,
         false,
         false,
         1,
@@ -48,7 +47,7 @@
       ],
       [
         024_bowl,
-        $(find sbpl_perception)/data/ycb_models/024_bowl/textured.ply,
+        /data/YCB_Video_Dataset/models/024_bowl/textured.ply,
         false,
         false,
         2,
@@ -57,7 +56,7 @@
       ],
       [
         006_mustard_bottle,
-        $(find sbpl_perception)/data/ycb_models/006_mustard_bottle/textured.ply,
+        /data/YCB_Video_Dataset/models/006_mustard_bottle/textured.ply,
         false,
         false,
         1,
@@ -66,7 +65,7 @@
       ],
       [
         011_banana,
-        $(find sbpl_perception)/data/ycb_models/011_banana/textured.ply,
+        /data/YCB_Video_Dataset/models/textured.ply,
         false,
         false,
         1,
@@ -75,13 +74,22 @@
       ],
       [
         025_mug,
-        $(find sbpl_perception)/data/ycb_models/025_mug/textured.ply,
+        /data/YCB_Video_Dataset/models/025_mug/textured.ply,
         false,
         false,
         2,
         0.06,
         1
       ],
+      [
+        035_power_drill,
+        /data/YCB_Video_Dataset/models/035_power_drill/textured_upright.ply,
+        false,
+        false,
+        0,
+        0.06,
+        1
+      ]
     ]
   </rosparam>
 </launch>
