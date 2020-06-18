@@ -1,4 +1,4 @@
-ARG CUDA="8.0"
+ARG CUDA="10.2"
 ARG CUDNN="7"
 
 FROM nvidia/cuda:${CUDA}-cudnn${CUDNN}-devel-ubuntu16.04
@@ -27,17 +27,22 @@ RUN apt-get update && apt-get install -y --allow-unauthenticated\
 #     && rm -rf /var/lib/apt/lists/*
 
 # Install Miniconda
-RUN curl -so /miniconda.sh https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh \
+RUN  apt-get update \
+  && apt-get install -y wget \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN wget -O /miniconda.sh https://repo.continuum.io/miniconda/Miniconda3-4.7.12.1-Linux-x86_64.sh \
  && chmod +x /miniconda.sh \
  && /miniconda.sh -b -p /miniconda \
  && rm /miniconda.sh
 
+RUN ls /miniconda/
 ENV PATH=/miniconda/bin:$PATH
 
 # Create a Python 3.6 environment
-RUN /miniconda/bin/conda install -y conda-build \
- && /miniconda/bin/conda create -y --name py36 python=3.6.7 \
- && /miniconda/bin/conda clean -ya
+RUN conda install -y conda-build \
+ && conda create -y --name py36 python=3.6.7 \
+ && conda clean -ya
 
 ENV CONDA_DEFAULT_ENV=py36
 ENV CONDA_PREFIX=/miniconda/envs/$CONDA_DEFAULT_ENV
@@ -50,7 +55,7 @@ RUN pip install ninja yacs cython matplotlib opencv-python tqdm tensorboardX
 
 # Install PyTorch 1.0 Nightly
 ARG CUDA
-RUN conda install pytorch==1.0.0 torchvision==0.2.1 cuda80 -c pytorch \
+RUN conda install pytorch==1.0.0 torchvision==0.2.1 cudatoolkit=${CUDA} -c pytorch \
  && conda clean -ya
 
 RUN conda install pillow==6.1
@@ -145,6 +150,7 @@ RUN git clone https://github.com/SBPL-Cruz/ros_python3_ws \
 #     && catkin build
 
 # Install PyTorch Detection
+ARG CACHEBUST=1
 ARG FORCE_CUDA="1"
 ENV FORCE_CUDA=${FORCE_CUDA}
 RUN git clone https://github.com/sbpl-cruz/maskrcnn-benchmark.git -b fat_pose_dataset_new \
@@ -158,7 +164,6 @@ RUN git clone https://github.com/NVIDIA/apex.git \
  && pip install -v --no-cache-dir ./
 #  && python setup.py install --cuda_ext --cpp_ext
 
-ARG CACHEBUST=1
 # Install PERCH
 RUN pip install catkin_pkg
 # For PERCH
@@ -166,31 +171,51 @@ RUN apt-get update && apt-get install -y --allow-unauthenticated\
     xvfb \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Latest Eigen, for fast_gicp
+RUN git clone https://github.com/eigenteam/eigen-git-mirror.git \
+ && cd eigen-git-mirror \
+ && mkdir build \
+ && cd build \
+ && cmake .. -DCMAKE_INSTALL_PREFIX=/usr/ \
+ && sudo make install 
+
+#  && python setup.py install --cuda_ext --cpp_ext
+
+
 ### Release Version below, code cloned inside docker ###
-RUN cd /ros_python3_ws/src \
-    && git clone https://github.com/SBPL-Cruz/improved-mha-planner -b renamed \
-    && git clone https://github.com/SBPL-Cruz/sbpl_utils.git -b renamed \
-    && git clone https://github.com/SBPL-Cruz/perception -b gpu_icp_ycb
-
-# If release then clone the main code, else it will be mounted by user during runtime
-# RUN echo "$TYPE"
-# RUN if [[ "$TYPE" = "RELEASE" ]; then "cd /ros_python3_ws/src \
-#     && git clone https://github.com/SBPL-Cruz/perception -b gpu_icp_ycb"; else echo "Not cloning code"; fi
-
-RUN /bin/bash -c '. /opt/ros/kinetic/setup.bash; cd /ros_python3_ws/; catkin build sbpl_perception'
-ENTRYPOINT /bin/bash -c '. /opt/ros/kinetic/setup.bash; \
-                         . /ros_python3_ws/devel/setup.bash; \
-                         cd /ros_python3_ws/src/perception/sbpl_perception/src/scripts/tools/fat_dataset; \
-                         Xvfb :5 -screen 0 800x600x24 & export DISPLAY=:5; \
-                         python fat_pose_image.py --config config_docker.yaml'
-
-
-
-
-### Debug Version below, code not cloned inside docker ###
 # RUN cd /ros_python3_ws/src \
 #     && git clone https://github.com/SBPL-Cruz/improved-mha-planner -b renamed \
-#     && git clone https://github.com/SBPL-Cruz/sbpl_utils.git -b renamed 
+#     && git clone https://github.com/SBPL-Cruz/sbpl_utils.git -b renamed \
+#     && git clone https://github.com/SBPL-Cruz/perception -b gpu_icp_ycb
+
+# # If release then clone the main code, else it will be mounted by user during runtime
+# # RUN echo "$TYPE"
+# # RUN if [[ "$TYPE" = "RELEASE" ]; then "cd /ros_python3_ws/src \
+# #     && git clone https://github.com/SBPL-Cruz/perception -b gpu_icp_ycb"; else echo "Not cloning code"; fi
+
+# RUN /bin/bash -c '. /opt/ros/kinetic/setup.bash; cd /ros_python3_ws/; catkin build sbpl_perception'
+# ENTRYPOINT /bin/bash -c '. /opt/ros/kinetic/setup.bash; \
+#                          . /ros_python3_ws/devel/setup.bash; \
+#                          cd /ros_python3_ws/src/perception/sbpl_perception/src/scripts/tools/fat_dataset; \
+#                          Xvfb :5 -screen 0 800x600x24 & export DISPLAY=:5; \
+#                          python fat_pose_image.py --config config_docker.yaml'
+
+RUN wget -qO- "https://cmake.org/files/v3.17/cmake-3.17.0-Linux-x86_64.tar.gz" | tar --strip-components=1 -xz -C /usr/local
+
+RUN pip install pandas glfw
+
+# From https://stackoverflow.com/questions/54483960/pyopengl-headless-rendering for PyOpenGL
+RUN mkdir /glfw \
+    && git clone https://github.com/glfw/glfw.git /glfw \
+    && cd /glfw \
+    && cmake -DBUILD_SHARED_LIBS=ON . \
+    && make
+ENV PYGLFW_LIBRARY=/glfw/src/libglfw.so
+
+### Debug Version below, code not cloned inside docker ###
+RUN cd /ros_python3_ws/src \
+    && git clone https://github.com/SBPL-Cruz/improved-mha-planner -b renamed \
+    && git clone https://github.com/SBPL-Cruz/sbpl_utils.git -b renamed 
 
 # RUN /bin/bash -c 'Xvfb :5 -screen 0 800x600x24 & export DISPLAY=:5; \
 #                         . /opt/ros/kinetic/setup.bash; \

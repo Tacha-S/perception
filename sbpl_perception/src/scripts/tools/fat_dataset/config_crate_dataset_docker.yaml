@@ -1,0 +1,40 @@
+dataset :
+    name : "crate"
+    type : "ndds"
+    device : "gpu"
+    model_dir : "/data/SameShape/roman/models"
+    image_dir : "/data/SameShape/Final"
+    perch_debug_dir : "/data/perch_output"
+    python_debug_dir : "/data/model_outputs"
+python2_paths :
+  - '/opt/ros/kinetic/lib/python2.7/dist-packages'
+  - '/usr/local/lib/python2.7/dist-packages/'
+python3_paths :
+  - '/ros_python3_ws/devel/lib/python3/dist-packages'
+analysis:
+  output_dir : "./crate_analysis_output"
+  device :
+    icp:
+      result_files:
+        accuracy :
+          - '/data/results/3dof_exp/crate/accuracy_icp.txt'
+        runtime :
+          - '/data/results/3dof_exp/crate/runtime_icp.txt'
+    gpu_pcl_icp:
+      result_files:
+        accuracy :
+          - '/data/results/3dof_exp/crate/accuracy_gpu_full_psc_24_minn_65.txt'
+        runtime :
+          - '/data/results/3dof_exp/crate/runtime_gpu_full_psc_24_minn_65.txt'
+    gpu_gicp_cuda:
+      result_files:
+        accuracy :
+          - '/data/results/3dof_exp/crate/gicp_cuda/accuracy_gicp_integrated.txt'
+        runtime :
+          - '/data/results/3dof_exp/crate/gicp_cuda/runtime_gicp_integrated.txt'
+    cpu:
+      result_files:
+        accuracy :
+          - '/data/results/3dof_exp/crate/accuracy_cpu_full_minn_75.txt'
+        runtime :
+          - '/data/results/3dof_exp/crate/runtime_cpu_full_minn_75.txt'

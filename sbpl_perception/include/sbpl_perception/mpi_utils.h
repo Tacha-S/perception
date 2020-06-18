@@ -30,6 +30,7 @@ struct CostComputationInput {
 
 struct CostComputationOutput {
   int cost;
+  int preicp_cost;
   GraphState adjusted_state;
   GraphStateProperties state_properties;
   std::vector<int> child_counted_pixels;

@@ -1,0 +1,14 @@
+dataset :
+    name : "jenga"
+    type : "jenga"
+    model_dir : "/data/Jenga/models"
+    image_dir : "/data/Jenga"
+    coco_annotation_file : "/data/Jenga/instances_jenga_clutter_pose.json"
+    camera_idx : 1  # Can be 0,1,2 since each scene is captured from 3 cameras
+    perch_debug_dir : "/data/perch_output"
+    python_debug_dir : "/data/model_outputs"
+python2_paths :
+  - '/opt/ros/kinetic/lib/python2.7/dist-packages'
+  - '/usr/local/lib/python2.7/dist-packages/'
+python3_paths :
+  - '/ros_python3_ws/devel/lib/python3/dist-packages'

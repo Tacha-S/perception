@@ -16,18 +16,20 @@
 
   <!-- Dependencies needed to compile this package. -->
   <build_depend>cv_bridge</build_depend>
+  <build_depend>fast_gicp</build_depend>
 
 
 
   <build_depend>roscpp</build_depend>
   <build_depend>roslib</build_depend>
- <build_depend>rospy</build_depend>
+  <build_depend>rospy</build_depend>
 
   <!-- <build_depend>libfcl&#45;dev</build_depend> -->
   <!-- <build_depend>libccd&#45;dev</build_depend> -->
 
   <!-- Dependencies needed after this package is compiled. -->
   <run_depend>cv_bridge</run_depend>
+  <run_depend>fast_gicp</run_depend>
 
   <run_depend>roscpp</run_depend>
   <run_depend>roslib</run_depend>

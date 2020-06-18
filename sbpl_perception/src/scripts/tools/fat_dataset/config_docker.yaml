@@ -2,8 +2,13 @@ dataset :
     name : "ycb"
     model_dir : "/data/YCB_Video_Dataset/models"
     image_dir : "/data/YCB_Video_Dataset/"
-    maskrcnn_config : "/maskrcnn-benchmark/configs/ycb_pose/e2e_mask_rcnn_R_50_FPN_1x_test_cocostyle.yaml"
-    maskrcnn_model_path : "/data/models/model_0025000.pth"
+    maskrcnn_config : "/maskrcnn-benchmark/configs/ycb_mask/e2e_mask_rcnn_R_101_FPN_1x_test_cocostyle.yaml"
+    maskrcnn_model_path : "/data/models/model_0037500.pth"
+    mask_type : "gt"
+    # mask_type : "mask_rcnn"
+    # mask_type : "posecnn"
+    # coco_annotation_file : "/data/YCB_Video_Dataset/instances_train_bbox_pose.json" # Train annotation file
+    coco_annotation_file : "/data/YCB_Video_Dataset/instances_keyframe_bbox_pose.json" # Test annotation file
     perch_debug_dir : "/data/perch_output"
     python_debug_dir : "/data/model_outputs"
 python2_paths :
@@ -11,3 +16,71 @@ python2_paths :
   - '/usr/local/lib/python2.7/dist-packages/'
 python3_paths :
   - '/ros_python3_ws/devel/lib/python3/dist-packages'
+analysis:
+  output_dir : "./6dof_analysis_output"
+  result_root_dir : '/data/results/6dof_exp/'
+  config :
+    gicp_cuda_integrated_posecnn:
+      result_files:
+        accuracy :
+          - 'fast_gicp_cuda_integrated_posecnn/file_1.txt'
+          - 'fast_gicp_cuda_integrated_posecnn/file_2.txt'
+          - 'fast_gicp_cuda_integrated_posecnn/file_3.txt'
+          - 'fast_gicp_cuda_integrated_posecnn/file_4.txt'
+          - 'fast_gicp_cuda_integrated_posecnn/file_5.txt'
+          - 'fast_gicp_cuda_integrated_posecnn/file_6.txt'
+          - 'fast_gicp_cuda_integrated_posecnn/file_7.txt'
+          - 'fast_gicp_cuda_integrated_posecnn/file_8.txt'
+          - 'fast_gicp_cuda_integrated_posecnn/file_9.txt'
+    gicp_cuda_integrated_maskrcnn:
+      result_files:
+        accuracy :
+          - 'fast_gicp_cuda_integrated/cracker.txt'
+          - 'fast_gicp_cuda_integrated/drill.txt'
+          - 'fast_gicp_cuda_integrated/mustard_pitcher.txt'
+          - 'fast_gicp_cuda_integrated/sugar.txt'
+          - 'fast_gicp_cuda_integrated/bleach.txt'
+          - 'fast_gicp_cuda_integrated/bowl.txt'
+          - 'fast_gicp_cuda_integrated/mug_foam.txt'
+          - 'fast_gicp_cuda_integrated/scissors_banana.txt'
+          - 'fast_gicp_cuda_integrated/wood.txt'
+          - 'fast_gicp_cuda_integrated/soup.txt'
+          - 'fast_gicp_cuda_integrated/chef_gelatin.txt'
+          - 'fast_gicp_cuda_integrated/marker.txt'
+          - 'fast_gicp_cuda_integrated/clamps.txt'
+          - 'fast_gicp_cuda_integrated/pudding.txt'
+          - 'fast_gicp_cuda_integrated/meat.txt'
+          - 'fast_gicp_cuda_integrated/tuna.txt'
+        runtime :
+          # Single object runtime
+          - 'fast_gicp_cuda_integrated/cracker_runtime_ideacenter.txt'
+          - 'fast_gicp_cuda_integrated/drill_runtime_psc.txt'
+          - 'fast_gicp_cuda_integrated/mustard_pitcher_runtime_psc.txt'
+          - 'fast_gicp_cuda_integrated/sugar_runtime_psc.txt'
+          - 'fast_gicp_cuda_integrated/bleach_runtime_psc.txt'
+          - 'fast_gicp_cuda_integrated/bowl_runtime_ideacenter.txt'
+          - 'fast_gicp_cuda_integrated/mug_foam_runtime_psc.txt'
+          - 'fast_gicp_cuda_integrated/scissors_banana_runtime_ideacenter.txt'
+          - 'fast_gicp_cuda_integrated/wood_runtime_ideacenter.txt'
+          - 'fast_gicp_cuda_integrated/soup_runtime_ideacenter.txt'
+          - 'fast_gicp_cuda_integrated/chef_gelatin_runtime_psc.txt'
+          - 'fast_gicp_cuda_integrated/marker_runtime_ideacenter.txt'
+          - 'fast_gicp_cuda_integrated/clamps_runtime_psc.txt'
+          - 'fast_gicp_cuda_integrated/pudding_runtime_ideacenter.txt'
+          - 'fast_gicp_cuda_integrated/meat_runtime_psc.txt'
+          - 'fast_gicp_cuda_integrated/tuna_runtime_ideacenter.txt'
+    gicp_cuda_integrated_gt_mask:
+      result_files:
+        accuracy :
+          # If object is present in multiple files, the file later in the list will be used
+          - 'fast_gicp_cuda_integrated_gt_mask/file_1.txt'
+          - 'fast_gicp_cuda_integrated_gt_mask/file_2.txt'
+          - 'fast_gicp_cuda_integrated_gt_mask/file_3.txt'
+          - 'fast_gicp_cuda_integrated_gt_mask/file_4.txt'
+          - 'fast_gicp_cuda_integrated_gt_mask/file_5.txt'
+          - 'fast_gicp_cuda_integrated_gt_mask/file_6.txt'
+          - 'fast_gicp_cuda_integrated_gt_mask/file_7.txt'
+          - 'fast_gicp_cuda_integrated_gt_mask/file_8.txt'
+          - 'fast_gicp_cuda_integrated_gt_mask/file_9.txt'
+          - 'fast_gicp_cuda_integrated_gt_mask/file_10.txt' #min points - 15
+

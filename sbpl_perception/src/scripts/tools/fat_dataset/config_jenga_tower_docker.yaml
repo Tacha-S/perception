@@ -1,0 +1,16 @@
+dataset :
+    name : "jenga"
+    type : "jenga"
+    model_dir : "/data/Jenga_tower_v2/models"
+    image_dir : "/data/Jenga_tower_v2"
+    # coco_annotation_file : "/data/Jenga_tower_v2/instances_jenga_tower_pose_0.json"
+    coco_annotation_file : "/data/Jenga_tower_v2/instances_jenga_tower_pose_cam_2.json"
+    maskrcnn_config : "/maskrcnn-benchmark/configs/ycb_mask/e2e_mask_rcnn_R_101_FPN_1x_test_cocostyle.yaml"
+    maskrcnn_model_path : "/data/models/model_0037500.pth"
+    perch_debug_dir : "/data/perch_output"
+    python_debug_dir : "/data/model_outputs"
+python2_paths :
+  - '/opt/ros/kinetic/lib/python2.7/dist-packages'
+  - '/usr/local/lib/python2.7/dist-packages/'
+python3_paths :
+  - '/ros_python3_ws/devel/lib/python3/dist-packages'
