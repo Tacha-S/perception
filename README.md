@@ -2,7 +2,7 @@
 
 Overview
 --------
-This library provides implementations for single and multi-object pose estimation from RGB-D sensor (MS Kinect, ASUS Xtion etc.) data. 
+This library provides implementations for single and multi-object pose estimation from RGB-D sensor (MS Kinect, ASUS Xtion etc.) data. It renders 100s of poses in parallel on a GPU in order to find the pose that best explains the observed scene.
 
 Features
 ------------
@@ -28,7 +28,7 @@ Setup (For running with a robot camera or bagfile recorded from robot)
     ```
     docker pull thecatalyst25/perch_debug:2.0
     ```
-4.  Clone this repo which contains the code locally (skip this step if you already have it cloned) : 
+4.  Clone this repo which contains the code locally : 
     ```
     git clone https://github.com/SBPL-Cruz/perception -b gpu
     ```
@@ -39,38 +39,38 @@ Setup (For running with a robot camera or bagfile recorded from robot)
    mkdir -p data/ycb_models
    ```
 6. Download the YCB models from this [link](https://drive.google.com/file/d/1gmcDD-5bkJfcMKLZb3zGgH_HUFbulQWu/view?usp=sharing) and extract them in the ```ycb_models``` folder created above
-7. Download the example bag file from this [link]() 
+7. Download the example bag file from this [link](https://drive.google.com/file/d/1EVYREHvi0hW8DoMpVaNeMC9ruxYtm0aV/view?usp=sharing) 
 
 8. Run the Docker while mounting the cloned repo to the workspace inside the Docker and build the workspace :
-```
-docker run --runtime nvidia -it --net=host -v perception:/ros_python3_ws/src/perception  perch_debug:2.0
-source /opt/ros/kinetic/setup.bash
-cd ros_python3_ws/
-catkin build object_recognition_node
-```
+   ```
+   docker run --runtime nvidia -it --net=host -v perception:/ros_python3_ws/src/perception  perch_debug:2.0
+   source /opt/ros/kinetic/setup.bash
+   cd ros_python3_ws/
+   catkin build object_recognition_node
+   ```
 9. Run the code. This will start the service which will wait for camera input and request to locate a given object :
-```
-roscore&
-source /ros_python3_ws/devel/setup.bash 
-roslaunch object_recognition_node pr2_conveyor_object_recognition.launch
-```
-10. Request for objects and run the bag file :
-```
-rosbag play 3dof_1_2020-03-04-14-17-00.bag
+   ```
+   roscore&
+   source /ros_python3_ws/devel/setup.bash 
+   roslaunch object_recognition_node pr2_conveyor_object_recognition.launch
+   ```
+10. Request for objects and run the bag file (recorded from a Kinect camera on a PR2 robot) :
+   ```
+   rosbag play 3dof_1_2020-03-04-14-17-00.bag
 
-rostopic pub /requested_object std_msgs/String "data: '004_sugar_box 005_tomato_soup_can 002_master_chef_can 006_mustard_bottle 010_potted_meat_can'"
-```
+   rostopic pub /requested_object std_msgs/String "data: '004_sugar_box 005_tomato_soup_can 002_master_chef_can 006_mustard_bottle 010_potted_meat_can'"
+   ```
 11. Modify required parameters in the files below if needed :
-```
-sbpl_perception/config/camera_config.yaml
-sbpl_perception/config/pr2_conv_env_config.yaml
-```
+   ```
+   sbpl_perception/config/camera_config.yaml
+   sbpl_perception/config/pr2_conv_env_config.yaml
+   ```
 
 Tweaking Params
 ------------
-1. Tweek table_height such that no points of the table or floor are visible in /perch/input_point_cloud
-2. Tweak xmin, xmax, ymin, ymax such that no visible points of required objects get excluded from the point cloud
-3. Tweak downsampling leaf size to get desired speed and accuracy
+1. Tweek table_height (in the launch file) such that no points of the table or floor are visible in /perch/input_point_cloud
+2. Tweak xmin, xmax, ymin, ymax (in the launch file) such that no visible points of required objects get excluded from the point cloud
+3. Tweak downsampling leaf size to get desired speed and accuracy (in the env .yaml file)
 
 
 
