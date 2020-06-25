@@ -17,16 +17,16 @@ analysis:
   # output_dir : "./conveyor_analysis_output_icp"
   result_files :
     root : '/data/results/conveyor/' 
-    accuracy :
-      - '/data/results/conveyor/icp_less_render/drill.txt'
-      - '/data/results/conveyor/icp_less_render/mustard.txt'
-      - '/data/results/conveyor/icp_less_render/sugar.txt'
-      - '/data/results/conveyor/icp_less_render/soup.txt'
-    runtime : 
-      - '/data/results/conveyor/icp_less_render/drill_runtime.txt'
-      - '/data/results/conveyor/icp_less_render/mustard_runtime.txt'
-      - '/data/results/conveyor/icp_less_render/sugar_runtime.txt'
-      - '/data/results/conveyor/icp_less_render/soup_runtime.txt'
+    # accuracy :
+    #   - '/data/results/conveyor/icp_less_render/drill.txt'
+    #   - '/data/results/conveyor/icp_less_render/mustard.txt'
+    #   - '/data/results/conveyor/icp_less_render/sugar.txt'
+    #   - '/data/results/conveyor/icp_less_render/soup.txt'
+    # runtime : 
+    #   - '/data/results/conveyor/icp_less_render/drill_runtime.txt'
+    #   - '/data/results/conveyor/icp_less_render/mustard_runtime.txt'
+    #   - '/data/results/conveyor/icp_less_render/sugar_runtime.txt'
+    #   - '/data/results/conveyor/icp_less_render/soup_runtime.txt'
     # accuracy :
     #   - '/data/results/conveyor/cpu/drill_cpu/drill.txt'
     #   - '/data/results/conveyor/cpu/mustard_cpu/mustard.txt'
@@ -37,16 +37,18 @@ analysis:
     #   - '/data/results/conveyor/cpu/drill_cpu/drill_runtime.txt'
     #   - '/data/results/conveyor/cpu/soup_cpu/soup_runtime.txt'
     #   - '/data/results/conveyor/cpu/mustard_cpu/mustard_runtime.txt'      
-    # accuracy :
-    #   - '/data/results/conveyor/gpu/drill_gpu/drill_new.txt'
-    #   - '/data/results/conveyor/gpu/mustard_gpu/mustard_new.txt'
-    #   - '/data/results/conveyor/gpu/sugar_gpu/sugar_new.txt'
-    #   - '/data/results/conveyor/gpu/soup_gpu/soup.txt'
-    # runtime : 
-    #   - '/data/results/conveyor/gpu/sugar_gpu/sugar_new_runtime.txt'
-    #   - '/data/results/conveyor/gpu/drill_gpu/drill_new_runtime.txt'
-    #   - '/data/results/conveyor/gpu/soup_gpu/soup_runtime.txt'
-    #   - '/data/results/conveyor/gpu/mustard_gpu/mustard_new_runtime.txt'      
+    accuracy :
+      - '/data/results/conveyor/gpu/drill_gpu/drill_new.txt'
+      # - '/data/results/conveyor/gpu/drill_gpu/drill_stride_fix.txt'
+      - '/data/results/conveyor/gpu/mustard_gpu/mustard_new.txt'
+      # - '/data/results/conveyor/gpu/sugar_gpu/sugar_stride_fix.txt'
+      - '/data/results/conveyor/gpu/sugar_gpu/sugar_new.txt'
+      - '/data/results/conveyor/gpu/soup_gpu/soup.txt'
+    runtime : 
+      - '/data/results/conveyor/gpu/sugar_gpu/sugar_new_runtime.txt'
+      - '/data/results/conveyor/gpu/drill_gpu/drill_new_runtime.txt'
+      - '/data/results/conveyor/gpu/soup_gpu/soup_runtime.txt'
+      - '/data/results/conveyor/gpu/mustard_gpu/mustard_new_runtime.txt'      
 
 label_gen :
     model_dir : "/media/aditya/A69AFABA9AFA85D9/Datasets/YCB_Video_Dataset/models"

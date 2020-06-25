@@ -3388,7 +3388,7 @@ def run_ycb_6d(dataset_cfg=None):
     ]
     filter_objects = required_objects
 
-    if "posecnn" not in mask_type or print_poses:
+    if "mask_rcnn" in mask_type or print_poses:
         fat_image.init_model(
             cfg_file, 
             print_poses=print_poses, 
@@ -4054,10 +4054,10 @@ def run_on_conveyor(dataset_cfg=None):
         fat_image.init_dope_node()
 
     # for scene_name in ["mustard_1", "mustard_2", "mustard_3", "drill_1", "drill_2", "drill_3", "sugar_3", "sugar_1", "sugar_2"]:
-    # for scene_name in ["soup_1"]:
-    for scene_name in ["drill_3", "drill_1", "drill_2"]:
+    for scene_name in ["sugar_1"]:
+    # for scene_name in ["drill_3", "drill_1", "drill_2"]:
     # for scene_name in ["sugar_3", "sugar_1", "sugar_2"]:
-        for img_i in range(0, 400):
+        for img_i in range(162, 164):
             if "mustard" in scene_name:
                 required_objects = ['006_mustard_bottle']
             elif "drill" in scene_name:

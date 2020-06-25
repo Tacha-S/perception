@@ -387,9 +387,9 @@ class EnvObjectRecognition : public EnvironmentMHA {
   //6D stuff
   std::vector<PointCloudPtr> segmented_object_clouds;
   std::vector<std::string> segmented_object_names;
-  void GetShiftedCentroidPosesGPU(const vector<ObjectState>& objects,
-                                  vector<ObjectState>& modified_objects,
-                                  int start_index);
+  // void GetShiftedCentroidPosesGPU(const vector<ObjectState>& objects,
+  //                                 vector<ObjectState>& modified_objects,
+  //                                 int start_index);
   vector<float> segmented_observed_point_count;
   std::vector<pcl::search::KdTree<PointT>::Ptr> segmented_object_knn;
   std::vector<uint8_t> predicted_mask_image;
@@ -398,8 +398,10 @@ class EnvObjectRecognition : public EnvironmentMHA {
   // CUDA GPU stuff
   std::unordered_map<int, std::vector<int32_t>> gpu_depth_image_cache_;
   std::unordered_map<int, std::vector<std::vector<uint8_t>>> gpu_color_image_cache_;
+  // Function do tree search with GPU expansions - doesnt work as of now
   void ComputeCostsInParallelGPU(std::vector<CostComputationInput> &input,
                               std::vector<CostComputationOutput> *output, bool lazy);
+  // Function to render all states in GPU in parallel and find one with lowest cost - PERCH 2.0
   void ComputeGreedyCostsInParallelGPU(const std::vector<int32_t> &source_result_depth,
                                       const std::vector<ObjectState> &last_object_states,
                                       std::vector<CostComputationOutput> &output,
@@ -423,6 +425,7 @@ class EnvObjectRecognition : public EnvironmentMHA {
 
   cv::Mat cv_input_filtered_depth_image, cv_input_filtered_color_image, cv_input_unfiltered_depth_image;
   vector<vector<uint8_t>> cv_input_filtered_color_image_vec;
+  // Print images rendered on GPU to file
   void PrintGPUImages(vector<int32_t>& result_depth, 
                       vector<vector<uint8_t>>& result_color, 
                       int num_poses, string suffix, 
@@ -440,7 +443,7 @@ class EnvObjectRecognition : public EnvironmentMHA {
                               bool do_icp,
                               ros::Publisher render_point_cloud_topic,
                               bool print_cloud);
-
+  // Print clouds from GPU to rviz
   void PrintGPUClouds(const vector<ObjectState>& objects,
                       float* cloud, 
                       uint8_t* cloud_color,
@@ -456,16 +459,17 @@ class EnvObjectRecognition : public EnvironmentMHA {
                       ros::Publisher render_point_cloud_topic,
                       bool print_cloud);
 
-  void GetStateImagesGPU(const vector<ObjectState>& objects,
-                        const vector<vector<uint8_t>>& source_result_color,
-                        const vector<int32_t>& source_result_depth,
-                        vector<vector<uint8_t>>& result_color,
-                        vector<int32_t>& result_depth,
-                        vector<int>& pose_occluded,
-                        int single_result_image,
-                        vector<int>& pose_occluded_other,
-                        vector<float>& pose_clutter_cost,
-                        const vector<int>& pose_segmentation_label = vector<int>());
+  // Depracated : Use GetStateImagesUnifiedGPU
+  // void GetStateImagesGPU(const vector<ObjectState>& objects,
+  //                       const vector<vector<uint8_t>>& source_result_color,
+  //                       const vector<int32_t>& source_result_depth,
+  //                       vector<vector<uint8_t>>& result_color,
+  //                       vector<int32_t>& result_depth,
+  //                       vector<int>& pose_occluded,
+  //                       int single_result_image,
+  //                       vector<int>& pose_occluded_other,
+  //                       vector<float>& pose_clutter_cost,
+  //                       const vector<int>& pose_segmentation_label = vector<int>());
 
   void GetStateImagesUnifiedGPU(const string stage,
                       const vector<ObjectState>& objects,
@@ -491,14 +495,14 @@ class EnvObjectRecognition : public EnvironmentMHA {
                       int cost_type = 0,
                       bool calculate_observed_cost = false);
 
-  void GetICPAdjustedPosesGPU(float* result_rendered_clouds,
-                              int* dc_index,
-                              int32_t* depth_data,
-                              int num_poses,
-                              float* result_observed_cloud,
-                              int* observed_dc_index,
-                              int total_rendered_points,
-                              int* poses_occluded);
+  // void GetICPAdjustedPosesGPU(float* result_rendered_clouds,
+  //                             int* dc_index,
+  //                             int32_t* depth_data,
+  //                             int num_poses,
+  //                             float* result_observed_cloud,
+  //                             int* observed_dc_index,
+  //                             int total_rendered_points,
+  //                             int* poses_occluded);
 
   GraphState ComputeGreedyRenderPoses();
   void PrintStateGPU(GraphState state);

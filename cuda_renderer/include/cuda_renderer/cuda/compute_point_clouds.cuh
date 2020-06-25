@@ -7,7 +7,7 @@
 #include <Eigen/Core>
 
 #include "cuda_renderer/model.h"
-#include "cuda_renderer/utils.cuh"
+#include "cuda_renderer/cuda/utils.cuh"
 
 namespace cuda_renderer {
 namespace image_to_cloud {

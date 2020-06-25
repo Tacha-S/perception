@@ -49,9 +49,10 @@ find_package(catkin REQUIRED
 include_directories(${catkin_INCLUDE_DIRS})
 
 # src
-SET(renderer_cuda renderer.cu)
-SET(renderer_srcs renderer.cpp model.cpp)
-SET(renderer_knn knncuda.cu)
+SET(renderer_cuda src/cuda/renderer.cu)
+# SET(renderer_srcs src/renderer.cpp src/model.cpp)
+SET(renderer_srcs src/model.cpp)
+SET(renderer_knn src/cuda/knncuda.cu)
 
 if(USE_CUDA)
 CUDA_COMPILE(renderer_cuda_objs ${renderer_cuda} ${renderer_knn})
