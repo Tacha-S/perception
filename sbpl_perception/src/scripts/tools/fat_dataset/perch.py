@@ -43,8 +43,8 @@ class FATPerch():
 
     def __init__(
             self, params=None, input_image_files=None, camera_params=None, object_names_to_id=None, output_dir_name=None,
-            models_root=None, model_params=None, symmetry_info=None, read_results_only=False, env_config="pr2_env_config.yaml",
-            planner_config="pr2_planner_config.yaml", perch_debug_dir=None
+            models_root=None, model_params=None, model_type="default", symmetry_info=None, read_results_only=False, env_config="pr2_env_config.yaml",
+            planner_config="pr2_planner_config.yaml", perch_debug_dir=None, distance_scale=100
         ):
         self.PERCH_EXEC = subprocess.check_output("catkin_find sbpl_perception perch_fat".split(" ")).decode("utf-8").rstrip().lstrip()
         rospack = rospkg.RosPack()
@@ -64,7 +64,8 @@ class FATPerch():
         self.output_dir_name = output_dir_name
 
         self.perch_debug_dir = perch_debug_dir
-
+        self.model_type = model_type
+        self.distance_scale = distance_scale
         if read_results_only == False:
             self.load_ros_param_from_file(PERCH_ENV_CONFIG)
             self.load_ros_param_from_file(PERCH_PLANNER_CONFIG)
@@ -113,9 +114,20 @@ class FATPerch():
         #symmetric true false
         #symmetric number
         for object_name in object_names:
+            if self.model_type == "default":
+                model_path = os.path.join(models_root, object_name, 'textured.ply')
+            elif self.model_type == "upright":
+                # For things like drill which need to be made upright
+                temp_path = os.path.join(models_root, object_name, 'textured_upright.ply')
+                if os.path.exists(temp_path):
+                    model_path = temp_path
+                else:
+                    model_path = os.path.join(models_root, object_name, 'textured.ply')
+
+
             params.append([
                 object_name,
-                os.path.join(models_root, object_name, 'textured.ply'),
+                model_path,
                 model_params['flipped'],
                 False,
                 0 if self.use_external_pose_list == 1 else self.SYMMETRY_INFO[object_name],
@@ -138,7 +150,7 @@ class FATPerch():
             for l_t in range(9, 13) :
                 preprocessing_transform_matrix[l_t - 9,:] = list(map(float, lines[i+l_t].rstrip().split()))
             annotations.append({
-                            'location' : [location[0] * 100, location[1] * 100, location[2] * 100],
+                            'location' : [location[0] * self.distance_scale, location[1] * self.distance_scale, location[2] * self.distance_scale],
                             'quaternion_xyzw' : quaternion,
                             'category_id' : self.object_names_to_id[lines[i].rstrip()],
                             'transform_matrix' : transform_matrix,
@@ -196,7 +208,7 @@ class FATPerch():
             for l_t in range(9, 13) :
                 preprocessing_transform_matrix[l_t - 9,:] = list(map(float, lines[i+l_t].rstrip().split()))
             annotations.append({
-                            'location' : [location[0] * 100, location[1] * 100, location[2] * 100],
+                            'location' : [location[0] * self.distance_scale, location[1] * self.distance_scale, location[2] * self.distance_scale],
                             'quaternion_xyzw' : quaternion,
                             'category_id' : self.object_names_to_id[lines[i].rstrip()],
                             'transform_matrix' : transform_matrix,
@@ -210,6 +222,7 @@ class FATPerch():
         lines = f.readlines()
         stats_from_file = list(map(float, lines[2].rstrip().split()))
         stats['expands'] = stats_from_file[2]
+        stats['rendered'] = stats_from_file[0]
         stats['runtime'] = stats_from_file[3]
         stats['icp_runtime'] = stats_from_file[5]
         stats['peak_gpu_mem'] = stats_from_file[6]

@@ -254,14 +254,17 @@ bool ObjectRecognizer::LocalizeObjectsGreedyICP(const RecognitionInput &input,
   preprocessing_object_transforms->resize(input.model_names.size());
 
   last_env_stats_ = env_obj_->GetEnvStats();
-  last_env_stats_.scenes_rendered = 0;
+  // last_env_stats_.scenes_rendered = 0;
   last_env_stats_.scenes_valid = 0;
 
   PlannerStats icp_stats;
   icp_stats.eps = 0;
   icp_stats.cost = 0;
-  icp_stats.time = elapsed_seconds.count();
-  icp_stats.expands = 0;
+  // icp_stats.time = elapsed_seconds.count();
+  // icp_stats.expands = 0;
+  icp_stats.time = last_env_stats_.time;
+  icp_stats.expands = last_env_stats_.scenes_rendered;
+
   last_planning_stats_.push_back(icp_stats);
 
   int ii = 0;

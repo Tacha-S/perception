@@ -9,7 +9,7 @@
 
   <include file="$(find sbpl_perception)/config/ycb_objects.xml"/>
 
-  <rosparam command="load" file="$(find sbpl_perception)/config/pr2_conv_env_config.yaml" />
+  <rosparam command="load" file="$(find sbpl_perception)/config/pr2_gpu_robot_conv_env_config.yaml" />
   <rosparam command="load" file="$(find sbpl_perception)/config/pr2_conv_planner_config.yaml" />
   <rosparam command="load" file="$(find sbpl_perception)/config/camera_config.yaml" />
 

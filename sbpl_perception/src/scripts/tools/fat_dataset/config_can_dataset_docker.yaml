@@ -1,5 +1,5 @@
 dataset :
-    name : "soda_can"
+    name : "sameshape"
     type : "ndds"
     model_dir : "/data/SameShape/turbosquid/models"
     image_dir : "/data/SameShape/Final"

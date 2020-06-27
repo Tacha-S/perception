@@ -8,10 +8,10 @@ project(sbpl_perception)
 #  RelWithDebInfo : w/ debug symbols, w/ optimization
 #  MinSizeRel     : w/o debug symbols, w/ optimization, stripped binaries
 # set(ROS_BUILD_TYPE RelWithDebInfo)
-# set(ROS_BUILD_TYPE Debug)
+set(ROS_BUILD_TYPE Debug)
 option(USE_CUDA "use cuda or not" ON)
 if(USE_CUDA)
-set(CUDA_TOOLKIT_ROOT_DIR /usr/local/cuda-8.0)
+set(CUDA_TOOLKIT_ROOT_DIR /usr/local/cuda-10.2)
 add_definitions(-DCUDA_ON)
 endif()
 if(USE_CUDA)
@@ -26,8 +26,8 @@ CUDA_COMPILE(renderer_cuda_objs ${renderer_cuda})
 endif()
 
 
-set(CMAKE_BUILD_TYPE Debug)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -fopenmp")
+set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11  -fext-numeric-literals -fopenmp")
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # set(CMAKE_COLOR_MAKEFILE ON)
 # set(ROS_COMPILE_FLAGS "-W -Wno-reorder")
@@ -51,6 +51,7 @@ find_package(catkin REQUIRED COMPONENTS
   image_transport
   kinect_sim
   cuda_renderer
+  fast_gicp
   perception_utils
   pcl_ros
   roscpp
@@ -121,11 +122,27 @@ if (${CUSTOM_BOOST_MPI})
   set (CXX_PATH /media/aditya/A69AFABA9AFA85D9/Cruzr/code/openmpi-4.0.0/install/bin/mpicxx)
 else()
   set (MPI_INCLUDE /usr/include/openmpi/)
-  set (CXX_PATH /usr/bin/mpicxx)
+  # set (CXX_PATH /usr/bin/mpicxx)
+  find_package(MPI REQUIRED)
 endif()
 
 include_directories(${MPI_INCLUDE})
 #include_directories(${Pangolin_INCLUDE_DIRS})
+
+find_package(Sophus)
+include_directories(${Sophus_INCLUDE_DIRS})
+
+include(FetchContent)
+
+FetchContent_Declare(json
+  GIT_REPOSITORY https://github.com/nlohmann/json
+  GIT_TAG v3.7.3)
+
+FetchContent_GetProperties(json)
+if(NOT json_POPULATED)
+  FetchContent_Populate(json)
+  add_subdirectory(${json_SOURCE_DIR} ${json_BINARY_DIR} EXCLUDE_FROM_ALL)
+endif()
 
 
 include_directories(${catkin_INCLUDE_DIRS})
@@ -136,6 +153,7 @@ catkin_package(
     cv_bridge
     kinect_sim
     cuda_renderer
+    fast_gicp
     perception_utils
     pcl_ros
     roscpp
@@ -147,13 +165,14 @@ catkin_package(
     visualization_msgs
   DEPENDS
     # OpenCV
-    #MPI
+    MPI
     OpenMP
     PCL
     #Boost
   INCLUDE_DIRS
     include
     ${MPI_INCLUDE}
+    ${CUDA_INCLUDE_DIRS}
   LIBRARIES
     ${PROJECT_NAME}
   )
@@ -179,13 +198,20 @@ add_library(${PROJECT_NAME}
 #        ${MPI_ROOT}/lib/libmpi.so)
 #message(WARNING ${catkin_LIBRARIES})
 
-target_link_libraries(${PROJECT_NAME} ${Boost_LIBRARIES} ${catkin_LIBRARIES} ${ZLIB_LIBRARIES}
+target_link_libraries(
+  ${PROJECT_NAME} 
+  ${Boost_LIBRARIES} 
+  ${catkin_LIBRARIES} 
+  ${ZLIB_LIBRARIES}
+  ${MPI_LIBRARIES} 
   #${Pangolin_LIBRARIES}
   #${MPI_CXX_LIBRARIES} ${CUDA_LIBRARIES}
   #${PCL_LIBRARIES} ${OpenCV_LIBRARIES} /usr/lib/libvtkCommon.so.5.10 /usr/lib/libvtkFiltering.so.5.10 /usr/lib/libvtkRendering.so.5.10 /usr/lib/libvtkIO.so.5.10
   # ${MPI_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBRARIES} ${FCL_LIBRARIES} libvtkCommon.so libvtkFiltering.so libvtkRendering.so libvtkIO.so
   #/usr/lib/libvtkGraphics.so.5.10
-  )
+  nlohmann_json::nlohmann_json
+  ${Sophus_LIBRARIES} 
+)
 
 #add_executable(real_test src/experiments/experiments.cpp)
 #target_link_libraries(real_test ${PROJECT_NAME})
@@ -198,7 +224,8 @@ target_link_libraries(${PROJECT_NAME} ${Boost_LIBRARIES} ${catkin_LIBRARIES} ${Z
 include(CMakeForceCompiler)
   #CMAKE_FORCE_CXX_COMPILER(mpicxx ${CMAKE_CXX_COMPILER_ID})
 
-CMAKE_FORCE_CXX_COMPILER(${CXX_PATH} ${CMAKE_CXX_COMPILER_ID})
+# CMAKE_FORCE_CXX_COMPILER(${CXX_PATH} ${CMAKE_CXX_COMPILER_ID})
+# set(CMAKE_CXX_COMPILER ${CXX_PATH})
 
 #catkin_add_gtest(${PROJECT_NAME}_states_test tests/states_test.cpp)
 #target_link_libraries(${PROJECT_NAME}_states_test ${PROJECT_NAME})

@@ -77,6 +77,7 @@ Eigen::Affine3f PreprocessModel(const pcl::PolygonMesh::Ptr &mesh_in,
   double z_translation;
   if (use_external_pose_list)
   {
+    std::cout << "Using 6-Dof settings for preprocessing transform\n";
     z_translation = centroid[2];
     // z_translation = min_pt.z;
   }

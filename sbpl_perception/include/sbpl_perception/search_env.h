@@ -48,6 +48,10 @@
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/filters/statistical_outlier_removal.h>
 #include <pcl/registration/gicp.h>
+#include <fast_gicp/gicp/fast_vgicp.hpp>
+#include <fast_gicp/gicp/fast_gicp.hpp>
+#include <fast_gicp/gicp/fast_gicp_st.hpp>
+#include <fast_gicp/gicp/fast_gicp_cuda.hpp>
 
 #include <memory>
 #include <string>
@@ -66,6 +70,8 @@
 // #include <cuda_icp_custom/kdtree.hpp>
 // #include <cuda_icp_custom/pointcloud.h>
 #include <numeric>
+#include <nlohmann/json.hpp>
+#include <sophus/so3.hpp>
 
 int *difffilter(const cv::Mat& input,const cv::Mat& input1, cv::Mat& output);
 namespace sbpl_perception {
@@ -141,6 +147,13 @@ struct PERCHParams {
   int gpu_batch_size;
   bool use_gpu;
   double color_distance_threshold;
+  double gpu_stride;
+  bool use_cylinder_observed;
+  double gpu_occlusion_threshold;
+  double footprint_tolerance;
+
+  double depth_median_blur;
+  int icp_type;
 
   PERCHParams() : initialized(false) {}
 
@@ -167,6 +180,12 @@ struct PERCHParams {
     ar &gpu_batch_size;
     ar &use_gpu;
     ar &color_distance_threshold;
+    ar &gpu_stride;
+    ar &use_cylinder_observed;
+    ar &gpu_occlusion_threshold;
+    ar &footprint_tolerance;
+    ar &depth_median_blur;
+    ar &icp_type;
   }
 };
 // BOOST_IS_MPI_DATATYPE(PERCHParams);
@@ -252,6 +271,12 @@ class EnvObjectRecognition : public EnvironmentMHA {
                             const std::vector<int> counted_indices = std::vector<int>(0),
                             const PointCloudPtr target_cloud = NULL,
                             const std::string object_name = "");
+
+  double GetVGICPAdjustedPose(const PointCloudPtr cloud_in,
+                          const ContPose &pose_in, PointCloudPtr &cloud_out, ContPose *pose_out,
+                          const std::vector<int> counted_indices = std::vector<int>(0),
+                          const PointCloudPtr target_cloud = NULL,
+                          const std::string object_name = "");
 
   std::vector<unsigned short> GetInputDepthImage() {
     return observed_depth_image_;
@@ -362,18 +387,21 @@ class EnvObjectRecognition : public EnvironmentMHA {
   //6D stuff
   std::vector<PointCloudPtr> segmented_object_clouds;
   std::vector<std::string> segmented_object_names;
-  void GetShiftedCentroidPosesGPU(const vector<ObjectState>& objects,
-                                  vector<ObjectState>& modified_objects,
-                                  int start_index);
+  // void GetShiftedCentroidPosesGPU(const vector<ObjectState>& objects,
+  //                                 vector<ObjectState>& modified_objects,
+  //                                 int start_index);
   vector<float> segmented_observed_point_count;
   std::vector<pcl::search::KdTree<PointT>::Ptr> segmented_object_knn;
   std::vector<uint8_t> predicted_mask_image;
+  // std::vector<int32_t> input_depth_image_vec;
 
   // CUDA GPU stuff
   std::unordered_map<int, std::vector<int32_t>> gpu_depth_image_cache_;
   std::unordered_map<int, std::vector<std::vector<uint8_t>>> gpu_color_image_cache_;
+  // Function do tree search with GPU expansions - doesnt work as of now
   void ComputeCostsInParallelGPU(std::vector<CostComputationInput> &input,
                               std::vector<CostComputationOutput> *output, bool lazy);
+  // Function to render all states in GPU in parallel and find one with lowest cost - PERCH 2.0
   void ComputeGreedyCostsInParallelGPU(const std::vector<int32_t> &source_result_depth,
                                       const std::vector<ObjectState> &last_object_states,
                                       std::vector<CostComputationOutput> &output,
@@ -381,19 +409,23 @@ class EnvObjectRecognition : public EnvironmentMHA {
   vector<int> tris_model_count;
   vector<cuda_renderer::Model::Triangle> tris;
   float gpu_depth_factor = 100.0;
+  float input_depth_factor;
   int gpu_point_dim = 3;
   // Stride should divide width exactly
   int gpu_stride = 5;
   float* result_observed_cloud;
+  Eigen::Vector3f* result_observed_cloud_eigen;
   uint8_t* result_observed_cloud_color;
   int observed_point_num;
   int* observed_dc_index;
   int32_t* observed_depth_data;
-  int *unfiltered_depth_data;
+  int* unfiltered_depth_data;
   int* result_observed_cloud_label;
+  vector<int32_t> input_depth_image_vec;
 
   cv::Mat cv_input_filtered_depth_image, cv_input_filtered_color_image, cv_input_unfiltered_depth_image;
   vector<vector<uint8_t>> cv_input_filtered_color_image_vec;
+  // Print images rendered on GPU to file
   void PrintGPUImages(vector<int32_t>& result_depth, 
                       vector<vector<uint8_t>>& result_color, 
                       int num_poses, string suffix, 
@@ -411,7 +443,7 @@ class EnvObjectRecognition : public EnvironmentMHA {
                               bool do_icp,
                               ros::Publisher render_point_cloud_topic,
                               bool print_cloud);
-
+  // Print clouds from GPU to rviz
   void PrintGPUClouds(const vector<ObjectState>& objects,
                       float* cloud, 
                       uint8_t* cloud_color,
@@ -427,16 +459,17 @@ class EnvObjectRecognition : public EnvironmentMHA {
                       ros::Publisher render_point_cloud_topic,
                       bool print_cloud);
 
-  void GetStateImagesGPU(const vector<ObjectState>& objects,
-                        const vector<vector<uint8_t>>& source_result_color,
-                        const vector<int32_t>& source_result_depth,
-                        vector<vector<uint8_t>>& result_color,
-                        vector<int32_t>& result_depth,
-                        vector<int>& pose_occluded,
-                        int single_result_image,
-                        vector<int>& pose_occluded_other,
-                        vector<float>& pose_clutter_cost,
-                        const vector<int>& pose_segmentation_label = vector<int>());
+  // Depracated : Use GetStateImagesUnifiedGPU
+  // void GetStateImagesGPU(const vector<ObjectState>& objects,
+  //                       const vector<vector<uint8_t>>& source_result_color,
+  //                       const vector<int32_t>& source_result_depth,
+  //                       vector<vector<uint8_t>>& result_color,
+  //                       vector<int32_t>& result_depth,
+  //                       vector<int>& pose_occluded,
+  //                       int single_result_image,
+  //                       vector<int>& pose_occluded_other,
+  //                       vector<float>& pose_clutter_cost,
+  //                       const vector<int>& pose_segmentation_label = vector<int>());
 
   void GetStateImagesUnifiedGPU(const string stage,
                       const vector<ObjectState>& objects,
@@ -451,21 +484,25 @@ class EnvObjectRecognition : public EnvironmentMHA {
                       int& result_cloud_point_num,
                       int* &dc_index,
                       int* &cloud_pose_map,
+                      // GPU  ICP 
+                      std::vector<cuda_renderer::Model::mat4x4>& adjusted_poses,
                       // Costs
                       float* &rendered_cost,
                       float* &observed_cost,
                       float* &points_diff_cost,
+                      float sensor_resolution,
+                      bool do_gpu_icp,
                       int cost_type = 0,
                       bool calculate_observed_cost = false);
 
-  void GetICPAdjustedPosesGPU(float* result_rendered_clouds,
-                              int* dc_index,
-                              int32_t* depth_data,
-                              int num_poses,
-                              float* result_observed_cloud,
-                              int* observed_dc_index,
-                              int total_rendered_points,
-                              int* poses_occluded);
+  // void GetICPAdjustedPosesGPU(float* result_rendered_clouds,
+  //                             int* dc_index,
+  //                             int32_t* depth_data,
+  //                             int num_poses,
+  //                             float* result_observed_cloud,
+  //                             int* observed_dc_index,
+  //                             int total_rendered_points,
+  //                             int* poses_occluded);
 
   GraphState ComputeGreedyRenderPoses();
   void PrintStateGPU(GraphState state);
