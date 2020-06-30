@@ -30,7 +30,11 @@ Follow the steps outlined in this [Wiki](https://github.com/SBPL-Cruz/perception
 Results : 
 ![](https://cdn.mathpix.com/snip/images/oUibumUIATzIIYEr81i_wcgp7rs0HyF109AcUCspE3Q.original.fullsize.png)
 
-Cite
+Running with Robot
+------------------
+PERCH 2.0 communicates with the robot's camera using ROS. Follow the steps outlined in this [Wiki](https://github.com/SBPL-Cruz/perception/wiki/Running-on-Robot) to first test the code with bagfiles. You can then use the bagfile setup of your choice and modify it as per the robot requirements.
+
+Citation
 ----
 Please use the citation below if you use our code :
 ```
