@@ -8,11 +8,9 @@ This library provides implementations for single and multi-object pose estimatio
 
 Features
 ------------
-* Detect 3Dof poses (in a tabletop setting) in under 1s
-* No pretraining required
-* Works with depth data from typical RGBD cameras
+* Detect 3Dof poses (in a tabletop setting) in under 1s without any CNN training
 * Get high detection accuracies required for tasks such as robotic manipulation 
-* Get 6-Dof poses directly from output of 2D segmentation CNN
+* Get accurate 6-Dof poses directly from output of a 2D segmentation CNN
 
 System Requirements
 ------------
