@@ -1,4 +1,4 @@
-# PERCH 2.0 : Fast and High Quality GPU-based Perception via Search for Object Pose Estimation
+# PERCH 2.0 : Fast and High-Quality GPU-based Perception via Search for Object Pose Estimation
 
 ![Image of 6-Dof](images/6dof_flow.png)
 
