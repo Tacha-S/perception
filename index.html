@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="UTF-8">
+    <title>PERCH 2.0 by SBPL-Cruz</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" href="stylesheets/normalize.css" media="screen">
+    <link href='https://fonts.googleapis.com/css?family=Open+Sans:400,700' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen">
+    <link rel="stylesheet" type="text/css" href="stylesheets/github-light.css" media="screen">
+  </head>
+  <body>
+    <section class="page-header">
+      <h1 class="project-name">PERCH 2.0</h1>
+      <h2 class="project-tagline">Fast and High Quality GPU-based Perception via Search for Object Pose Estimation</h2>
+      <a href="https://github.com/SBPL-Cruz/perception" class="btn">View on GitHub</a>
+      <a href="https://github.com/SBPL-Cruz/perception/zipball/master" class="btn">Download .zip</a>
+      <a href="https://github.com/SBPL-Cruz/perception/tarball/master" class="btn">Download .tar.gz</a>
+    </section>
+
+    <section class="main-content">
+      <h1>
+<a id="perch-20--fast-and-high-quality-gpu-based-perception-via-search-for-object-pose-estimation" class="anchor" href="#perch-20--fast-and-high-quality-gpu-based-perception-via-search-for-object-pose-estimation" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>PERCH 2.0 : Fast and High-Quality GPU-based Perception via Search for Object Pose Estimation</h1>
+<p><img src="images/6dof_flow.png" alt="Image of 6-Dof"></p>
+<h2>
+<a id="overview" class="anchor" href="#overview" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Overview</h2>
+<p>This library provides implementations for single and multi-object pose estimation from RGB-D sensor (MS Kinect, ASUS Xtion, Intel RealSense etc.) data and CAD models. It can evaluate thousands of poses in parallel on a GPU in order to find the pose that best explains the observed scene using CUDA. Each pose is refined in parallel through CUDA based GICP. PERCH 2.0 works in conjunction with an instance segmentation CNN for 6-Dof pose estimation (Tested with YCB Video Dataset).</p>
+<h2>
+<a id="features" class="anchor" href="#features" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Features</h2>
+<ul>
+<li>Detect 3Dof poses (in a tabletop setting) in under 1s without any CNN training</li>
+<li>Get high detection accuracies required for tasks such as robotic manipulation</li>
+<li>Get accurate 6-Dof poses directly from output of a 2D segmentation CNN</li>
+</ul>
+<h2>
+<a id="system-requirements" class="anchor" href="#system-requirements" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>System Requirements</h2>
+<ul>
+<li>Ubuntu (&gt;= 16.04)</li>
+<li>NVidia GPU (&gt;= 4GB)</li>
+</ul>
+<h2>
+<a id="docker-setup" class="anchor" href="#docker-setup" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Docker Setup</h2>
+<p>Follow the steps outlined in this <a href="https://github.com/SBPL-Cruz/perception/wiki/Running-With-Docker#using-docker-image">Wiki</a> to setup the code on your machine. The code will be built and run from the Docker image.</p>
+<h2>
+<a id="running-with-ycb-video-dataset" class="anchor" href="#running-with-ycb-video-dataset" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Running with YCB Video Dataset</h2>
+<p>Follow the steps outlined in this <a href="https://github.com/SBPL-Cruz/perception/wiki/Running-With-Docker#running-6-dof--ycb_video_dataset">Wiki</a> to run the code on YCB Video Dataset. It can run using PoseCNN masks, ground truth masks or a custom MaskRCNN model trained by us. The model is trained to detect full bounding boxes and instance segmentation masks of YCB objects in the dataset.</p>
+<p>Results :
+<img src="https://cdn.mathpix.com/snip/images/oUibumUIATzIIYEr81i_wcgp7rs0HyF109AcUCspE3Q.original.fullsize.png" alt=""></p>
+<h2>
+<a id="running-with-robot" class="anchor" href="#running-with-robot" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Running with Robot</h2>
+<p>PERCH 2.0 communicates with the robot's camera using ROS. Follow the steps outlined in this <a href="https://github.com/SBPL-Cruz/perception/wiki/Running-on-Robot">Wiki</a> to first test the code with bagfiles. You can then use the bagfile setup of your choice and modify it as per the robot requirements.</p>
+<h2>
+<a id="citation" class="anchor" href="#citation" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Citation</h2>
+<p>Please use the citation below if you use our code :</p>
+<pre><code>@mastersthesis{Agarwal-2020-122934,
+author = {Aditya Agarwal},
+title = {Fast and High-Quality GPU-based Deliberative Perception for Object Pose Estimation},
+year = {2020},
+month = {June},
+school = {},
+address = {Pittsburgh, PA},
+number = {CMU-RI-TR-20-22},
+keywords = {pose estimation, deliberative perception, manipulation},
+}
+</code></pre>
+
+      <footer class="site-footer">
+        <span class="site-footer-owner"><a href="https://github.com/SBPL-Cruz/perception">PERCH 2.0</a> is maintained by <a href="https://github.com/SBPL-Cruz">SBPL-Cruz</a>.</span>
+
+        <span class="site-footer-credits">This page was generated by <a href="https://pages.github.com">GitHub Pages</a> using the <a href="https://github.com/jasonlong/cayman-theme">Cayman theme</a> by <a href="https://twitter.com/jasonlong">Jason Long</a>.</span>
+      </footer>
+
+    </section>
+
+  
+  </body>
+</html>
