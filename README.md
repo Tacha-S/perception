@@ -34,16 +34,12 @@ PERCH 2.0 communicates with the robot's camera using ROS. Follow the steps outli
 
 Citation
 ----
-Please use the citation below if you use our code :
+Please use the citation below for our paper accepted at IROS 2020, if you use our code :
 ```
-@mastersthesis{Agarwal-2020-122934,
-author = {Aditya Agarwal},
-title = {Fast and High-Quality GPU-based Deliberative Perception for Object Pose Estimation},
-year = {2020},
-month = {June},
-school = {},
-address = {Pittsburgh, PA},
-number = {CMU-RI-TR-20-22},
-keywords = {pose estimation, deliberative perception, manipulation},
+@inproceedings{Agarwal2020PERCH2,
+  title={PERCH 2.0 : Fast and Accurate GPU-based Perception via Search for Object Pose Estimation},
+  author={Aditya Agarwal and Yupeng Han and Maxim Likhachev},
+  year={2020},
+  booktitle={IROS}
 }
 ```
