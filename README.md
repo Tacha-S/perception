@@ -34,7 +34,7 @@ PERCH 2.0 communicates with the robot's camera using ROS. Follow the steps outli
 
 Citation
 ----
-Please use the citation below for our paper accepted at **IROS 2020**, if you use our code :
+Please use the citation below for our [paper](https://arxiv.org/abs/2008.00326) accepted at **IROS 2020**, if you use our code :
 ```
 @inproceedings{Agarwal2020PERCH2,
   title={PERCH 2.0 : Fast and Accurate GPU-based Perception via Search for Object Pose Estimation},
