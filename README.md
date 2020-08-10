@@ -16,6 +16,9 @@ System Requirements
 ------------
 - Ubuntu (>= 16.04) 
 - NVidia GPU (>= 4GB)
+- NVidia Drivers > 440.33
+- Docker
+- NVidia-Docker toolkit
 
 Docker Setup
 ------------
