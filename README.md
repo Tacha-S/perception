@@ -29,7 +29,7 @@ System Requirements
 
 Docker Setup
 ------------
-Follow the steps outlined in this [Wiki](https://github.com/SBPL-Cruz/perception/wiki/Running-With-Docker#using-docker-image) to setup the code on your machine. The code will be built and run from the Docker image.
+Follow the steps outlined in this [Wiki](https://github.com/SBPL-Cruz/perception/wiki/Running-With-Docker#using-docker-image) to setup the code on your machine. The code will be built and run from the Docker image and no local installation of dependencies (apart from NVidia drivers and Docker itself) is needed.
 
 Running with YCB Video Dataset
 -----------------------
