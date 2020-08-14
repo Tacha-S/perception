@@ -1,18 +1,22 @@
-# PERCH 2.0 : Fast and High-Quality GPU-based Perception via Search for Object Pose Estimation
+# PERCH 2.0 : Fast and Accurate CUDA-based 3-Dof and 6-Dof Pose Estimation
 
 ![Image of 6-Dof](images/6dof_flow.png)
 
 Overview
 --------
-This library provides implementations for single and multi-object 3-Dof and 6-Dof pose estimation from RGB-D sensor (MS Kinect, ASUS Xtion, Intel RealSense etc.) data and CAD models. It can evaluate thousands of poses in parallel on a GPU in order to find the pose that best explains the observed scene using CUDA. Each pose is refined in parallel through CUDA based GICP. PERCH 2.0 works in conjunction with an instance segmentation CNN for 6-Dof pose estimation (Tested with YCB Video Dataset).
+This library provides implementations for single and multi-object 3-Dof and 6-Dof pose estimation from RGB-D sensor data and 3D CAD models. It can evaluate thousands of poses in parallel on a GPU in order to find the pose that best explains the input scene using CUDA. Each pose is refined in parallel through CUDA based GICP. PERCH 2.0 works in conjunction with an instance segmentation CNN for 6-Dof pose estimation (Tested with **YCB Video Dataset**). 
 
 The libray is the official implementation of "PERCH 2.0 : Fast and Accurate GPU-based Perception via Search for Object Pose Estimation" accepted at **IROS 2020** [[PDF](https://arxiv.org/abs/2008.00326)]
 
-Features
-------------
-* Detect 3Dof poses (in a tabletop setting) in under 1s without any CNN training
-* Get high detection accuracies required for tasks such as robotic manipulation 
-* Get accurate 6-Dof poses directly from output of a 2D segmentation CNN
+Notable Features
+----------------
+- CUDA Rendering : Render thousands of RGB and depth images of multiple-objects in parallel
+- CUDA Point clouds : Convert rendered images to point clouds in parallel
+- CUDA GICP : Adjust thousands of poses of different objects accurately under occlusion and simultanesouly using parallel GICP
+- CUDA KNN : Do a parallel KNN search between an input point cloud and thousands of rendered point clouds
+- Works without a CNN for 3-Dof pose estimation
+- Works with an instance segmentation CNN (like Mask-RCNN) for 6-Dof pose estimation 
+- Python interface for running experiments on large datasets and computing pose accuracy metrics (AUC, ADD-S, ADD)
 
 System Requirements
 ------------
@@ -36,6 +40,10 @@ Results :
 Running with Robot
 ------------------
 PERCH 2.0 communicates with the robot's camera using ROS. Follow the steps outlined in this [Wiki](https://github.com/SBPL-Cruz/perception/wiki/Running-on-Robot) to first test the code with bagfiles. You can then use the bagfile setup of your choice and modify it as per the robot requirements.
+
+Author
+------
+Created by [Aditya Agarwal](http://adityaagarwal.in) at the [Search Based Planning Lab](http://sbpl.net), Robotics Institute, CMU
 
 Citation
 ----
