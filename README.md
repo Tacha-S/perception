@@ -44,7 +44,7 @@ PERCH 2.0 communicates with the robot's camera using ROS. Follow the steps outli
 
 Author
 ------
-Created by [Aditya Agarwal](http://adityaagarwal.in) at the [Search Based Planning Lab](http://sbpl.net), Robotics Institute, CMU. Please direct any questions about the code or paper to the [Issues](https://github.com/SBPL-Cruz/perception/issues) section of this repo. 
+Created by [Aditya Agarwal](http://adityaagarwal.in) at the [Search Based Planning Lab](http://sbpl.net), Robotics Institute, Carnegie Mellon University. Please direct any questions about the code or paper to the [Issues](https://github.com/SBPL-Cruz/perception/issues) section of this repo. 
 
 Citation
 ----
