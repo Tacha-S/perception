@@ -15,8 +15,9 @@ Notable Features
 - CUDA GICP : Adjust thousands of poses of different objects accurately under occlusion and simultanesouly using parallel GICP
 - CUDA KNN : Do a parallel KNN search between an input point cloud and thousands of rendered point clouds
 - Works without a CNN for 3-Dof pose estimation
-- Works with an instance segmentation CNN (like Mask-RCNN) for 6-Dof pose estimation 
+- Python/C++ pipeline for running instance segmentation CNN (Mask-RCNN) and PERCH 2.0 for 6-Dof pose estimation 
 - Python interface for running experiments on large datasets and computing pose accuracy metrics (AUC, ADD-S, ADD)
+- ROS interface for running with robotic platforms like PR2 etc.
 
 System Requirements
 ------------
@@ -43,7 +44,7 @@ PERCH 2.0 communicates with the robot's camera using ROS. Follow the steps outli
 
 Author
 ------
-Created by [Aditya Agarwal](http://adityaagarwal.in) at the [Search Based Planning Lab](http://sbpl.net), Robotics Institute, CMU
+Created by [Aditya Agarwal](http://adityaagarwal.in) at the [Search Based Planning Lab](http://sbpl.net), Robotics Institute, CMU. Please direct any questions about the code or paper to the [Issues](https://github.com/SBPL-Cruz/perception/issues) section of this repo. 
 
 Citation
 ----
