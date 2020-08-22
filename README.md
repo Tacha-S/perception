@@ -1,4 +1,4 @@
-# PERCH 2.0 : Fast and Accurate CUDA-based 3-Dof and 6-Dof Pose Estimation
+# PERCH 2.0 : Fast and Accurate GPU-based Perception via Search for Object Pose Estimation
 
 ![Image of 6-Dof](images/6dof_flow.png)
 
