@@ -12,7 +12,7 @@ dataset :
     perch_debug_dir : "/data/perch_output"
     python_debug_dir : "/data/model_outputs"
 python2_paths :
-  - '/opt/ros/kinetic/lib/python2.7/dist-packages'
+  - '/opt/ros/melodic/lib/python2.7/dist-packages'
   - '/usr/local/lib/python2.7/dist-packages/'
 python3_paths :
   - '/ros_python3_ws/devel/lib/python3/dist-packages'

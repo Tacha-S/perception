@@ -1,0 +1,17 @@
+version: "3"
+
+services:
+  perch:
+    image: perch
+    build: .
+    container_name: perch
+    # command: bash -c "cd /ros/src/tf-pose-estimation && pipenv run bash -c 'source /ros/devel/setup.bash;roslaunch tfpose_ros tfpose.launch'"
+    runtime: nvidia
+    tty: true
+    volumes:
+      - ${HOME}/.ros/perception/trained_models:/data/models
+      - ${HOME}/.ros/perception/perch_output:/data/perch_output
+      - ${HOME}/.ros/perception/model_output:/data/model_output
+      - ${HOME}/.ros/perception/datasets:/data/YCB_Video_Dataset
+      - ${PWD}/..:/ros_python3_ws/src/perception
+    network_mode: "host"

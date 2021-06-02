@@ -1,7 +1,7 @@
 ARG CUDA="10.2"
 ARG CUDNN="7"
 
-FROM nvidia/cuda:${CUDA}-cudnn${CUDNN}-devel-ubuntu16.04
+FROM nvidia/cuda:${CUDA}-cudnn${CUDNN}-devel-ubuntu18.04
 
 # RUN echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
 
@@ -75,14 +75,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gnupg2 \
     && rm -rf /var/lib/apt/lists/*
 
-# setup keys
-RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 421C365BD9FF1F717815A3895523BAEEB01FA116
-
 # setup sources.list
-RUN echo "deb http://packages.ros.org/ros/ubuntu xenial main" > /etc/apt/sources.list.d/ros-latest.list
+RUN echo "deb http://packages.ros.org/ros/ubuntu bionic main" > /etc/apt/sources.list.d/ros-latest.list
+
+RUN wget http://packages.ros.org/ros.key -O - | apt-key add -
+#RUN apt-key adv --keyserver 'hkp://keyserver.ubuntu.com:80' --recv-key C1CF6E31E6BADE8868B172B4F42ED6FBAB17C654
 
 # install bootstrap tools
-RUN apt-get update && apt-get install --no-install-recommends -y --allow-unauthenticated\
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y --allow-unauthenticated\
     python-rosdep \
     python-rosinstall \
     python-vcstools \
@@ -97,10 +97,10 @@ RUN rosdep init \
     && rosdep update
 
 # install ros packages
-ENV ROS_DISTRO kinetic
+ENV ROS_DISTRO melodic
 RUN apt-get update && apt-get install -y --allow-unauthenticated\
-    # ros-kinetic-ros-core=1.3.2-0* \
-    ros-kinetic-desktop-full \
+    # ros-melodic-ros-core=1.3.2-0* \
+    ros-melodic-desktop-full \
     && rm -rf /var/lib/apt/lists/*
 
 RUN apt-get update && apt-get install -y --allow-unauthenticated\
@@ -108,8 +108,8 @@ RUN apt-get update && apt-get install -y --allow-unauthenticated\
     && rm -rf /var/lib/apt/lists/*
 
 # RUN apt-get update && apt-get install -y --allow-unauthenticated\
-#     # ros-kinetic-pcl-* \
-#     ros-kinetic-desktop-full \
+#     # ros-melodic-pcl-* \
+#     ros-melodic-desktop-full \
 #     && rm -rf /var/lib/apt/lists/*
 
 ### STuff for PERCH ###
@@ -132,7 +132,7 @@ RUN apt-get update && apt-get install -y --allow-unauthenticated\
 
 # For PERCH
 RUN apt-get update && apt-get install -y --allow-unauthenticated\
-    libgsl-dev libvtk6-dev libglew-dev libsdl2-dev \
+    libgsl-dev libvtk6-dev libglew-dev libsdl2-dev ros-melodic-octomap\
     && rm -rf /var/lib/apt/lists/*
 
 
@@ -141,11 +141,13 @@ ENV CPLUS_INCLUDE_PATH=/usr/include/python3.6m/:$CPLUS_INCLUDE_PATH
 
 RUN git clone https://github.com/SBPL-Cruz/ros_python3_ws \
  && cd ros_python3_ws \
+ && rm -r vision_opencv \
+ && git clone https://github.com/ros-perception/vision_opencv.git -b melodic \
  && catkin init \
  && catkin config -DPYTHON_EXECUTABLE=/miniconda/envs/py36/bin/python -DPYTHON_INCLUDE_DIR=/miniconda/envs/py36/include  -DPYTHON_LIBRARY=/miniconda/envs/py36/lib/libpython3.6m.so
 
-# RUN chmod +x /opt/ros/kinetic/setup.sh \
-#     /opt/ros/kinetic/setup.sh \
+# RUN chmod +x /opt/ros/melodic/setup.sh \
+#     /opt/ros/melodic/setup.sh \
 #     && cd /ros_python3_ws \
 #     && catkin build
 
@@ -193,8 +195,8 @@ RUN git clone https://github.com/eigenteam/eigen-git-mirror.git \
 # # RUN if [[ "$TYPE" = "RELEASE" ]; then "cd /ros_python3_ws/src \
 # #     && git clone https://github.com/SBPL-Cruz/perception -b gpu_icp_ycb"; else echo "Not cloning code"; fi
 
-# RUN /bin/bash -c '. /opt/ros/kinetic/setup.bash; cd /ros_python3_ws/; catkin build sbpl_perception'
-# ENTRYPOINT /bin/bash -c '. /opt/ros/kinetic/setup.bash; \
+# RUN /bin/bash -c '. /opt/ros/melodic/setup.bash; cd /ros_python3_ws/; catkin build sbpl_perception'
+# ENTRYPOINT /bin/bash -c '. /opt/ros/melodic/setup.bash; \
 #                          . /ros_python3_ws/devel/setup.bash; \
 #                          cd /ros_python3_ws/src/perception/sbpl_perception/src/scripts/tools/fat_dataset; \
 #                          Xvfb :5 -screen 0 800x600x24 & export DISPLAY=:5; \
@@ -218,5 +220,5 @@ RUN cd /ros_python3_ws/src \
     && git clone https://github.com/SBPL-Cruz/sbpl_utils.git -b renamed 
 
 # RUN /bin/bash -c 'Xvfb :5 -screen 0 800x600x24 & export DISPLAY=:5; \
-#                         . /opt/ros/kinetic/setup.bash; \
+#                         . /opt/ros/melodic/setup.bash; \
 #                         cd /ros_python3_ws/;'
