@@ -103,7 +103,7 @@ find_package(PkgConfig QUIET)
 # pkg_check_modules(FCL REQUIRED fcl)
 
 # TODO: why does the following line cause a nightmare?
-# find_package(PCL REQUIRED)
+find_package(PCL REQUIRED)
 
 #include(CMakeForceCompiler)
 #CMAKE_FORCE_CXX_COMPILER(mpicxx ${CMAKE_CXX_COMPILER_ID})
@@ -204,6 +204,7 @@ target_link_libraries(
   ${catkin_LIBRARIES} 
   ${ZLIB_LIBRARIES}
   ${MPI_LIBRARIES} 
+  ${PCL_LIBRARIES}
   #${Pangolin_LIBRARIES}
   #${MPI_CXX_LIBRARIES} ${CUDA_LIBRARIES}
   #${PCL_LIBRARIES} ${OpenCV_LIBRARIES} /usr/lib/libvtkCommon.so.5.10 /usr/lib/libvtkFiltering.so.5.10 /usr/lib/libvtkRendering.so.5.10 /usr/lib/libvtkIO.so.5.10
@@ -249,13 +250,13 @@ cuda_add_library(CUDA_getCost ${LIB_TYPE} src/compute_cost.cu)
 #CUDA_getCost
 #)
 
-add_executable(demo src/experiments/demo.cpp)
-add_dependencies(demo CUDA_getCost)
-target_link_libraries(demo ${PROJECT_NAME} CUDA_getCost)
+# add_executable(demo src/experiments/demo.cpp)
+# add_dependencies(demo CUDA_getCost)
+# target_link_libraries(demo ${PROJECT_NAME} CUDA_getCost)
 
-add_executable(heuristic_test src/experiments/heuristic_test.cpp)
-add_dependencies(heuristic_test CUDA_getCost)
-target_link_libraries(heuristic_test ${PROJECT_NAME} CUDA_getCost)
+# add_executable(heuristic_test src/experiments/heuristic_test.cpp)
+# add_dependencies(heuristic_test CUDA_getCost)
+# target_link_libraries(heuristic_test ${PROJECT_NAME} CUDA_getCost)
 
 # add_executable(generate_dataset src/utils/generate_dataset.cpp)
 # target_link_libraries(generate_dataset ${PROJECT_NAME})
@@ -272,20 +273,20 @@ target_link_libraries(heuristic_test ${PROJECT_NAME} CUDA_getCost)
 #   experiments/src/vfh_estimator.cpp)
 # target_link_libraries(vfh_estimator ${PROJECT_NAME})
 
-add_executable(perch
-  experiments/src/perch.cpp)
-add_dependencies(perch CUDA_getCost)
-target_link_libraries(perch ${PROJECT_NAME} ${ZLIB_LIBRARIES} CUDA_getCost)
+# add_executable(perch
+#   experiments/src/perch.cpp)
+# add_dependencies(perch CUDA_getCost)
+# target_link_libraries(perch ${PROJECT_NAME} ${ZLIB_LIBRARIES} CUDA_getCost)
 
-add_executable(perch_fat
-  experiments/src/perch_fat.cpp)
-add_dependencies(perch_fat CUDA_getCost)
-target_link_libraries(perch_fat ${PROJECT_NAME} ${ZLIB_LIBRARIES} CUDA_getCost)
+# add_executable(perch_fat
+#   experiments/src/perch_fat.cpp)
+# add_dependencies(perch_fat CUDA_getCost)
+# target_link_libraries(perch_fat ${PROJECT_NAME} ${ZLIB_LIBRARIES} CUDA_getCost)
 
-add_executable(perch_single_object
-  experiments/src/perch_single_object.cpp)
-add_dependencies(perch_single_object CUDA_getCost)
-target_link_libraries(perch_single_object ${PROJECT_NAME} ${ZLIB_LIBRARIES} CUDA_getCost)
+# add_executable(perch_single_object
+#   experiments/src/perch_single_object.cpp)
+# add_dependencies(perch_single_object CUDA_getCost)
+# target_link_libraries(perch_single_object ${PROJECT_NAME} ${ZLIB_LIBRARIES} CUDA_getCost)
 
 # add_executable(greedy_icp
 #   experiments/src/greedy_icp.cpp)
@@ -336,11 +337,11 @@ install(DIRECTORY demo/
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/demo
   PATTERN ".svn" EXCLUDE)
 
-install(TARGETS demo
-  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-)
+# install(TARGETS demo
+#   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+#   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+#   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+# )
 
 install(TARGETS ${PROJECT_NAME}
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
